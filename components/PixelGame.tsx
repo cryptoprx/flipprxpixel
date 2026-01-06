@@ -1573,8 +1573,9 @@ export default function PixelGame() {
           }
           
           // Apply rainbow color overlay using source-atop (only affects existing pixels)
+          // Faded rainbow effect with reduced saturation and lightness
           tempCtx.globalCompositeOperation = 'source-atop';
-          tempCtx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+          tempCtx.fillStyle = `hsl(${hue}, 50%, 50%)`;
           tempCtx.fillRect(0, 0, 16, 16);
           
           // Draw the rainbow-tinted character back to main canvas
@@ -1584,7 +1585,7 @@ export default function PixelGame() {
           ctx.restore();
         }
         
-        // Draw helmet sprite (static, no blinking)
+        // Draw helmet sprite with same flipping as character
         const helmetSprite = spritesRef.current['helmet.png'];
         
         if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
@@ -1592,13 +1593,26 @@ export default function PixelGame() {
           ctx.save();
           ctx.imageSmoothingEnabled = false;
           
-          // Flip helmet horizontally if character is facing left
-          if (state.player.facingLeft) {
-            ctx.translate(px + 16, py);
-            ctx.scale(-1, 1);
-            ctx.drawImage(helmetSprite, 0, 0, 16, 16);
+          // Apply same rotation as character if jumping
+          if (state.player.rotation !== 0) {
+            ctx.translate(px + 8, py + 8);
+            ctx.rotate((state.player.rotation * Math.PI) / 180);
+            
+            // Flip helmet horizontally if character is facing left
+            if (state.player.facingLeft) {
+              ctx.scale(-1, 1);
+            }
+            
+            ctx.drawImage(helmetSprite, -8, -8, 16, 16);
           } else {
-            ctx.drawImage(helmetSprite, px, py, 16, 16);
+            // No rotation - just flip if facing left
+            if (state.player.facingLeft) {
+              ctx.translate(px + 16, py);
+              ctx.scale(-1, 1);
+              ctx.drawImage(helmetSprite, 0, 0, 16, 16);
+            } else {
+              ctx.drawImage(helmetSprite, px, py, 16, 16);
+            }
           }
           
           ctx.restore();
