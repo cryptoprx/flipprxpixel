@@ -458,7 +458,6 @@ export default function PixelGame() {
       const portalX = 200 + Math.random() * (stageData.width - 400);
       const portalY = 90; // Above ground level
       state.portal = { x: portalX, y: portalY, animationFrame: 0, active: true };
-      console.log('Portal spawned at:', portalX, portalY);
     } else {
       state.portal = null;
     }
@@ -921,7 +920,6 @@ export default function PixelGame() {
         // Check collision with player
         if (Math.abs(player.x - state.portal.x) < 16 && Math.abs(player.y - state.portal.y) < 16) {
           // Enter blackhole mini-game
-          console.log('Entering blackhole mini-game!');
           state.inBlackhole = true;
           state.blackholeTimer = 0;
           state.blackholeFallSpeed = 20;
@@ -1708,10 +1706,61 @@ export default function PixelGame() {
           }
         }
       }
+      
+      // Draw helmet timer indicator
+      if (state.player.hasHelmet && state.player.helmetTimer > 0 && !state.inBlackhole) {
+        const timerX = Math.floor(state.player.x);
+        const timerY = Math.floor(state.player.y - 20);
+        const timerWidth = Math.floor((state.player.helmetTimer / 10) * 16);
+        
+        // Timer bar background
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(timerX, timerY, 16, 3);
+        // Timer bar fill
+        const timerColor = state.player.helmetTimer > 3 ? '#00FF00' : '#FF0000';
+        ctx.fillStyle = timerColor;
+        ctx.fillRect(timerX, timerY, timerWidth, 3);
+        
+        // Helmet icon above timer
+        ctx.fillStyle = '#C0C0C0';
+        ctx.fillRect(timerX + 6, timerY - 5, 4, 3);
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(timerX + 6, timerY - 6, 4, 1);
+      }
 
-      // Draw blackhole mini-game overlay
+      // Draw combo indicator with bounce effect - pixel perfect
+      if (state.combo > 1 && !state.celebrating && !state.inBlackhole) {
+        const comboX = Math.floor(state.player.x);
+        const bounceOffset = Math.floor(Math.sin(state.comboTimer * 10) * 2);
+        const comboY = Math.floor(state.player.y - 12 + bounceOffset);
+        const comboAlpha = Math.min(1, state.comboTimer / 1.5);
+        const scale = 1 + (1 - state.comboTimer / 3) * 0.3;
+        
+        ctx.globalAlpha = comboAlpha;
+        // Combo text background with glow
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(comboX - 9, comboY - 7, 26, 10);
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(comboX - 8, comboY - 6, 24, 8);
+        ctx.fillStyle = state.combo > 5 ? '#FF00FF' : state.combo > 3 ? '#FF4500' : '#FFD700';
+        ctx.fillRect(comboX - 7, comboY - 5, 22, 6);
+        
+        // Combo number (simple pixel text)
+        ctx.fillStyle = '#FFFFFF';
+        const comboStr = `x${state.combo}`;
+        for (let i = 0; i < comboStr.length; i++) {
+          ctx.fillRect(comboX - 5 + i * 4, comboY - 3, 2, 4);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      ctx.restore();
+      
+      // Draw blackhole mini-game overlay (MUST BE LAST - draws on top of everything)
       if (state.inBlackhole) {
-        console.log('Drawing blackhole - timer:', state.blackholeTimer, 'bars:', state.chartBars.length);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        
         // Dark space background with gradient
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -1938,56 +1987,8 @@ export default function PixelGame() {
           ctx.font = '8px monospace';
           ctx.fillText(`Bar ${state.chartBars.length}/5`, centerX - 20, GAME_HEIGHT - 20);
         }
+        ctx.restore();
       }
-      
-      // Draw helmet timer indicator
-      if (state.player.hasHelmet && state.player.helmetTimer > 0) {
-        const timerX = Math.floor(state.player.x);
-        const timerY = Math.floor(state.player.y - 20);
-        const timerWidth = Math.floor((state.player.helmetTimer / 10) * 16);
-        
-        // Timer bar background
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(timerX, timerY, 16, 3);
-        // Timer bar fill
-        const timerColor = state.player.helmetTimer > 3 ? '#00FF00' : '#FF0000';
-        ctx.fillStyle = timerColor;
-        ctx.fillRect(timerX, timerY, timerWidth, 3);
-        
-        // Helmet icon above timer
-        ctx.fillStyle = '#C0C0C0';
-        ctx.fillRect(timerX + 6, timerY - 5, 4, 3);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(timerX + 6, timerY - 6, 4, 1);
-      }
-
-      // Draw combo indicator with bounce effect - pixel perfect
-      if (state.combo > 1 && !state.celebrating) {
-        const comboX = Math.floor(state.player.x);
-        const bounceOffset = Math.floor(Math.sin(state.comboTimer * 10) * 2);
-        const comboY = Math.floor(state.player.y - 12 + bounceOffset);
-        const comboAlpha = Math.min(1, state.comboTimer / 1.5);
-        const scale = 1 + (1 - state.comboTimer / 3) * 0.3;
-        
-        ctx.globalAlpha = comboAlpha;
-        // Combo text background with glow
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(comboX - 9, comboY - 7, 26, 10);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(comboX - 8, comboY - 6, 24, 8);
-        ctx.fillStyle = state.combo > 5 ? '#FF00FF' : state.combo > 3 ? '#FF4500' : '#FFD700';
-        ctx.fillRect(comboX - 7, comboY - 5, 22, 6);
-        
-        // Combo number (simple pixel text)
-        ctx.fillStyle = '#FFFFFF';
-        const comboStr = `x${state.combo}`;
-        for (let i = 0; i < comboStr.length; i++) {
-          ctx.fillRect(comboX - 5 + i * 4, comboY - 3, 2, 4);
-        }
-        ctx.globalAlpha = 1;
-      }
-
-      ctx.restore();
     };
 
     // Keyboard input
