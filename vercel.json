@@ -1,6 +1,8 @@
 {
-  "buildCommand": "cd pixel-game && npm install && npm run build",
-  "outputDirectory": "pixel-game/.next",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
   "framework": "nextjs",
-  "installCommand": "cd pixel-game && npm install"
+  "outputDirectory": ".next"
 }
