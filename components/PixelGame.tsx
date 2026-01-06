@@ -323,7 +323,14 @@ export default function PixelGame() {
   // Load character sprites
   useEffect(() => {
     const spriteFiles = [
-      'helmet.png',
+      'standing.png',
+      'step1.PNG',
+      'step2.PNG',
+      'step3.PNG',
+      'step4.PNG',
+      'jump1.PNG',
+      'jump2.PNG',
+      'jump3.PNG',
     ];
 
     let loadedCount = 0;
@@ -344,7 +351,9 @@ export default function PixelGame() {
           setSpritesLoaded(true);
         }
       };
-      img.src = `/${file}`;
+      // Add cache busting for standing.png to force reload
+      const cacheBuster = file === 'standing.png' ? `?v=${Date.now()}` : '';
+      img.src = `/sprites/${file}${cacheBuster}`;
       spritesRef.current[file] = img;
     });
 
@@ -370,8 +379,27 @@ export default function PixelGame() {
 
     ctx.save();
     
-    // Use helmet sprite for all animations
-    const sprite = spritesRef.current['helmet.png'];
+    // Determine which sprite to use
+    let spriteKey = 'standing.png';
+    if (frame === 'idle') {
+      spriteKey = 'standing.png';
+    } else if (frame === 'walk1') {
+      spriteKey = 'step1.PNG';
+    } else if (frame === 'walk2') {
+      spriteKey = 'step2.PNG';
+    } else if (frame === 'walk3') {
+      spriteKey = 'step3.PNG';
+    } else if (frame === 'walk4') {
+      spriteKey = 'step4.PNG';
+    } else if (frame === 'jump1') {
+      spriteKey = 'jump1.PNG';
+    } else if (frame === 'jump2') {
+      spriteKey = 'jump2.PNG';
+    } else if (frame === 'jump3') {
+      spriteKey = 'jump3.PNG';
+    }
+
+    const sprite = spritesRef.current[spriteKey];
     
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
       // Get actual sprite dimensions
