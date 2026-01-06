@@ -41,7 +41,7 @@ export default function PixelGame() {
   // Detect mobile device
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -1373,90 +1373,66 @@ export default function PixelGame() {
         }
       });
       
-      // Draw portal with enhanced swirling animation
+      // Draw portal with clean pixel art animation
       if (state.portal && state.portal.active) {
         const px = Math.floor(state.portal.x);
         const py = Math.floor(state.portal.y);
         const time = state.portal.animationFrame;
         
-        // Draw glow effect behind portal
-        for (let glow = 6; glow > 0; glow--) {
-          const glowSize = 20 + glow * 3;
-          const alpha = (7 - glow) * 0.05;
-          ctx.globalAlpha = alpha;
-          ctx.fillStyle = '#4B0082';
-          ctx.fillRect(px + 8 - glowSize / 2, py + 8 - glowSize / 2, glowSize, glowSize);
+        // Outer ring layers (no alpha fading)
+        const ringColors = ['#1a0033', '#2d0052', '#4B0082', '#6A0DAD'];
+        for (let ring = 3; ring >= 0; ring--) {
+          const ringSize = 20 - ring * 3;
+          ctx.fillStyle = ringColors[ring];
+          ctx.fillRect(px + 8 - ringSize / 2, py + 8 - ringSize / 2, ringSize, ringSize);
         }
-        ctx.globalAlpha = 1;
         
         // Portal base - dark center
         ctx.fillStyle = '#000000';
-        ctx.fillRect(px + 3, py + 3, 10, 10);
+        ctx.fillRect(px + 4, py + 4, 8, 8);
         
-        // Multiple rotating energy rings
-        for (let ring = 0; ring < 5; ring++) {
-          const ringAngle = time * 2 + ring * 72;
-          const ringRadius = 8 + Math.sin(time * 0.5 + ring) * 2;
+        // Rotating energy particles (crisp pixels)
+        for (let ring = 0; ring < 3; ring++) {
+          const ringAngle = time * 2 + ring * 120;
+          const ringRadius = 6 + ring * 2;
           
-          for (let i = 0; i < 8; i++) {
-            const angle = (ringAngle + i * 45) * (Math.PI / 180);
-            const x = px + 8 + Math.cos(angle) * ringRadius;
-            const y = py + 8 + Math.sin(angle) * ringRadius;
+          for (let i = 0; i < 6; i++) {
+            const angle = (ringAngle + i * 60) * (Math.PI / 180);
+            const x = Math.floor(px + 8 + Math.cos(angle) * ringRadius);
+            const y = Math.floor(py + 8 + Math.sin(angle) * ringRadius);
             
-            // Color gradient based on ring
-            const colors = ['#8B00FF', '#9400D3', '#9932CC', '#BA55D3', '#DDA0DD'];
+            const colors = ['#9400D3', '#BA55D3', '#DDA0DD'];
             ctx.fillStyle = colors[ring];
-            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+            ctx.fillRect(x, y, 2, 2);
           }
         }
         
-        // Inner spiral particles
-        for (let i = 0; i < 12; i++) {
-          const spiralAngle = time * 3 + i * 30;
-          const spiralRadius = 4 + (i % 4);
+        // Inner swirl particles
+        for (let i = 0; i < 8; i++) {
+          const spiralAngle = time * 4 + i * 45;
+          const spiralRadius = 3 + (i % 3);
           const angle = spiralAngle * (Math.PI / 180);
-          const x = px + 8 + Math.cos(angle) * spiralRadius;
-          const y = py + 8 + Math.sin(angle) * spiralRadius;
+          const x = Math.floor(px + 8 + Math.cos(angle) * spiralRadius);
+          const y = Math.floor(py + 8 + Math.sin(angle) * spiralRadius);
           
           ctx.fillStyle = i % 2 === 0 ? '#FF00FF' : '#00FFFF';
-          ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+          ctx.fillRect(x, y, 1, 1);
         }
         
-        // Outer energy waves
-        for (let wave = 0; wave < 3; wave++) {
-          const wavePhase = (time * 4 + wave * 120) % 360;
-          const waveRadius = 12 + wave * 4;
-          
-          for (let i = 0; i < 16; i++) {
-            const angle = (wavePhase + i * 22.5) * (Math.PI / 180);
-            const x = px + 8 + Math.cos(angle) * waveRadius;
-            const y = py + 8 + Math.sin(angle) * waveRadius;
-            
-            const brightness = Math.sin((time + wave * 30) * 0.1) * 0.5 + 0.5;
-            ctx.globalAlpha = brightness * 0.7;
-            ctx.fillStyle = '#E0B0FF';
-            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
-          }
-        }
-        ctx.globalAlpha = 1;
-        
-        // Bright pulsing center
-        const centerPulse = Math.sin(time * 0.3) * 0.3 + 0.7;
-        ctx.globalAlpha = centerPulse;
-        ctx.fillStyle = '#FFFFFF';
+        // Bright center (alternating colors instead of alpha pulse)
+        const centerFrame = Math.floor(time / 10) % 2;
+        ctx.fillStyle = centerFrame === 0 ? '#FFFFFF' : '#FFFF00';
         ctx.fillRect(px + 7, py + 7, 2, 2);
-        ctx.globalAlpha = 1;
         
-        // Energy sparks shooting out
-        for (let spark = 0; spark < 6; spark++) {
-          const sparkAngle = (time * 5 + spark * 60) * (Math.PI / 180);
-          const sparkDist = 14 + Math.sin(time * 0.5 + spark) * 4;
-          const sparkX = px + 8 + Math.cos(sparkAngle) * sparkDist;
-          const sparkY = py + 8 + Math.sin(sparkAngle) * sparkDist;
+        // Energy sparks shooting out (clean pixels)
+        for (let spark = 0; spark < 4; spark++) {
+          const sparkAngle = (time * 6 + spark * 90) * (Math.PI / 180);
+          const sparkDist = 12 + Math.floor((time + spark * 5) % 6);
+          const sparkX = Math.floor(px + 8 + Math.cos(sparkAngle) * sparkDist);
+          const sparkY = Math.floor(py + 8 + Math.sin(sparkAngle) * sparkDist);
           
           ctx.fillStyle = spark % 2 === 0 ? '#FFFF00' : '#00FFFF';
-          ctx.fillRect(Math.floor(sparkX), Math.floor(sparkY), 1, 1);
-          ctx.fillRect(Math.floor(sparkX) + 1, Math.floor(sparkY), 1, 1);
+          ctx.fillRect(sparkX, sparkY, 2, 2);
         }
       }
 
@@ -1554,12 +1530,17 @@ export default function PixelGame() {
 
       // Draw particles
       state.particles.forEach(p => {
-        const alpha = p.life / p.maxLife;
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = alpha;
-        ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 2, 2);
+        const lifePercent = p.life / p.maxLife;
+        // Use different sizes instead of alpha for fading effect
+        if (lifePercent > 0.66) {
+          ctx.fillStyle = p.color;
+          ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 2, 2);
+        } else if (lifePercent > 0.33) {
+          ctx.fillStyle = p.color;
+          ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 1);
+        }
+        // Particles below 33% life are not drawn (fade out)
       });
-      ctx.globalAlpha = 1;
 
       // ========== SIMPLE RENDERING - SINGLE DRAW CALL ==========
       let frameName: string;
@@ -1613,7 +1594,6 @@ export default function PixelGame() {
           
           // Apply rainbow color overlay using source-atop (only affects existing pixels)
           tempCtx.globalCompositeOperation = 'source-atop';
-          tempCtx.globalAlpha = 0.5;
           tempCtx.fillStyle = `hsl(${hue}, 100%, 60%)`;
           tempCtx.fillRect(0, 0, 16, 16);
           
@@ -1736,22 +1716,23 @@ export default function PixelGame() {
         const comboAlpha = Math.min(1, state.comboTimer / 1.5);
         const scale = 1 + (1 - state.comboTimer / 3) * 0.3;
         
-        ctx.globalAlpha = comboAlpha;
-        // Combo text background with glow
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(comboX - 9, comboY - 7, 26, 10);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(comboX - 8, comboY - 6, 24, 8);
-        ctx.fillStyle = state.combo > 5 ? '#FF00FF' : state.combo > 3 ? '#FF4500' : '#FFD700';
-        ctx.fillRect(comboX - 7, comboY - 5, 22, 6);
-        
-        // Combo number (simple pixel text)
-        ctx.fillStyle = '#FFFFFF';
-        const comboStr = `x${state.combo}`;
-        for (let i = 0; i < comboStr.length; i++) {
-          ctx.fillRect(comboX - 5 + i * 4, comboY - 3, 2, 4);
+        // Only show combo if timer is active (no alpha fade)
+        if (comboAlpha > 0.3) {
+          // Combo text background with glow
+          ctx.fillStyle = '#FFD700';
+          ctx.fillRect(comboX - 9, comboY - 7, 26, 10);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(comboX - 8, comboY - 6, 24, 8);
+          ctx.fillStyle = state.combo > 5 ? '#FF00FF' : state.combo > 3 ? '#FF4500' : '#FFD700';
+          ctx.fillRect(comboX - 7, comboY - 5, 22, 6);
+          
+          // Combo number (simple pixel text)
+          ctx.fillStyle = '#FFFFFF';
+          const comboStr = `x${state.combo}`;
+          for (let i = 0; i < comboStr.length; i++) {
+            ctx.fillRect(comboX - 5 + i * 4, comboY - 3, 2, 4);
+          }
         }
-        ctx.globalAlpha = 1;
       }
 
       ctx.restore();
@@ -1765,70 +1746,80 @@ export default function PixelGame() {
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         
-        // Add space nebula effect
+        // Add space nebula clouds (solid colors, no alpha)
         for (let nebula = 0; nebula < 5; nebula++) {
-          const nebulaX = (nebula * 40 + state.blackholeTimer * 2) % GAME_WIDTH;
-          const nebulaY = (nebula * 30) % GAME_HEIGHT;
-          ctx.globalAlpha = 0.1;
-          ctx.fillStyle = nebula % 2 === 0 ? '#4B0082' : '#8B00FF';
-          ctx.fillRect(nebulaX, nebulaY, 20, 20);
+          const nebulaX = Math.floor((nebula * 40 + state.blackholeTimer * 2) % GAME_WIDTH);
+          const nebulaY = Math.floor((nebula * 30) % GAME_HEIGHT);
+          const nebulaColor = nebula % 2 === 0 ? '#1a0033' : '#2d0052';
+          ctx.fillStyle = nebulaColor;
+          ctx.fillRect(nebulaX, nebulaY, 16, 16);
+          // Add brighter center
+          ctx.fillStyle = nebula % 2 === 0 ? '#2d0052' : '#4B0082';
+          ctx.fillRect(nebulaX + 4, nebulaY + 4, 8, 8);
         }
-        ctx.globalAlpha = 1;
         
-        // Draw stars with twinkling effect
+        // Draw stars with clean pixel art (no twinkling alpha)
         for (let i = 0; i < 50; i++) {
-          const starX = (i * 37 + state.blackholeTimer * 10) % GAME_WIDTH;
-          const starY = (i * 23) % GAME_HEIGHT;
-          const twinkle = Math.sin(state.blackholeTimer * 2 + i) * 0.5 + 0.5;
-          ctx.globalAlpha = twinkle;
-          ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : i % 3 === 1 ? '#FFFF00' : '#00FFFF';
-          const starSize = i % 5 === 0 ? 2 : 1;
-          ctx.fillRect(Math.floor(starX), Math.floor(starY), starSize, starSize);
+          const starX = Math.floor((i * 37 + state.blackholeTimer * 10) % GAME_WIDTH);
+          const starY = Math.floor((i * 23) % GAME_HEIGHT);
+          const twinkleFrame = Math.floor(state.blackholeTimer + i) % 3;
+          const starVisible = twinkleFrame < 2;
+          if (starVisible) {
+            ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : i % 3 === 1 ? '#FFFF00' : '#00FFFF';
+            const starSize = i % 5 === 0 ? 2 : 1;
+            ctx.fillRect(starX, starY, starSize, starSize);
+          }
         }
-        ctx.globalAlpha = 1;
         
         // Draw blackhole with spiral effect
         const centerX = GAME_WIDTH / 2;
         const centerY = 40;
         const time = state.blackholeTimer;
         
-        // Outer gravitational distortion rings
-        for (let distort = 0; distort < 8; distort++) {
-          const distortRadius = 35 - distort * 4;
-          const distortAlpha = (8 - distort) * 0.08;
-          
-          for (let angle = 0; angle < 360; angle += 15) {
+        // Outer gravitational rings (solid colors by layer)
+        const ringLayers = [
+          { radius: 35, color: '#1a0033' },
+          { radius: 31, color: '#2d0052' },
+          { radius: 27, color: '#4B0082' },
+          { radius: 23, color: '#6A0DAD' },
+          { radius: 19, color: '#8B00FF' },
+          { radius: 15, color: '#9400D3' }
+        ];
+        
+        ringLayers.forEach((layer, distort) => {
+          for (let angle = 0; angle < 360; angle += 20) {
             const spiralOffset = time * 3 + distort * 20;
             const rad = ((angle + spiralOffset) % 360) * (Math.PI / 180);
-            const x = centerX + Math.cos(rad) * distortRadius;
-            const y = centerY + Math.sin(rad) * distortRadius;
+            const x = Math.floor(centerX + Math.cos(rad) * layer.radius);
+            const y = Math.floor(centerY + Math.sin(rad) * layer.radius);
             
-            ctx.globalAlpha = distortAlpha;
-            ctx.fillStyle = distort % 2 === 0 ? '#9400D3' : '#4B0082';
-            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+            ctx.fillStyle = layer.color;
+            ctx.fillRect(x, y, 2, 2);
           }
-        }
-        ctx.globalAlpha = 1;
+        });
         
-        // Spiral arms pulling into blackhole
+        // Spiral arms (use different colors instead of alpha)
+        const armColors = [
+          ['#8B00FF', '#9400D3', '#BA55D3'],
+          ['#9400D3', '#BA55D3', '#DDA0DD'],
+          ['#BA55D3', '#DDA0DD', '#E0B0FF']
+        ];
+        
         for (let arm = 0; arm < 3; arm++) {
           const armOffset = arm * 120;
           
-          for (let i = 0; i < 20; i++) {
-            const spiralAngle = time * 4 + armOffset + i * 18;
-            const spiralRadius = 30 - i * 1.5;
+          for (let i = 0; i < 15; i++) {
+            const spiralAngle = time * 4 + armOffset + i * 24;
+            const spiralRadius = 28 - i * 1.8;
             const rad = spiralAngle * (Math.PI / 180);
-            const x = centerX + Math.cos(rad) * spiralRadius;
-            const y = centerY + Math.sin(rad) * spiralRadius;
+            const x = Math.floor(centerX + Math.cos(rad) * spiralRadius);
+            const y = Math.floor(centerY + Math.sin(rad) * spiralRadius);
             
-            const brightness = (20 - i) / 20;
-            ctx.globalAlpha = brightness * 0.8;
-            const colors = ['#8B00FF', '#9400D3', '#BA55D3'];
-            ctx.fillStyle = colors[arm];
-            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+            const colorIndex = Math.floor(i / 5);
+            ctx.fillStyle = armColors[arm][colorIndex];
+            ctx.fillRect(x, y, 2, 2);
           }
         }
-        ctx.globalAlpha = 1;
         
         // Accretion disk particles
         for (let particle = 0; particle < 30; particle++) {
@@ -1842,34 +1833,48 @@ export default function PixelGame() {
           ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
         }
         
-        // Event horizon (pure black center with glow)
-        const horizonSize = 10 + Math.sin(time * 2) * 2;
+        // Event horizon with layered rings (no alpha glow)
+        const horizonSize = Math.floor(10 + Math.sin(time * 2) * 2);
         
-        // Glow around event horizon
-        for (let glow = 5; glow > 0; glow--) {
-          const glowSize = horizonSize + glow * 2;
-          ctx.globalAlpha = (6 - glow) * 0.1;
-          ctx.fillStyle = '#4B0082';
-          ctx.fillRect(centerX - glowSize / 2, centerY - glowSize / 2, glowSize, glowSize);
-        }
-        ctx.globalAlpha = 1;
+        // Layered rings around event horizon (solid colors)
+        const horizonRings = [
+          { size: horizonSize + 10, color: '#1a0033' },
+          { size: horizonSize + 8, color: '#2d0052' },
+          { size: horizonSize + 6, color: '#4B0082' },
+          { size: horizonSize + 4, color: '#6A0DAD' },
+          { size: horizonSize + 2, color: '#8B00FF' }
+        ];
+        
+        horizonRings.forEach(ring => {
+          ctx.fillStyle = ring.color;
+          ctx.fillRect(
+            Math.floor(centerX - ring.size / 2),
+            Math.floor(centerY - ring.size / 2),
+            ring.size,
+            ring.size
+          );
+        });
         
         // Event horizon itself
         ctx.fillStyle = '#000000';
-        ctx.fillRect(centerX - horizonSize / 2, centerY - horizonSize / 2, horizonSize, horizonSize);
+        ctx.fillRect(
+          Math.floor(centerX - horizonSize / 2),
+          Math.floor(centerY - horizonSize / 2),
+          horizonSize,
+          horizonSize
+        );
         
         // Draw falling player with rotation and trail
         const playerFallY = 60 + Math.min(state.blackholeFallSpeed, 50);
         const playerRotation = time * 10;
         
-        // Player trail effect
-        for (let trail = 0; trail < 5; trail++) {
-          const trailY = playerFallY - trail * 4;
-          ctx.globalAlpha = (5 - trail) * 0.15;
-          ctx.fillStyle = '#00FF00';
-          ctx.fillRect(centerX - 6, trailY, 12, 12);
+        // Player trail effect (solid colors, no alpha)
+        const trailColors = ['#004400', '#006600', '#008800', '#00AA00'];
+        for (let trail = 0; trail < 4; trail++) {
+          const trailY = playerFallY - (trail + 1) * 4;
+          ctx.fillStyle = trailColors[trail];
+          ctx.fillRect(Math.floor(centerX - 6), Math.floor(trailY), 12, 12);
         }
-        ctx.globalAlpha = 1;
         
         // Draw player with rotation effect (simplified pixel rotation)
         const rotFrame = Math.floor(playerRotation / 90) % 4;
@@ -1880,11 +1885,9 @@ export default function PixelGame() {
           ctx.fillRect(centerX - 6, playerFallY - 2, 12, 20);
         }
         
-        // Player glow
-        ctx.globalAlpha = 0.3;
-        ctx.fillStyle = '#00FF00';
-        ctx.fillRect(centerX - 10, playerFallY - 2, 20, 20);
-        ctx.globalAlpha = 1;
+        // Player outline glow (solid color)
+        ctx.fillStyle = '#00AA00';
+        ctx.fillRect(Math.floor(centerX - 9), Math.floor(playerFallY - 1), 18, 18);
         
         // Draw chart at bottom
         const chartStartX = 40;
@@ -1895,71 +1898,109 @@ export default function PixelGame() {
         ctx.font = '8px monospace';
         ctx.fillText('MARKET CHART', chartStartX, chartY - 10);
         
-        // Draw enhanced chart bars with professional candlestick design
+        // Draw pixel art chart bars with crisp quality
         state.chartBars.forEach((bar, index) => {
           const barX = chartStartX + index * 16;
-          const barWidth = 10;
-          const barHeight = bar.height;
+          const barWidth = 12;
+          const barHeight = Math.floor(bar.height);
           const isGreen = bar.color === 'green';
           
           // Animated appearance (bars grow in)
           const barAge = state.blackholeTimer - index * 0.8;
           const growProgress = Math.min(Math.max(barAge / 0.3, 0), 1);
-          const animatedHeight = barHeight * growProgress;
+          const animatedHeight = Math.floor(barHeight * growProgress);
           
-          // Upper wick (shadow above candle)
-          const wickTop = 8 + Math.random() * 4;
-          const wickX = barX + barWidth / 2;
-          ctx.fillStyle = isGreen ? '#00AA00' : '#AA0000';
-          ctx.fillRect(wickX, chartY - animatedHeight - wickTop, 1, wickTop);
+          if (animatedHeight < 2) return;
           
-          // Candle body with gradient effect
-          const bodyColor1 = isGreen ? '#00FF00' : '#FF0000';
-          const bodyColor2 = isGreen ? '#00CC00' : '#CC0000';
+          // Define pixel-perfect colors
+          const brightColor = isGreen ? '#00FF00' : '#FF0000';
+          const midColor = isGreen ? '#00CC00' : '#CC0000';
+          const darkColor = isGreen ? '#008800' : '#880000';
+          const shadowColor = isGreen ? '#004400' : '#440000';
           
-          // Draw body with layered colors for depth
-          ctx.fillStyle = bodyColor2;
+          // Upper wick (thin line above candle) - pixel perfect
+          const wickTopHeight = 10;
+          const wickX = Math.floor(barX + barWidth / 2);
+          ctx.fillStyle = midColor;
+          ctx.fillRect(wickX, chartY - animatedHeight - wickTopHeight, 2, wickTopHeight);
+          
+          // Main candle body - pixel art style with clean edges
+          // Base fill
+          ctx.fillStyle = midColor;
           ctx.fillRect(barX, chartY - animatedHeight, barWidth, animatedHeight);
           
-          // Highlight on left side
-          ctx.fillStyle = bodyColor1;
-          ctx.fillRect(barX, chartY - animatedHeight, 3, animatedHeight);
+          // Left highlight (2px bright edge)
+          ctx.fillStyle = brightColor;
+          ctx.fillRect(barX + 1, chartY - animatedHeight + 1, 2, Math.max(1, animatedHeight - 2));
           
-          // Shadow on right side
-          ctx.fillStyle = isGreen ? '#008800' : '#880000';
-          ctx.fillRect(barX + barWidth - 2, chartY - animatedHeight, 2, animatedHeight);
+          // Right shadow (2px dark edge)
+          ctx.fillStyle = darkColor;
+          ctx.fillRect(barX + barWidth - 3, chartY - animatedHeight + 1, 2, Math.max(1, animatedHeight - 2));
           
-          // White outline for definition
-          ctx.fillStyle = '#FFFFFF';
-          // Top
+          // Bottom shadow line
+          ctx.fillStyle = shadowColor;
+          ctx.fillRect(barX + 2, chartY - 2, barWidth - 4, 1);
+          
+          // Black outline for crisp edges
+          ctx.fillStyle = '#000000';
+          // Top edge
           ctx.fillRect(barX, chartY - animatedHeight, barWidth, 1);
-          // Bottom
+          // Bottom edge
           ctx.fillRect(barX, chartY - 1, barWidth, 1);
-          // Left
+          // Left edge
           ctx.fillRect(barX, chartY - animatedHeight, 1, animatedHeight);
-          // Right
+          // Right edge
           ctx.fillRect(barX + barWidth - 1, chartY - animatedHeight, 1, animatedHeight);
           
-          // Lower wick (shadow below candle)
-          const wickBottom = 6 + Math.random() * 3;
-          ctx.fillStyle = isGreen ? '#00AA00' : '#AA0000';
-          ctx.fillRect(wickX, chartY, 1, wickBottom);
+          // Lower wick (thin line below candle)
+          const wickBottomHeight = 8;
+          ctx.fillStyle = midColor;
+          ctx.fillRect(wickX, chartY, 2, wickBottomHeight);
           
-          // Glow effect for last bar (the decisive one)
+          // Pulsing glow for last bar when complete (alternating frames instead of alpha)
           if (index === state.chartBars.length - 1 && state.chartComplete) {
-            const glowPulse = Math.sin(state.blackholeTimer * 5) * 0.3 + 0.7;
-            ctx.globalAlpha = glowPulse * 0.4;
-            ctx.fillStyle = isGreen ? '#00FF00' : '#FF0000';
-            ctx.fillRect(barX - 2, chartY - animatedHeight - 2, barWidth + 4, animatedHeight + 4);
-            ctx.globalAlpha = 1;
+            const glowFrame = Math.floor(state.blackholeTimer * 5) % 2;
+            if (glowFrame === 0) {
+              ctx.fillStyle = brightColor;
+              // Glow around bar
+              ctx.fillRect(barX - 1, chartY - animatedHeight - 1, barWidth + 2, 1);
+              ctx.fillRect(barX - 1, chartY, barWidth + 2, 1);
+              ctx.fillRect(barX - 1, chartY - animatedHeight, 1, animatedHeight);
+              ctx.fillRect(barX + barWidth, chartY - animatedHeight, 1, animatedHeight);
+            }
           }
           
-          // Price label above bar
+          // Pixel art arrow indicator above bar
           if (growProgress > 0.8) {
+            const arrowX = barX + Math.floor(barWidth / 2) - 2;
+            const arrowY = chartY - animatedHeight - wickTopHeight - 6;
+            
             ctx.fillStyle = '#FFFF00';
-            ctx.font = '6px monospace';
-            const priceLabel = isGreen ? '↑' : '↓';
-            ctx.fillText(priceLabel, barX + 3, chartY - animatedHeight - wickTop - 2);
+            if (isGreen) {
+              // Up arrow
+              ctx.fillRect(arrowX + 2, arrowY, 1, 1);
+              ctx.fillRect(arrowX + 1, arrowY + 1, 3, 1);
+              ctx.fillRect(arrowX, arrowY + 2, 5, 1);
+              ctx.fillRect(arrowX + 2, arrowY + 3, 1, 2);
+            } else {
+              // Down arrow
+              ctx.fillRect(arrowX + 2, arrowY, 1, 2);
+              ctx.fillRect(arrowX, arrowY + 2, 5, 1);
+              ctx.fillRect(arrowX + 1, arrowY + 3, 3, 1);
+              ctx.fillRect(arrowX + 2, arrowY + 4, 1, 1);
+            }
+            
+            // Black outline for arrow
+            ctx.fillStyle = '#000000';
+            if (isGreen) {
+              ctx.fillRect(arrowX + 1, arrowY, 3, 1);
+              ctx.fillRect(arrowX, arrowY + 1, 1, 1);
+              ctx.fillRect(arrowX + 4, arrowY + 1, 1, 1);
+            } else {
+              ctx.fillRect(arrowX + 1, arrowY + 4, 3, 1);
+              ctx.fillRect(arrowX, arrowY + 3, 1, 1);
+              ctx.fillRect(arrowX + 4, arrowY + 3, 1, 1);
+            }
           }
         });
         
@@ -2187,15 +2228,15 @@ export default function PixelGame() {
 
   // Desktop UI
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-green-100 via-green-200 to-green-300 overflow-hidden py-2">
-      <div className="mb-1 flex items-center justify-center">
-        <img src="/flip.png" alt="Flip Game Logo" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(40px, 5vh, 60px)' }} />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-green-100 via-green-200 to-green-300 overflow-hidden py-4 px-4">
+      <div className="mb-2 flex items-center justify-center">
+        <img src="/flip.png" alt="Flip Game Logo" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(48px, 6vh, 72px)' }} />
       </div>
       
-      <div className="bg-white rounded-2xl shadow-2xl border-4 border-green-800 w-full max-w-4xl mx-auto px-3 py-2">
-        <div className="flex flex-wrap gap-2 items-center justify-center mb-2">
-          <div className="font-mono text-yellow-600 bg-green-900 px-2 py-1 rounded-lg font-bold" style={{ fontSize: 'clamp(0.75rem, 1.25vw, 0.875rem)' }}>SCORE: {score}</div>
-          <div className="font-mono text-cyan-400 bg-green-900 px-2 py-1 rounded-lg font-bold" style={{ fontSize: 'clamp(0.75rem, 1.25vw, 0.875rem)' }}>STAGE: {currentStage}/10</div>
+      <div className="bg-white rounded-2xl shadow-2xl border-4 border-green-800 w-full max-w-3xl mx-auto p-4">
+        <div className="flex flex-wrap gap-3 items-center justify-center mb-3">
+          <div className="font-mono text-yellow-600 bg-green-900 px-3 py-1.5 rounded-lg font-bold text-sm">SCORE: {score}</div>
+          <div className="font-mono text-cyan-400 bg-green-900 px-3 py-1.5 rounded-lg font-bold text-sm">STAGE: {currentStage}/10</div>
           <button
             onClick={() => {
               if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
@@ -2203,14 +2244,13 @@ export default function PixelGame() {
               }
               setAudioEnabled(!audioEnabled);
             }}
-            className={`px-3 py-1 ${audioEnabled ? 'bg-green-700 hover:bg-green-800' : 'bg-red-600 hover:bg-red-700'} text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg`}
-            style={{ fontSize: 'clamp(0.625rem, 1vw, 0.75rem)' }}
+            className={`px-4 py-1.5 ${audioEnabled ? 'bg-green-700 hover:bg-green-800' : 'bg-red-600 hover:bg-red-700'} text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg text-xs`}
           >
             {audioEnabled ? '🔊 SOUND ON' : '🔇 SOUND OFF'}
           </button>
         </div>
         
-        <div className="border-8 border-green-800 rounded-xl shadow-2xl mx-auto" style={{ imageRendering: 'pixelated', maxWidth: 'min(100%, 960px)' }}>
+        <div className="border-8 border-green-800 rounded-xl shadow-2xl overflow-hidden" style={{ imageRendering: 'pixelated' }}>
           <canvas
             ref={canvasRef}
             width={GAME_WIDTH}
@@ -2218,7 +2258,7 @@ export default function PixelGame() {
             style={{
               width: '100%',
               height: 'auto',
-              maxWidth: `${GAME_WIDTH * SCALE}px`,
+              display: 'block',
               imageRendering: 'pixelated',
             }}
             className="bg-black"
@@ -2226,10 +2266,10 @@ export default function PixelGame() {
         </div>
       </div>
       
-      <div className="text-center mt-1">
-        <div className="bg-white rounded-lg px-3 py-1.5 inline-block shadow-lg border-2 border-green-800">
-          <p className="text-gray-800 font-mono font-semibold" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.75rem)' }}>⬅️ ➡️ Arrow Keys / WASD to move • ⬆️ Space/W/Up to jump</p>
-          <p className="text-gray-600" style={{ fontSize: 'clamp(0.4rem, 0.875vw, 0.625rem)' }}>Hold jump longer for higher jumps!</p>
+      <div className="text-center mt-3">
+        <div className="bg-white rounded-lg px-4 py-2 inline-block shadow-lg border-2 border-green-800">
+          <p className="text-gray-800 font-mono font-semibold text-sm">⬅️ ➡️ Arrow Keys / WASD to move • ⬆️ Space/W/Up to jump</p>
+          <p className="text-gray-600 text-xs">Hold jump longer for higher jumps!</p>
         </div>
       </div>
     </div>
