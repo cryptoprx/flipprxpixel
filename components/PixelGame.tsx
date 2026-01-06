@@ -829,14 +829,14 @@ export default function PixelGame() {
                 });
               }
             } else {
-              // Spawn enemy (snake)
+              // Spawn enemy (badguy)
               state.enemies.push({
                 x: platform.x,
-                y: platform.y - 20,
+                y: platform.y - 16,
                 direction: Math.random() > 0.5 ? 1 : -1,
                 alive: true,
-                type: 'snake',
-                waveOffset: Math.random() * Math.PI * 2
+                type: 'badguy',
+                animFrame: 0
               });
               // Particle effect (red for danger)
               for (let i = 0; i < 12; i++) {
@@ -1460,8 +1460,11 @@ export default function PixelGame() {
             ctx.fillRect(ex + 7, ey + 10, 1, 1);
           } else {
             // Badguy enemy - animated walking sprite
-            // Calculate animation frame based on time (8 frames)
-            const animSpeed = 8; // frames per second
+            // Use enemy's own animation frame counter for smooth animation
+            if (!enemy.animFrame) enemy.animFrame = 0;
+            
+            // Calculate animation frame (8 frames, slower speed)
+            const animSpeed = 6; // frames per second
             const frameIndex = Math.floor((Date.now() / 1000) * animSpeed) % 8;
             const frameName = `${frameIndex + 1}.png`;
             const badguySprite = spritesRef.current[frameName];
