@@ -371,20 +371,31 @@ export default function PixelGame() {
 
     let loadedCount = 0;
     const totalSprites = spriteFiles.length;
+    const startTime = Date.now();
+    const minLoadingTime = 1500; // Show loading screen for at least 1.5 seconds
 
     spriteFiles.forEach(file => {
       const img = new Image();
       img.onload = () => {
         loadedCount++;
         if (loadedCount === totalSprites) {
-          setSpritesLoaded(true);
+          // Ensure minimum loading time to show croak.png animation
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          setTimeout(() => {
+            setSpritesLoaded(true);
+          }, remainingTime);
         }
       };
       img.onerror = () => {
         console.error('Failed to load sprite:', file);
         loadedCount++;
         if (loadedCount === totalSprites) {
-          setSpritesLoaded(true);
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          setTimeout(() => {
+            setSpritesLoaded(true);
+          }, remainingTime);
         }
       };
       // Add cache busting for standing.png to force reload
