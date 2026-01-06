@@ -1418,15 +1418,31 @@ export default function PixelGame() {
         const px = Math.floor(state.player.x);
         const py = Math.floor(state.player.y);
         
-        // Rainbow color cycling animation
-        const time = performance.now() / 200;
-        const hue = (time % 360);
+        // Rainbow color cycling animation - faster and more visible
+        const time = performance.now() / 100;
+        const hue1 = (time % 360);
+        const hue2 = ((time + 120) % 360);
+        const hue3 = ((time + 240) % 360);
         
-        // Draw semi-transparent rainbow overlay on character
+        // Draw multiple rainbow layers with blend mode for better effect
         ctx.save();
-        ctx.globalAlpha = 0.4;
-        ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+        ctx.globalCompositeOperation = 'lighter';
+        
+        // First rainbow layer
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = `hsl(${hue1}, 100%, 50%)`;
         ctx.fillRect(px, py, 16, 16);
+        
+        // Second rainbow layer (offset hue)
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = `hsl(${hue2}, 100%, 50%)`;
+        ctx.fillRect(px + 2, py + 2, 12, 12);
+        
+        // Third rainbow layer (offset hue)
+        ctx.globalAlpha = 0.2;
+        ctx.fillStyle = `hsl(${hue3}, 100%, 50%)`;
+        ctx.fillRect(px + 4, py + 4, 8, 8);
+        
         ctx.restore();
         
         // Draw helmet sprite (static, no blinking)
