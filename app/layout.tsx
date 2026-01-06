@@ -13,13 +13,55 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Flip Game - Retro Platformer",
-  description: "A retro-style platformer game with Game Boy aesthetics",
+  title: "FLIPPRX Pixel Game - Retro Gameboy Style Platformer",
+  description: "Play FLIPPRX Pixel Game - A retro-style platformer with authentic Game Boy aesthetics. Mobile-only gaming experience with touch controls. Jump, collect coins, and defeat enemies!",
+  keywords: "FLIPPRX, pixel game, retro game, gameboy, platformer, mobile game, pixel art, retro gaming, flipprx one",
+  authors: [{ name: "FLIPPRX" }],
+  creator: "FLIPPRX",
+  publisher: "FLIPPRX",
   viewport: {
     width: 'device-width',
     initialScale: 1,
     maximumScale: 1,
     userScalable: false,
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://flipprxpixel.vercel.app',
+    title: 'FLIPPRX Pixel Game - Retro Gameboy Platformer',
+    description: 'Play FLIPPRX Pixel Game - A retro-style platformer with authentic Game Boy aesthetics. Mobile-only gaming experience!',
+    siteName: 'FLIPPRX Pixel Game',
+    images: [
+      {
+        url: '/flip.png',
+        width: 800,
+        height: 600,
+        alt: 'FLIPPRX Pixel Game Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'FLIPPRX Pixel Game - Retro Gameboy Platformer',
+    description: 'Play FLIPPRX Pixel Game - A retro-style platformer with authentic Game Boy aesthetics. Mobile-only gaming experience!',
+    images: ['/flip.png'],
+    creator: '@flipprx',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/flip.png',
   },
 };
 

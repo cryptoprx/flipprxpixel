@@ -2363,6 +2363,60 @@ export default function PixelGame() {
             ))}
           </div>
         </div>
+
+        {/* Wallet Upgrade Modal - Gameboy Style */}
+        {showWalletModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
+            <div className="relative rounded-3xl shadow-2xl w-full max-w-sm" style={{ background: 'linear-gradient(135deg, rgba(55, 65, 81, 0.98) 0%, rgba(75, 85, 99, 0.95) 50%, rgba(55, 65, 81, 0.98) 100%)', padding: '1.5rem', border: '4px solid #374151' }}>
+              {/* Screen-like container */}
+              <div className="bg-gray-900 rounded-xl shadow-inner p-4" style={{ boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.5)' }}>
+                <div className="bg-gradient-to-b from-green-800 to-green-900 rounded-lg p-4 border-4 border-green-700">
+                  <div className="text-center mb-4">
+                    <div className="inline-block bg-yellow-400 text-black font-bold px-4 py-2 rounded border-2 border-yellow-600 mb-3" style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '2px', imageRendering: 'pixelated' }}>
+                      ⚡ UPGRADE! ⚡
+                    </div>
+                  </div>
+
+                  <div className="bg-black bg-opacity-60 rounded p-3 mb-4 border-2 border-green-600">
+                    <p className="text-green-300 font-mono text-center text-sm leading-relaxed mb-3">
+                      🎮 <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
+                    </p>
+                    <p className="text-white font-mono text-center text-xs leading-relaxed mb-3">
+                      We&apos;ve upgraded to <span className="text-cyan-400 font-bold">FLIPPRX ONE</span> wallet - 
+                      <span className="text-green-400 font-bold"> cheaper</span> and 
+                      <span className="text-blue-400 font-bold"> faster</span>!
+                    </p>
+                    <div className="text-center mb-3">
+                      <a 
+                        href="https://FLIPPRX.ONE" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-4 py-2 rounded border-2 border-cyan-700 shadow-lg active:from-cyan-600 active:to-blue-700"
+                        style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
+                      >
+                        🚀 VISIT FLIPPRX.ONE
+                      </a>
+                    </div>
+                    <p className="text-gray-400 font-mono text-center text-xs">
+                      Enjoy playing <span className="text-green-400">FLIPPRX</span>! 🎯
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('flipprx_wallet_modal_seen', 'true');
+                      setShowWalletModal(false);
+                    }}
+                    className="w-full bg-gradient-to-b from-green-500 to-green-700 text-white font-bold py-3 px-4 rounded border-4 border-green-800 shadow-xl active:from-green-600 active:to-green-800"
+                    style={{ fontFamily: 'monospace', fontSize: '1rem', letterSpacing: '1px' }}
+                  >
+                    ▶️ START PLAYING!
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
