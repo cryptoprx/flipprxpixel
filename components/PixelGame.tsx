@@ -1422,10 +1422,10 @@ export default function PixelGame() {
           const helmetSprite = spritesRef.current['helmet.png'];
           
           if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
-            // Draw helmet.png sprite on player's head
+            // Draw helmet.png sprite overlapping player (both 16x16)
             ctx.save();
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(helmetSprite, px, py - 2, 16, 16);
+            ctx.drawImage(helmetSprite, px, py, 16, 16);
             ctx.restore();
           } else {
             // Fallback to pixel-drawn helmet if image not loaded
