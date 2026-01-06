@@ -83,7 +83,7 @@ export default function PixelGame() {
     celebrating: false,
     celebrationTimer: 0,
     coins: [] as Array<{ x: number; y: number; collected: boolean; floatOffset: number }>,
-    enemies: [] as Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake'; waveOffset?: number }>,
+    enemies: [] as Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake' | 'badguy'; waveOffset?: number; animFrame?: number }>,
     particles: [] as Particle[],
     platforms: [] as Array<{ x: number; y: number; width: number; height: number; type: string; used?: boolean; broken?: boolean; bounceOffset?: number }>,
     portal: null as { x: number; y: number; animationFrame: number; active: boolean } | null,
