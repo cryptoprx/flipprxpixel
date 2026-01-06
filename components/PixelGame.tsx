@@ -453,11 +453,12 @@ export default function PixelGame() {
     state.celebrating = false;
     state.celebrationTimer = 0;
     
-    // Spawn portal randomly (30% chance)
-    if (Math.random() < 0.3) {
+    // Spawn portal randomly (100% chance for testing - change back to 0.3 later)
+    if (Math.random() < 1.0) {
       const portalX = 200 + Math.random() * (stageData.width - 400);
       const portalY = 90; // Above ground level
       state.portal = { x: portalX, y: portalY, animationFrame: 0, active: true };
+      console.log('Portal spawned at:', portalX, portalY);
     } else {
       state.portal = null;
     }
@@ -920,6 +921,7 @@ export default function PixelGame() {
         // Check collision with player
         if (Math.abs(player.x - state.portal.x) < 16 && Math.abs(player.y - state.portal.y) < 16) {
           // Enter blackhole mini-game
+          console.log('Entering blackhole mini-game!');
           state.inBlackhole = true;
           state.blackholeTimer = 0;
           state.blackholeFallSpeed = 20;
@@ -1709,6 +1711,7 @@ export default function PixelGame() {
 
       // Draw blackhole mini-game overlay
       if (state.inBlackhole) {
+        console.log('Drawing blackhole - timer:', state.blackholeTimer, 'bars:', state.chartBars.length);
         // Dark space background with gradient
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
