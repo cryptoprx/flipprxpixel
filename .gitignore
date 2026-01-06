@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+pixel-game/node_modules/
+
+# Next.js
+pixel-game/.next/
+pixel-game/out/
+
+# Production
+build/
+dist/
+
+# Misc
+.DS_Store
+*.log
+.env
+.env.local
+.env.production.local
+
+# Vercel
+.vercel

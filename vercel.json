@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd pixel-game && npm install && npm run build",
+  "outputDirectory": "pixel-game/.next",
+  "framework": "nextjs",
+  "installCommand": "cd pixel-game && npm install"
+}
