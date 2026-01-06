@@ -34,10 +34,10 @@ export const metadata: Metadata = {
     siteName: 'FLIPPRX Pixel Game',
     images: [
       {
-        url: '/flip.png',
+        url: '/icon.png',
         width: 800,
         height: 600,
-        alt: 'FLIPPRX Pixel Game Logo',
+        alt: 'FLIPPRX Pixel Game Character',
       },
     ],
   },
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'FLIPPRX Pixel Game - Retro Gameboy Platformer',
     description: 'Play FLIPPRX Pixel Game - A retro-style platformer with authentic Game Boy aesthetics. Mobile-only gaming experience!',
-    images: ['/flip.png'],
+    images: ['/icon.png'],
     creator: '@flipprx',
   },
   robots: {
@@ -60,8 +60,12 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: '/favicon.ico',
-    apple: '/flip.png',
+    icon: [
+      { url: '/icon.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+    shortcut: '/icon.png',
   },
 };
 
