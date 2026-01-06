@@ -339,6 +339,14 @@ export default function PixelGame() {
       'jump2.PNG',
       'jump3.PNG',
       'helmet.png',
+      '1.png',
+      '2.png',
+      '3.png',
+      '4.png',
+      '5.png',
+      '6.png',
+      '7.png',
+      '8.png',
     ];
 
     let loadedCount = 0;
@@ -1451,32 +1459,30 @@ export default function PixelGame() {
             ctx.fillRect(ex + 4, ey + 10, 1, 1);
             ctx.fillRect(ex + 7, ey + 10, 1, 1);
           } else {
-            // Goomba enemy - brown mushroom
-            // Black outline
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(ex - 1, ey + 4, 14, 1);
-            ctx.fillRect(ex - 1, ey + 12, 14, 1);
-            ctx.fillRect(ex - 1, ey + 4, 1, 8);
-            ctx.fillRect(ex + 12, ey + 4, 1, 8);
-            // Mushroom cap
-            ctx.fillStyle = '#8B4513';
-            ctx.fillRect(ex, ey + 4, 12, 8);
-            ctx.fillStyle = '#A0522D';
-            ctx.fillRect(ex + 1, ey + 5, 10, 6);
-            // Spots on cap
-            ctx.fillStyle = '#D2691E';
-            ctx.fillRect(ex + 2, ey + 6, 2, 2);
-            ctx.fillRect(ex + 8, ey + 6, 2, 2);
-            // Eyes - angry
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(ex + 2, ey + 7, 3, 3);
-            ctx.fillRect(ex + 7, ey + 7, 3, 3);
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(ex + 3, ey + 8, 1, 1);
-            ctx.fillRect(ex + 8, ey + 8, 1, 1);
-            // Eyebrows
-            ctx.fillRect(ex + 2, ey + 7, 2, 1);
-            ctx.fillRect(ex + 8, ey + 7, 2, 1);
+            // Badguy enemy - animated walking sprite
+            // Calculate animation frame based on time (8 frames)
+            const animSpeed = 8; // frames per second
+            const frameIndex = Math.floor((Date.now() / 1000) * animSpeed) % 8;
+            const frameName = `${frameIndex + 1}.png`;
+            const badguySprite = spritesRef.current[frameName];
+            
+            if (badguySprite && badguySprite.complete && badguySprite.naturalWidth > 0) {
+              ctx.save();
+              ctx.imageSmoothingEnabled = false;
+              
+              // Flip sprite based on enemy direction
+              if (enemy.direction === -1) {
+                // Moving left - flip horizontally
+                ctx.translate(ex + 16, ey);
+                ctx.scale(-1, 1);
+                ctx.drawImage(badguySprite, 0, 0, 16, 16);
+              } else {
+                // Moving right - normal
+                ctx.drawImage(badguySprite, ex, ey, 16, 16);
+              }
+              
+              ctx.restore();
+            }
           }
         }
       });
@@ -1534,19 +1540,9 @@ export default function PixelGame() {
         frameName = 'jump1';
       }
       
-      // Draw player once (with rotation if jumping)
-      if (state.player.rotation !== 0) {
-        ctx.save();
-        ctx.translate(Math.floor(state.player.x + 8), Math.floor(state.player.y + 8));
-        ctx.rotate((state.player.rotation * Math.PI) / 180);
-        drawPlayerSprite(ctx, -8, -8, frameName, state.player.facingLeft);
-        ctx.restore();
-      } else {
-        drawPlayerSprite(ctx, Math.floor(state.player.x), Math.floor(state.player.y), frameName, state.player.facingLeft);
-      }
-      
-      // Draw rainbow overlay on character when helmet is active (Mario star effect)
+      // Draw player (with helmet rainbow effect if active)
       if (state.player.hasHelmet) {
+        // Draw rainbow overlay on character when helmet is active (Mario star effect)
         const px = Math.floor(state.player.x);
         const py = Math.floor(state.player.y);
         
@@ -1616,6 +1612,17 @@ export default function PixelGame() {
           }
           
           ctx.restore();
+        }
+      } else {
+        // No helmet - draw player normally (with rotation if jumping)
+        if (state.player.rotation !== 0) {
+          ctx.save();
+          ctx.translate(Math.floor(state.player.x + 8), Math.floor(state.player.y + 8));
+          ctx.rotate((state.player.rotation * Math.PI) / 180);
+          drawPlayerSprite(ctx, -8, -8, frameName, state.player.facingLeft);
+          ctx.restore();
+        } else {
+          drawPlayerSprite(ctx, Math.floor(state.player.x), Math.floor(state.player.y), frameName, state.player.facingLeft);
         }
       }
 
