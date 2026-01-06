@@ -1418,32 +1418,40 @@ export default function PixelGame() {
         const px = Math.floor(state.player.x);
         const py = Math.floor(state.player.y);
         
-        // Rainbow color cycling animation - faster and more visible
-        const time = performance.now() / 100;
-        const hue1 = (time % 360);
-        const hue2 = ((time + 120) % 360);
-        const hue3 = ((time + 240) % 360);
+        // Rainbow color cycling animation
+        const time = performance.now() / 80;
+        const hue = Math.floor(time % 360);
         
-        // Draw multiple rainbow layers with blend mode for better effect
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
+        // Create an offscreen canvas to apply rainbow effect to character only
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 16;
+        tempCanvas.height = 16;
+        const tempCtx = tempCanvas.getContext('2d');
         
-        // First rainbow layer
-        ctx.globalAlpha = 0.3;
-        ctx.fillStyle = `hsl(${hue1}, 100%, 50%)`;
-        ctx.fillRect(px, py, 16, 16);
-        
-        // Second rainbow layer (offset hue)
-        ctx.globalAlpha = 0.25;
-        ctx.fillStyle = `hsl(${hue2}, 100%, 50%)`;
-        ctx.fillRect(px + 2, py + 2, 12, 12);
-        
-        // Third rainbow layer (offset hue)
-        ctx.globalAlpha = 0.2;
-        ctx.fillStyle = `hsl(${hue3}, 100%, 50%)`;
-        ctx.fillRect(px + 4, py + 4, 8, 8);
-        
-        ctx.restore();
+        if (tempCtx) {
+          // Draw character sprite to temp canvas
+          if (state.player.rotation !== 0) {
+            tempCtx.save();
+            tempCtx.translate(8, 8);
+            tempCtx.rotate((state.player.rotation * Math.PI) / 180);
+            drawPlayerSprite(tempCtx, -8, -8, frameName, state.player.facingLeft);
+            tempCtx.restore();
+          } else {
+            drawPlayerSprite(tempCtx, 0, 0, frameName, state.player.facingLeft);
+          }
+          
+          // Apply rainbow color overlay using source-atop (only affects existing pixels)
+          tempCtx.globalCompositeOperation = 'source-atop';
+          tempCtx.globalAlpha = 0.5;
+          tempCtx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+          tempCtx.fillRect(0, 0, 16, 16);
+          
+          // Draw the rainbow-tinted character back to main canvas
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(tempCanvas, px, py);
+          ctx.restore();
+        }
         
         // Draw helmet sprite (static, no blinking)
         const helmetSprite = spritesRef.current['helmet.png'];
