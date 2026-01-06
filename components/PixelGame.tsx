@@ -1373,34 +1373,90 @@ export default function PixelGame() {
         }
       });
       
-      // Draw portal with swirling animation
+      // Draw portal with enhanced swirling animation
       if (state.portal && state.portal.active) {
         const px = Math.floor(state.portal.x);
         const py = Math.floor(state.portal.y);
-        const frame = Math.floor(state.portal.animationFrame) % 4;
+        const time = state.portal.animationFrame;
         
-        // Portal outer ring (pulsing)
-        const pulseSize = frame % 2;
-        ctx.fillStyle = '#4B0082'; // Indigo
-        ctx.fillRect(px + 2 - pulseSize, py + 2 - pulseSize, 12 + pulseSize * 2, 12 + pulseSize * 2);
+        // Draw glow effect behind portal
+        for (let glow = 6; glow > 0; glow--) {
+          const glowSize = 20 + glow * 3;
+          const alpha = (7 - glow) * 0.05;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = '#4B0082';
+          ctx.fillRect(px + 8 - glowSize / 2, py + 8 - glowSize / 2, glowSize, glowSize);
+        }
+        ctx.globalAlpha = 1;
         
-        // Portal middle ring (rotating colors)
-        const colors = ['#8B00FF', '#9400D3', '#9932CC', '#BA55D3'];
-        ctx.fillStyle = colors[frame];
-        ctx.fillRect(px + 4, py + 4, 8, 8);
+        // Portal base - dark center
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(px + 3, py + 3, 10, 10);
         
-        // Portal center (bright)
-        ctx.fillStyle = frame % 2 === 0 ? '#E0B0FF' : '#DDA0DD';
-        ctx.fillRect(px + 6, py + 6, 4, 4);
+        // Multiple rotating energy rings
+        for (let ring = 0; ring < 5; ring++) {
+          const ringAngle = time * 2 + ring * 72;
+          const ringRadius = 8 + Math.sin(time * 0.5 + ring) * 2;
+          
+          for (let i = 0; i < 8; i++) {
+            const angle = (ringAngle + i * 45) * (Math.PI / 180);
+            const x = px + 8 + Math.cos(angle) * ringRadius;
+            const y = py + 8 + Math.sin(angle) * ringRadius;
+            
+            // Color gradient based on ring
+            const colors = ['#8B00FF', '#9400D3', '#9932CC', '#BA55D3', '#DDA0DD'];
+            ctx.fillStyle = colors[ring];
+            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+          }
+        }
         
-        // Swirling particles around portal
-        for (let i = 0; i < 4; i++) {
-          const angle = (state.portal.animationFrame + i * 90) * (Math.PI / 180);
-          const radius = 10;
-          const particleX = px + 8 + Math.cos(angle) * radius;
-          const particleY = py + 8 + Math.sin(angle) * radius;
-          ctx.fillStyle = '#FF00FF';
-          ctx.fillRect(Math.floor(particleX), Math.floor(particleY), 2, 2);
+        // Inner spiral particles
+        for (let i = 0; i < 12; i++) {
+          const spiralAngle = time * 3 + i * 30;
+          const spiralRadius = 4 + (i % 4);
+          const angle = spiralAngle * (Math.PI / 180);
+          const x = px + 8 + Math.cos(angle) * spiralRadius;
+          const y = py + 8 + Math.sin(angle) * spiralRadius;
+          
+          ctx.fillStyle = i % 2 === 0 ? '#FF00FF' : '#00FFFF';
+          ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+        }
+        
+        // Outer energy waves
+        for (let wave = 0; wave < 3; wave++) {
+          const wavePhase = (time * 4 + wave * 120) % 360;
+          const waveRadius = 12 + wave * 4;
+          
+          for (let i = 0; i < 16; i++) {
+            const angle = (wavePhase + i * 22.5) * (Math.PI / 180);
+            const x = px + 8 + Math.cos(angle) * waveRadius;
+            const y = py + 8 + Math.sin(angle) * waveRadius;
+            
+            const brightness = Math.sin((time + wave * 30) * 0.1) * 0.5 + 0.5;
+            ctx.globalAlpha = brightness * 0.7;
+            ctx.fillStyle = '#E0B0FF';
+            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+          }
+        }
+        ctx.globalAlpha = 1;
+        
+        // Bright pulsing center
+        const centerPulse = Math.sin(time * 0.3) * 0.3 + 0.7;
+        ctx.globalAlpha = centerPulse;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(px + 7, py + 7, 2, 2);
+        ctx.globalAlpha = 1;
+        
+        // Energy sparks shooting out
+        for (let spark = 0; spark < 6; spark++) {
+          const sparkAngle = (time * 5 + spark * 60) * (Math.PI / 180);
+          const sparkDist = 14 + Math.sin(time * 0.5 + spark) * 4;
+          const sparkX = px + 8 + Math.cos(sparkAngle) * sparkDist;
+          const sparkY = py + 8 + Math.sin(sparkAngle) * sparkDist;
+          
+          ctx.fillStyle = spark % 2 === 0 ? '#FFFF00' : '#00FFFF';
+          ctx.fillRect(Math.floor(sparkX), Math.floor(sparkY), 1, 1);
+          ctx.fillRect(Math.floor(sparkX) + 1, Math.floor(sparkY), 1, 1);
         }
       }
 
@@ -1653,39 +1709,130 @@ export default function PixelGame() {
 
       // Draw blackhole mini-game overlay
       if (state.inBlackhole) {
-        // Dark space background
+        // Dark space background with gradient
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         
-        // Draw stars
-        for (let i = 0; i < 30; i++) {
+        // Add space nebula effect
+        for (let nebula = 0; nebula < 5; nebula++) {
+          const nebulaX = (nebula * 40 + state.blackholeTimer * 2) % GAME_WIDTH;
+          const nebulaY = (nebula * 30) % GAME_HEIGHT;
+          ctx.globalAlpha = 0.1;
+          ctx.fillStyle = nebula % 2 === 0 ? '#4B0082' : '#8B00FF';
+          ctx.fillRect(nebulaX, nebulaY, 20, 20);
+        }
+        ctx.globalAlpha = 1;
+        
+        // Draw stars with twinkling effect
+        for (let i = 0; i < 50; i++) {
           const starX = (i * 37 + state.blackholeTimer * 10) % GAME_WIDTH;
           const starY = (i * 23) % GAME_HEIGHT;
-          ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : '#CCCCCC';
-          ctx.fillRect(Math.floor(starX), Math.floor(starY), 1, 1);
+          const twinkle = Math.sin(state.blackholeTimer * 2 + i) * 0.5 + 0.5;
+          ctx.globalAlpha = twinkle;
+          ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : i % 3 === 1 ? '#FFFF00' : '#00FFFF';
+          const starSize = i % 5 === 0 ? 2 : 1;
+          ctx.fillRect(Math.floor(starX), Math.floor(starY), starSize, starSize);
         }
+        ctx.globalAlpha = 1;
         
-        // Draw blackhole in center
+        // Draw blackhole with spiral effect
         const centerX = GAME_WIDTH / 2;
         const centerY = 40;
-        const blackholeSize = 8 + Math.sin(state.blackholeTimer * 3) * 2;
+        const time = state.blackholeTimer;
         
-        // Blackhole rings (purple/blue gradient)
-        for (let ring = 4; ring > 0; ring--) {
-          const ringSize = blackholeSize + ring * 4;
-          const colors = ['#4B0082', '#8B00FF', '#9400D3', '#BA55D3'];
-          ctx.fillStyle = colors[ring - 1];
-          ctx.fillRect(centerX - ringSize / 2, centerY - ringSize / 2, ringSize, ringSize);
+        // Outer gravitational distortion rings
+        for (let distort = 0; distort < 8; distort++) {
+          const distortRadius = 35 - distort * 4;
+          const distortAlpha = (8 - distort) * 0.08;
+          
+          for (let angle = 0; angle < 360; angle += 15) {
+            const spiralOffset = time * 3 + distort * 20;
+            const rad = ((angle + spiralOffset) % 360) * (Math.PI / 180);
+            const x = centerX + Math.cos(rad) * distortRadius;
+            const y = centerY + Math.sin(rad) * distortRadius;
+            
+            ctx.globalAlpha = distortAlpha;
+            ctx.fillStyle = distort % 2 === 0 ? '#9400D3' : '#4B0082';
+            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+          }
+        }
+        ctx.globalAlpha = 1;
+        
+        // Spiral arms pulling into blackhole
+        for (let arm = 0; arm < 3; arm++) {
+          const armOffset = arm * 120;
+          
+          for (let i = 0; i < 20; i++) {
+            const spiralAngle = time * 4 + armOffset + i * 18;
+            const spiralRadius = 30 - i * 1.5;
+            const rad = spiralAngle * (Math.PI / 180);
+            const x = centerX + Math.cos(rad) * spiralRadius;
+            const y = centerY + Math.sin(rad) * spiralRadius;
+            
+            const brightness = (20 - i) / 20;
+            ctx.globalAlpha = brightness * 0.8;
+            const colors = ['#8B00FF', '#9400D3', '#BA55D3'];
+            ctx.fillStyle = colors[arm];
+            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+          }
+        }
+        ctx.globalAlpha = 1;
+        
+        // Accretion disk particles
+        for (let particle = 0; particle < 30; particle++) {
+          const particleAngle = time * 5 + particle * 12;
+          const particleRadius = 15 + (particle % 10);
+          const rad = particleAngle * (Math.PI / 180);
+          const x = centerX + Math.cos(rad) * particleRadius;
+          const y = centerY + Math.sin(rad) * particleRadius;
+          
+          ctx.fillStyle = particle % 3 === 0 ? '#FF00FF' : particle % 3 === 1 ? '#00FFFF' : '#FFFF00';
+          ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
         }
         
-        // Blackhole center (pure black)
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(centerX - blackholeSize / 2, centerY - blackholeSize / 2, blackholeSize, blackholeSize);
+        // Event horizon (pure black center with glow)
+        const horizonSize = 10 + Math.sin(time * 2) * 2;
         
-        // Draw falling player
-        const playerFallY = 60 + state.blackholeFallSpeed;
+        // Glow around event horizon
+        for (let glow = 5; glow > 0; glow--) {
+          const glowSize = horizonSize + glow * 2;
+          ctx.globalAlpha = (6 - glow) * 0.1;
+          ctx.fillStyle = '#4B0082';
+          ctx.fillRect(centerX - glowSize / 2, centerY - glowSize / 2, glowSize, glowSize);
+        }
+        ctx.globalAlpha = 1;
+        
+        // Event horizon itself
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(centerX - horizonSize / 2, centerY - horizonSize / 2, horizonSize, horizonSize);
+        
+        // Draw falling player with rotation and trail
+        const playerFallY = 60 + Math.min(state.blackholeFallSpeed, 50);
+        const playerRotation = time * 10;
+        
+        // Player trail effect
+        for (let trail = 0; trail < 5; trail++) {
+          const trailY = playerFallY - trail * 4;
+          ctx.globalAlpha = (5 - trail) * 0.15;
+          ctx.fillStyle = '#00FF00';
+          ctx.fillRect(centerX - 6, trailY, 12, 12);
+        }
+        ctx.globalAlpha = 1;
+        
+        // Draw player with rotation effect (simplified pixel rotation)
+        const rotFrame = Math.floor(playerRotation / 90) % 4;
         ctx.fillStyle = '#00FF00';
-        ctx.fillRect(centerX - 8, playerFallY, 16, 16);
+        if (rotFrame === 0 || rotFrame === 2) {
+          ctx.fillRect(centerX - 8, playerFallY, 16, 16);
+        } else {
+          ctx.fillRect(centerX - 6, playerFallY - 2, 12, 20);
+        }
+        
+        // Player glow
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#00FF00';
+        ctx.fillRect(centerX - 10, playerFallY - 2, 20, 20);
+        ctx.globalAlpha = 1;
         
         // Draw chart at bottom
         const chartStartX = 40;
@@ -1696,26 +1843,72 @@ export default function PixelGame() {
         ctx.font = '8px monospace';
         ctx.fillText('MARKET CHART', chartStartX, chartY - 10);
         
-        // Draw chart bars
+        // Draw enhanced chart bars with professional candlestick design
         state.chartBars.forEach((bar, index) => {
           const barX = chartStartX + index * 16;
-          const barWidth = 12;
+          const barWidth = 10;
           const barHeight = bar.height;
+          const isGreen = bar.color === 'green';
           
-          // Bar body
-          ctx.fillStyle = bar.color === 'green' ? '#00FF00' : '#FF0000';
-          ctx.fillRect(barX, chartY - barHeight, barWidth, barHeight);
+          // Animated appearance (bars grow in)
+          const barAge = state.blackholeTimer - index * 0.8;
+          const growProgress = Math.min(Math.max(barAge / 0.3, 0), 1);
+          const animatedHeight = barHeight * growProgress;
           
-          // Bar outline
-          ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(barX, chartY - barHeight, barWidth, barHeight);
-          
-          // Wick (candlestick style)
+          // Upper wick (shadow above candle)
+          const wickTop = 8 + Math.random() * 4;
           const wickX = barX + barWidth / 2;
+          ctx.fillStyle = isGreen ? '#00AA00' : '#AA0000';
+          ctx.fillRect(wickX, chartY - animatedHeight - wickTop, 1, wickTop);
+          
+          // Candle body with gradient effect
+          const bodyColor1 = isGreen ? '#00FF00' : '#FF0000';
+          const bodyColor2 = isGreen ? '#00CC00' : '#CC0000';
+          
+          // Draw body with layered colors for depth
+          ctx.fillStyle = bodyColor2;
+          ctx.fillRect(barX, chartY - animatedHeight, barWidth, animatedHeight);
+          
+          // Highlight on left side
+          ctx.fillStyle = bodyColor1;
+          ctx.fillRect(barX, chartY - animatedHeight, 3, animatedHeight);
+          
+          // Shadow on right side
+          ctx.fillStyle = isGreen ? '#008800' : '#880000';
+          ctx.fillRect(barX + barWidth - 2, chartY - animatedHeight, 2, animatedHeight);
+          
+          // White outline for definition
           ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(wickX, chartY - barHeight - 5, 1, 5);
-          ctx.fillRect(wickX, chartY, 1, 5);
+          // Top
+          ctx.fillRect(barX, chartY - animatedHeight, barWidth, 1);
+          // Bottom
+          ctx.fillRect(barX, chartY - 1, barWidth, 1);
+          // Left
+          ctx.fillRect(barX, chartY - animatedHeight, 1, animatedHeight);
+          // Right
+          ctx.fillRect(barX + barWidth - 1, chartY - animatedHeight, 1, animatedHeight);
+          
+          // Lower wick (shadow below candle)
+          const wickBottom = 6 + Math.random() * 3;
+          ctx.fillStyle = isGreen ? '#00AA00' : '#AA0000';
+          ctx.fillRect(wickX, chartY, 1, wickBottom);
+          
+          // Glow effect for last bar (the decisive one)
+          if (index === state.chartBars.length - 1 && state.chartComplete) {
+            const glowPulse = Math.sin(state.blackholeTimer * 5) * 0.3 + 0.7;
+            ctx.globalAlpha = glowPulse * 0.4;
+            ctx.fillStyle = isGreen ? '#00FF00' : '#FF0000';
+            ctx.fillRect(barX - 2, chartY - animatedHeight - 2, barWidth + 4, animatedHeight + 4);
+            ctx.globalAlpha = 1;
+          }
+          
+          // Price label above bar
+          if (growProgress > 0.8) {
+            ctx.fillStyle = '#FFFF00';
+            ctx.font = '6px monospace';
+            const priceLabel = isGreen ? '↑' : '↓';
+            ctx.fillText(priceLabel, barX + 3, chartY - animatedHeight - wickTop - 2);
+          }
         });
         
         // Chart baseline
