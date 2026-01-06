@@ -2373,13 +2373,26 @@ export default function PixelGame() {
                 <div className="bg-gradient-to-b from-green-800 to-green-900 rounded-lg p-4 border-4 border-green-700">
                   <div className="text-center mb-4">
                     <div className="inline-block bg-yellow-400 text-black font-bold px-4 py-2 rounded border-2 border-yellow-600 mb-3" style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '2px', imageRendering: 'pixelated' }}>
-                      ⚡ UPGRADE! ⚡
+                      <span className="inline-flex items-center gap-2">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+                        </svg>
+                        UPGRADE!
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+                        </svg>
+                      </span>
                     </div>
                   </div>
 
                   <div className="bg-black bg-opacity-60 rounded p-3 mb-4 border-2 border-green-600">
                     <p className="text-green-300 font-mono text-center text-sm leading-relaxed mb-3">
-                      🎮 <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6 9h4v6H6zm8 0h4v6h-4zM4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+                        </svg>
+                        <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
+                      </span>
                     </p>
                     <p className="text-white font-mono text-center text-xs leading-relaxed mb-3">
                       We&apos;ve upgraded to <span className="text-cyan-400 font-bold">FLIPPRX ONE</span> wallet - 
@@ -2394,11 +2407,16 @@ export default function PixelGame() {
                         className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-4 py-2 rounded border-2 border-cyan-700 shadow-lg active:from-cyan-600 active:to-blue-700"
                         style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
                       >
-                        🚀 VISIT FLIPPRX.ONE
+                        <span className="inline-flex items-center gap-2">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+                          </svg>
+                          VISIT FLIPPRX.ONE
+                        </span>
                       </a>
                     </div>
                     <p className="text-gray-400 font-mono text-center text-xs">
-                      Enjoy playing <span className="text-green-400">FLIPPRX</span>! 🎯
+                      Enjoy playing <span className="text-green-400">FLIPPRX</span>!
                     </p>
                   </div>
 
@@ -2410,7 +2428,12 @@ export default function PixelGame() {
                     className="w-full bg-gradient-to-b from-green-500 to-green-700 text-white font-bold py-3 px-4 rounded border-4 border-green-800 shadow-xl active:from-green-600 active:to-green-800"
                     style={{ fontFamily: 'monospace', fontSize: '1rem', letterSpacing: '1px' }}
                   >
-                    ▶️ START PLAYING!
+                    <span className="inline-flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                      START PLAYING!
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2432,13 +2455,23 @@ export default function PixelGame() {
         <div className="bg-gradient-to-b from-green-900 to-green-950 border-8 border-green-600 rounded-3xl shadow-2xl p-8 md:p-12">
           <div className="mb-6">
             <div className="inline-block bg-yellow-400 text-black font-bold px-8 py-3 rounded-lg border-4 border-yellow-600 shadow-lg mb-6" style={{ fontFamily: 'monospace', fontSize: '2rem', letterSpacing: '3px' }}>
-              📱 MOBILE ONLY
+              <span className="inline-flex items-center gap-3">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H7V4h10v16z"/>
+                </svg>
+                MOBILE ONLY
+              </span>
             </div>
           </div>
 
           <div className="bg-black bg-opacity-50 rounded-xl p-6 mb-6 border-4 border-green-700">
             <p className="text-white font-mono text-xl leading-relaxed mb-4">
-              🎮 <span className="text-green-400 font-bold">FLIPPRX Pixel Game</span> is designed for mobile devices only!
+              <span className="inline-flex items-center justify-center gap-2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 9h4v6H6zm8 0h4v6h-4zM4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+                </svg>
+                <span className="text-green-400 font-bold">FLIPPRX Pixel Game</span> is designed for mobile devices only!
+              </span>
             </p>
             <p className="text-gray-300 font-mono text-lg leading-relaxed mb-6">
               Please open this page on your <span className="text-cyan-400 font-bold">phone</span> or <span className="text-cyan-400 font-bold">tablet</span> to play.
@@ -2446,7 +2479,12 @@ export default function PixelGame() {
             
             <div className="border-t-2 border-green-700 pt-6 mt-6">
               <p className="text-green-300 font-mono text-base mb-4">
-                ✨ Experience the full gameboy-style interface with touch controls!
+                <span className="inline-flex items-center justify-center gap-2">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                  Experience the full gameboy-style interface with touch controls!
+                </span>
               </p>
             </div>
           </div>
@@ -2459,7 +2497,12 @@ export default function PixelGame() {
               className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-8 py-4 rounded-lg border-4 border-cyan-700 shadow-lg hover:from-cyan-400 hover:to-blue-500 transition-all transform hover:scale-105"
               style={{ fontFamily: 'monospace', fontSize: '1.2rem' }}
             >
-              🚀 VISIT FLIPPRX.ONE
+              <span className="inline-flex items-center gap-2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+                </svg>
+                VISIT FLIPPRX.ONE
+              </span>
             </a>
           </div>
         </div>
