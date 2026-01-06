@@ -2319,104 +2319,53 @@ export default function PixelGame() {
     );
   }
 
-  // Desktop UI
+  // Desktop - Show mobile-only message
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-green-100 via-green-200 to-green-300 overflow-hidden py-4 px-4">
-      <div className="mb-2 flex items-center justify-center">
-        <img src="/flip.png" alt="Flip Game Logo" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(48px, 6vh, 72px)' }} />
-      </div>
-      
-      <div className="bg-white rounded-2xl shadow-2xl border-4 border-green-800 w-full max-w-3xl mx-auto p-4">
-        <div className="flex flex-wrap gap-3 items-center justify-center mb-3">
-          <div className="font-mono text-yellow-600 bg-green-900 px-3 py-1.5 rounded-lg font-bold text-sm">SCORE: {score}</div>
-          <div className="font-mono text-cyan-400 bg-green-900 px-3 py-1.5 rounded-lg font-bold text-sm">STAGE: {currentStage}/10</div>
-          <button
-            onClick={() => {
-              if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
-                bgMusicRef.current.play().catch(() => {});
-              }
-              setAudioEnabled(!audioEnabled);
-            }}
-            className={`px-4 py-1.5 ${audioEnabled ? 'bg-green-700 hover:bg-green-800' : 'bg-red-600 hover:bg-red-700'} text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg text-xs`}
-          >
-            {audioEnabled ? '🔊 SOUND ON' : '🔇 SOUND OFF'}
-          </button>
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black p-4">
+      <div className="max-w-2xl w-full text-center">
+        <div className="mb-8">
+          <img src="/flip.png" alt="FLIPPRX Logo" className="pixelated mx-auto drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: '120px' }} />
         </div>
         
-        <div className="border-8 border-green-800 rounded-xl shadow-2xl overflow-hidden" style={{ imageRendering: 'pixelated' }}>
-          <canvas
-            ref={canvasRef}
-            width={GAME_WIDTH}
-            height={GAME_HEIGHT}
-            style={{
-              width: '100%',
-              height: 'auto',
-              display: 'block',
-              imageRendering: 'pixelated',
-            }}
-            className="bg-black"
-          />
-        </div>
-      </div>
-      
-      <div className="text-center mt-3">
-        <div className="bg-white rounded-lg px-4 py-2 inline-block shadow-lg border-2 border-green-800">
-          <p className="text-gray-800 font-mono font-semibold text-sm">⬅️ ➡️ Arrow Keys / WASD to move • ⬆️ Space/W/Up to jump</p>
-          <p className="text-gray-600 text-xs">Hold jump longer for higher jumps!</p>
-        </div>
-      </div>
-
-      {/* Wallet Upgrade Modal */}
-      {showWalletModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}>
-          <div className="bg-gradient-to-b from-green-900 to-green-950 border-8 border-green-600 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-pulse" style={{ animationDuration: '2s' }}>
-            {/* Pixel art style header */}
-            <div className="text-center mb-6">
-              <div className="inline-block bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg border-4 border-yellow-600 shadow-lg mb-4" style={{ fontFamily: 'monospace', fontSize: '1.5rem', letterSpacing: '2px' }}>
-                ⚡ UPGRADE! ⚡
-              </div>
+        <div className="bg-gradient-to-b from-green-900 to-green-950 border-8 border-green-600 rounded-3xl shadow-2xl p-8 md:p-12">
+          <div className="mb-6">
+            <div className="inline-block bg-yellow-400 text-black font-bold px-8 py-3 rounded-lg border-4 border-yellow-600 shadow-lg mb-6" style={{ fontFamily: 'monospace', fontSize: '2rem', letterSpacing: '3px' }}>
+              📱 MOBILE ONLY
             </div>
+          </div>
 
-            {/* Story-style message */}
-            <div className="bg-black bg-opacity-50 rounded-lg p-5 mb-6 border-4 border-green-700">
-              <p className="text-green-300 font-mono text-center leading-relaxed mb-4" style={{ fontSize: '1rem' }}>
-                🎮 <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
-              </p>
-              <p className="text-white font-mono text-center leading-relaxed mb-4" style={{ fontSize: '0.95rem' }}>
-                We&apos;ve upgraded to <span className="text-cyan-400 font-bold">FLIPPRX ONE</span> wallet - 
-                <span className="text-green-400 font-bold"> cheaper</span> and 
-                <span className="text-blue-400 font-bold"> faster</span> than ever!
-              </p>
-              <div className="text-center mb-4">
-                <a 
-                  href="https://FLIPPRX.ONE" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-6 py-3 rounded-lg border-4 border-cyan-700 shadow-lg hover:from-cyan-400 hover:to-blue-500 transition-all transform hover:scale-105"
-                  style={{ fontFamily: 'monospace', fontSize: '1.1rem' }}
-                >
-                  🚀 VISIT FLIPPRX.ONE
-                </a>
-              </div>
-              <p className="text-gray-400 font-mono text-center text-sm">
-                In the meantime, enjoy playing with <span className="text-green-400">FLIPPRX</span>! 🎯
+          <div className="bg-black bg-opacity-50 rounded-xl p-6 mb-6 border-4 border-green-700">
+            <p className="text-white font-mono text-xl leading-relaxed mb-4">
+              🎮 <span className="text-green-400 font-bold">FLIPPRX Pixel Game</span> is designed for mobile devices only!
+            </p>
+            <p className="text-gray-300 font-mono text-lg leading-relaxed mb-6">
+              Please open this page on your <span className="text-cyan-400 font-bold">phone</span> or <span className="text-cyan-400 font-bold">tablet</span> to play.
+            </p>
+            
+            <div className="border-t-2 border-green-700 pt-6 mt-6">
+              <p className="text-green-300 font-mono text-base mb-4">
+                ✨ Experience the full gameboy-style interface with touch controls!
               </p>
             </div>
+          </div>
 
-            {/* Continue button */}
-            <button
-              onClick={() => {
-                localStorage.setItem('flipprx_wallet_modal_seen', 'true');
-                setShowWalletModal(false);
-              }}
-              className="w-full bg-gradient-to-b from-green-500 to-green-700 text-white font-bold py-4 px-6 rounded-lg border-4 border-green-800 shadow-xl hover:from-green-400 hover:to-green-600 transition-all transform hover:scale-105"
-              style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '1px' }}
+          <div className="text-center">
+            <a 
+              href="https://FLIPPRX.ONE" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-8 py-4 rounded-lg border-4 border-cyan-700 shadow-lg hover:from-cyan-400 hover:to-blue-500 transition-all transform hover:scale-105"
+              style={{ fontFamily: 'monospace', fontSize: '1.2rem' }}
             >
-              ▶️ START PLAYING!
-            </button>
+              🚀 VISIT FLIPPRX.ONE
+            </a>
           </div>
         </div>
-      )}
+
+        <p className="text-gray-500 font-mono text-sm mt-8">
+          Scan QR code or share this link to play on mobile
+        </p>
+      </div>
     </div>
   );
 }
