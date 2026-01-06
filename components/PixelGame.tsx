@@ -831,7 +831,7 @@ export default function PixelGame() {
             } else {
               // Spawn enemy (badguy)
               state.enemies.push({
-                x: platform.x,
+                x: platform.x + 4,
                 y: platform.y - 16,
                 direction: Math.random() > 0.5 ? 1 : -1,
                 alive: true,
@@ -1020,7 +1020,7 @@ export default function PixelGame() {
         const oldEnemyX = enemy.x;
         const oldEnemyY = enemy.y;
         
-        // Different movement for snake vs goomba
+        // Different movement for snake vs others
         if (enemy.type === 'snake') {
           // Snake moves with wave pattern
           enemy.waveOffset = (enemy.waveOffset || 0) + dt * 4;
@@ -1030,7 +1030,7 @@ export default function PixelGame() {
           const baseY = oldEnemyY;
           enemy.y = baseY + Math.sin(enemy.waveOffset) * 3;
         } else {
-          // Goomba moves normally
+          // Goomba and badguy move normally
           enemy.x += enemy.direction * 30 * dt;
         }
         
@@ -1463,8 +1463,8 @@ export default function PixelGame() {
             // Use enemy's own animation frame counter for smooth animation
             if (!enemy.animFrame) enemy.animFrame = 0;
             
-            // Calculate animation frame (8 frames, slower speed)
-            const animSpeed = 6; // frames per second
+            // Calculate animation frame (8 frames, much slower speed to prevent flickering)
+            const animSpeed = 4; // frames per second
             const frameIndex = Math.floor((Date.now() / 1000) * animSpeed) % 8;
             const frameName = `${frameIndex + 1}.png`;
             const badguySprite = spritesRef.current[frameName];
