@@ -1,0 +1,20 @@
+{
+  "name": "flipgame",
+  "version": "1.0.0",
+  "description": "A Mario-like platformer game built with Phaser 3",
+  "main": "index.js",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": ["phaser", "game", "platformer"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  }
+}

@@ -1,0 +1,64 @@
+[gd_scene load_steps=8 format=3 uid="uid://bvq8xwxqm7yjr"]
+
+[ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_game_manager"]
+[ext_resource type="PackedScene" uid="uid://player_scene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://tilemap_scene" path="res://scenes/tilemap.tscn" id="3_tilemap"]
+
+[sub_resource type="Sky" id="Sky_1"]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+background_color = Color(0.529412, 0.807843, 0.921569, 1)
+sky = SubResource("Sky_1")
+
+[sub_resource type="LabelSettings" id="LabelSettings_1"]
+font_size = 8
+outline_size = 2
+outline_color = Color(0, 0, 0, 1)
+
+[node name="Main" type="Node2D"]
+
+[node name="GameManager" type="Node" parent="."]
+script = ExtResource("1_game_manager")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="ParallaxBackground" type="ParallaxBackground" parent="."]
+
+[node name="Mountains" type="ParallaxLayer" parent="ParallaxBackground"]
+motion_scale = Vector2(0.3, 0.3)
+motion_mirroring = Vector2(480, 0)
+
+[node name="Hills" type="ParallaxLayer" parent="ParallaxBackground"]
+motion_scale = Vector2(0.5, 0.5)
+motion_mirroring = Vector2(320, 0)
+
+[node name="TileMap" parent="." instance=ExtResource("3_tilemap")]
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+position = Vector2(32, 128)
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+position_smoothing_enabled = true
+position_smoothing_speed = 7.0
+drag_horizontal_enabled = true
+drag_vertical_enabled = true
+drag_left_margin = 0.25
+drag_top_margin = 0.15
+drag_right_margin = 0.25
+drag_bottom_margin = 0.15
+
+[node name="Coins" type="Node2D" parent="."]
+
+[node name="Enemies" type="Node2D" parent="."]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="ScoreLabel" type="Label" parent="UI"]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 100.0
+offset_bottom = 20.0
+text = "SCORE: 0"
+label_settings = SubResource("LabelSettings_1")
