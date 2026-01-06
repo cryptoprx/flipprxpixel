@@ -1460,7 +1460,16 @@ export default function PixelGame() {
           // Draw helmet.png sprite overlapping player (both 16x16)
           ctx.save();
           ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(helmetSprite, px, py, 16, 16);
+          
+          // Flip helmet horizontally if character is facing left
+          if (state.player.facingLeft) {
+            ctx.translate(px + 16, py);
+            ctx.scale(-1, 1);
+            ctx.drawImage(helmetSprite, 0, 0, 16, 16);
+          } else {
+            ctx.drawImage(helmetSprite, px, py, 16, 16);
+          }
+          
           ctx.restore();
         }
       }
