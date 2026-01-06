@@ -86,6 +86,13 @@ export default function PixelGame() {
     enemies: [] as Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake'; waveOffset?: number }>,
     particles: [] as Particle[],
     platforms: [] as Array<{ x: number; y: number; width: number; height: number; type: string; used?: boolean; broken?: boolean; bounceOffset?: number }>,
+    portal: null as { x: number; y: number; animationFrame: number; active: boolean } | null,
+    inBlackhole: false,
+    blackholeTimer: 0,
+    blackholeFallSpeed: 0,
+    chartBars: [] as Array<{ height: number; color: string }>,
+    chartComplete: false,
+    chartResult: '' as 'green' | 'red' | '',
   });
 
   // Game constants
@@ -445,6 +452,23 @@ export default function PixelGame() {
     state.totalCoinsThisStage = stageData.coins.length;
     state.celebrating = false;
     state.celebrationTimer = 0;
+    
+    // Spawn portal randomly (30% chance)
+    if (Math.random() < 0.3) {
+      const portalX = 200 + Math.random() * (stageData.width - 400);
+      const portalY = 90; // Above ground level
+      state.portal = { x: portalX, y: portalY, animationFrame: 0, active: true };
+    } else {
+      state.portal = null;
+    }
+    
+    // Reset blackhole state
+    state.inBlackhole = false;
+    state.blackholeTimer = 0;
+    state.blackholeFallSpeed = 0;
+    state.chartBars = [];
+    state.chartComplete = false;
+    state.chartResult = '';
     
     // Reset player position and animation state
     state.player.x = 80;
@@ -889,6 +913,66 @@ export default function PixelGame() {
         }
       }
 
+      // Update portal animation
+      if (state.portal && state.portal.active) {
+        state.portal.animationFrame += dt * 8;
+        
+        // Check collision with player
+        if (Math.abs(player.x - state.portal.x) < 16 && Math.abs(player.y - state.portal.y) < 16) {
+          // Enter blackhole mini-game
+          state.inBlackhole = true;
+          state.blackholeTimer = 0;
+          state.blackholeFallSpeed = 20;
+          state.chartBars = [];
+          state.chartComplete = false;
+          state.chartResult = '';
+          state.portal.active = false;
+          playSound('powerup');
+        }
+      }
+      
+      // Update blackhole mini-game
+      if (state.inBlackhole) {
+        state.blackholeTimer += dt;
+        state.blackholeFallSpeed += dt * 30; // Accelerate fall
+        
+        // Build chart bars over time (5 bars total, one every 0.8 seconds)
+        const barInterval = 0.8;
+        const currentBarCount = Math.floor(state.blackholeTimer / barInterval);
+        
+        if (currentBarCount > state.chartBars.length && state.chartBars.length < 5) {
+          // Add new bar with random height
+          const height = 20 + Math.random() * 40; // 20-60 pixels
+          const isLastBar = state.chartBars.length === 4;
+          
+          // Last bar determines outcome
+          if (isLastBar) {
+            const isGreen = height > 40; // >50% of max height
+            state.chartBars.push({ height, color: isGreen ? 'green' : 'red' });
+            state.chartResult = isGreen ? 'green' : 'red';
+            state.chartComplete = true;
+          } else {
+            // Random color for non-final bars
+            const color = Math.random() > 0.5 ? 'green' : 'red';
+            state.chartBars.push({ height, color });
+          }
+        }
+        
+        // After chart completes, wait 2 seconds then apply result
+        if (state.chartComplete && state.blackholeTimer > 5) {
+          if (state.chartResult === 'red') {
+            // Restart from stage 1
+            setCurrentStage(1);
+            loadStage(1);
+          } else {
+            // Continue current stage
+            state.inBlackhole = false;
+            state.blackholeTimer = 0;
+            state.blackholeFallSpeed = 0;
+          }
+        }
+      }
+      
       // Update coins
       state.coins.forEach((coin, i) => {
         if (!coin.collected) {
@@ -1288,6 +1372,37 @@ export default function PixelGame() {
           ctx.fillRect(x + 3, y + 2, 2, 4);
         }
       });
+      
+      // Draw portal with swirling animation
+      if (state.portal && state.portal.active) {
+        const px = Math.floor(state.portal.x);
+        const py = Math.floor(state.portal.y);
+        const frame = Math.floor(state.portal.animationFrame) % 4;
+        
+        // Portal outer ring (pulsing)
+        const pulseSize = frame % 2;
+        ctx.fillStyle = '#4B0082'; // Indigo
+        ctx.fillRect(px + 2 - pulseSize, py + 2 - pulseSize, 12 + pulseSize * 2, 12 + pulseSize * 2);
+        
+        // Portal middle ring (rotating colors)
+        const colors = ['#8B00FF', '#9400D3', '#9932CC', '#BA55D3'];
+        ctx.fillStyle = colors[frame];
+        ctx.fillRect(px + 4, py + 4, 8, 8);
+        
+        // Portal center (bright)
+        ctx.fillStyle = frame % 2 === 0 ? '#E0B0FF' : '#DDA0DD';
+        ctx.fillRect(px + 6, py + 6, 4, 4);
+        
+        // Swirling particles around portal
+        for (let i = 0; i < 4; i++) {
+          const angle = (state.portal.animationFrame + i * 90) * (Math.PI / 180);
+          const radius = 10;
+          const particleX = px + 8 + Math.cos(angle) * radius;
+          const particleY = py + 8 + Math.sin(angle) * radius;
+          ctx.fillStyle = '#FF00FF';
+          ctx.fillRect(Math.floor(particleX), Math.floor(particleY), 2, 2);
+        }
+      }
 
       // Draw enemies with enhanced visuals - pixel perfect
       state.enemies.forEach(enemy => {
@@ -1536,6 +1651,99 @@ export default function PixelGame() {
         }
       }
 
+      // Draw blackhole mini-game overlay
+      if (state.inBlackhole) {
+        // Dark space background
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        
+        // Draw stars
+        for (let i = 0; i < 30; i++) {
+          const starX = (i * 37 + state.blackholeTimer * 10) % GAME_WIDTH;
+          const starY = (i * 23) % GAME_HEIGHT;
+          ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : '#CCCCCC';
+          ctx.fillRect(Math.floor(starX), Math.floor(starY), 1, 1);
+        }
+        
+        // Draw blackhole in center
+        const centerX = GAME_WIDTH / 2;
+        const centerY = 40;
+        const blackholeSize = 8 + Math.sin(state.blackholeTimer * 3) * 2;
+        
+        // Blackhole rings (purple/blue gradient)
+        for (let ring = 4; ring > 0; ring--) {
+          const ringSize = blackholeSize + ring * 4;
+          const colors = ['#4B0082', '#8B00FF', '#9400D3', '#BA55D3'];
+          ctx.fillStyle = colors[ring - 1];
+          ctx.fillRect(centerX - ringSize / 2, centerY - ringSize / 2, ringSize, ringSize);
+        }
+        
+        // Blackhole center (pure black)
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(centerX - blackholeSize / 2, centerY - blackholeSize / 2, blackholeSize, blackholeSize);
+        
+        // Draw falling player
+        const playerFallY = 60 + state.blackholeFallSpeed;
+        ctx.fillStyle = '#00FF00';
+        ctx.fillRect(centerX - 8, playerFallY, 16, 16);
+        
+        // Draw chart at bottom
+        const chartStartX = 40;
+        const chartY = GAME_HEIGHT - 70;
+        
+        // Chart title
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '8px monospace';
+        ctx.fillText('MARKET CHART', chartStartX, chartY - 10);
+        
+        // Draw chart bars
+        state.chartBars.forEach((bar, index) => {
+          const barX = chartStartX + index * 16;
+          const barWidth = 12;
+          const barHeight = bar.height;
+          
+          // Bar body
+          ctx.fillStyle = bar.color === 'green' ? '#00FF00' : '#FF0000';
+          ctx.fillRect(barX, chartY - barHeight, barWidth, barHeight);
+          
+          // Bar outline
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(barX, chartY - barHeight, barWidth, barHeight);
+          
+          // Wick (candlestick style)
+          const wickX = barX + barWidth / 2;
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(wickX, chartY - barHeight - 5, 1, 5);
+          ctx.fillRect(wickX, chartY, 1, 5);
+        });
+        
+        // Chart baseline
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(chartStartX - 5, chartY, 90, 1);
+        
+        // Result message
+        if (state.chartComplete) {
+          const resultY = GAME_HEIGHT - 20;
+          if (state.chartResult === 'green') {
+            ctx.fillStyle = '#00FF00';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText('GREEN CANDLE!', centerX - 40, resultY);
+            ctx.fillText('CONTINUE!', centerX - 30, resultY + 12);
+          } else {
+            ctx.fillStyle = '#FF0000';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText('RED CANDLE!', centerX - 35, resultY);
+            ctx.fillText('RESTART!', centerX - 25, resultY + 12);
+          }
+        } else {
+          // Show bar count
+          ctx.fillStyle = '#FFFF00';
+          ctx.font = '8px monospace';
+          ctx.fillText(`Bar ${state.chartBars.length}/5`, centerX - 20, GAME_HEIGHT - 20);
+        }
+      }
+      
       // Draw helmet timer indicator
       if (state.player.hasHelmet && state.player.helmetTimer > 0) {
         const timerX = Math.floor(state.player.x);
