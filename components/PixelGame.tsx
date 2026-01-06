@@ -1715,6 +1715,30 @@ export default function PixelGame() {
         }
       }
 
+      // Draw coins in world space (before ctx.restore) so they stay in place
+      if (!state.inBlackhole) {
+        state.coins.forEach(coin => {
+          if (!coin.collected) {
+            const y = Math.floor(coin.y + Math.sin(coin.floatOffset) * 4);
+            const x = Math.floor(coin.x);
+            // Black outline
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + 1, y, 6, 1);
+            ctx.fillRect(x + 1, y + 8, 6, 1);
+            ctx.fillRect(x, y + 2, 1, 4);
+            ctx.fillRect(x + 7, y + 2, 1, 4);
+            ctx.fillRect(x + 2, y - 1, 4, 1);
+            ctx.fillRect(x + 2, y + 9, 4, 1);
+            // Coin body
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(x + 2, y, 4, 8);
+            ctx.fillRect(x, y + 2, 8, 4);
+            ctx.fillStyle = '#FFA500';
+            ctx.fillRect(x + 3, y + 2, 2, 4);
+          }
+        });
+      }
+
       ctx.restore();
       
       // Draw blackhole mini-game overlay (MUST BE LAST - draws on top of everything)
@@ -2054,30 +2078,6 @@ export default function PixelGame() {
           ctx.fillText(`BAR ${state.chartBars.length}/5`, centerX - 18, GAME_HEIGHT - 20);
         }
         ctx.restore();
-      }
-      
-      // Draw coins AFTER blackhole scene so they appear on top
-      if (!state.inBlackhole) {
-        state.coins.forEach(coin => {
-          if (!coin.collected) {
-            const y = Math.floor(coin.y + Math.sin(coin.floatOffset) * 4);
-            const x = Math.floor(coin.x);
-            // Black outline
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(x + 1, y, 6, 1);
-            ctx.fillRect(x + 1, y + 8, 6, 1);
-            ctx.fillRect(x, y + 2, 1, 4);
-            ctx.fillRect(x + 7, y + 2, 1, 4);
-            ctx.fillRect(x + 2, y - 1, 4, 1);
-            ctx.fillRect(x + 2, y + 9, 4, 1);
-            // Coin body
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(x + 2, y, 4, 8);
-            ctx.fillRect(x, y + 2, 8, 4);
-            ctx.fillStyle = '#FFA500';
-            ctx.fillRect(x + 3, y + 2, 2, 4);
-          }
-        });
       }
     };
 
