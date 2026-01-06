@@ -1413,38 +1413,31 @@ export default function PixelGame() {
         drawPlayerSprite(ctx, Math.floor(state.player.x), Math.floor(state.player.y), frameName, state.player.facingLeft);
       }
       
-      // Draw helmet if active
+      // Draw rainbow overlay on character when helmet is active (Mario star effect)
       if (state.player.hasHelmet) {
-        const helmetFlash = Math.sin(performance.now() / 100) > 0;
-        if (helmetFlash) {
-          const px = Math.floor(state.player.x);
-          const py = Math.floor(state.player.y);
-          const helmetSprite = spritesRef.current['helmet.png'];
-          
-          if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
-            // Draw helmet.png sprite overlapping player (both 16x16)
-            ctx.save();
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(helmetSprite, px, py, 16, 16);
-            ctx.restore();
-          } else {
-            // Fallback to pixel-drawn helmet if image not loaded
-            ctx.fillStyle = '#C0C0C0';
-            ctx.fillRect(px + 1, py - 3, 14, 8);
-            ctx.fillRect(px + 2, py - 4, 12, 1);
-            ctx.fillStyle = '#A9A9A9';
-            ctx.fillRect(px + 2, py - 2, 12, 6);
-            ctx.fillStyle = '#E0E0E0';
-            ctx.fillRect(px + 3, py - 3, 2, 6);
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(px + 1, py - 5, 14, 1);
-            ctx.fillRect(px, py - 4, 1, 9);
-            ctx.fillRect(px + 15, py - 4, 1, 9);
-            ctx.fillRect(px + 1, py + 5, 14, 1);
-            ctx.fillRect(px + 4, py, 8, 2);
-            ctx.fillStyle = '#A9A9A9';
-            ctx.fillRect(px + 7, py + 2, 2, 3);
-          }
+        const px = Math.floor(state.player.x);
+        const py = Math.floor(state.player.y);
+        
+        // Rainbow color cycling animation
+        const time = performance.now() / 200;
+        const hue = (time % 360);
+        
+        // Draw semi-transparent rainbow overlay on character
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+        ctx.fillRect(px, py, 16, 16);
+        ctx.restore();
+        
+        // Draw helmet sprite (static, no blinking)
+        const helmetSprite = spritesRef.current['helmet.png'];
+        
+        if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
+          // Draw helmet.png sprite overlapping player (both 16x16)
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(helmetSprite, px, py, 16, 16);
+          ctx.restore();
         }
       }
 
