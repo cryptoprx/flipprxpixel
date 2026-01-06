@@ -52,6 +52,7 @@ export default function PixelGame() {
   }, []);
   const audioContextRef = useRef<AudioContext | null>(null);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+  const musicStartedRef = useRef(false);
   const spritesRef = useRef<Record<string, HTMLImageElement>>({});
   const gameStateRef = useRef({
     player: {
@@ -542,6 +543,15 @@ export default function PixelGame() {
     const update = (dt: number) => {
       const state = gameStateRef.current;
       const player = state.player;
+
+      // Auto-start music on first user interaction
+      if (!musicStartedRef.current && bgMusicRef.current && audioEnabled) {
+        const anyKeyPressed = Object.values(state.keys).some(pressed => pressed);
+        if (anyKeyPressed) {
+          bgMusicRef.current.play().catch(() => {});
+          musicStartedRef.current = true;
+        }
+      }
 
       // Update coyote time
       if (player.onGround) {
@@ -2165,10 +2175,30 @@ export default function PixelGame() {
 
   if (!spritesLoaded) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-white text-2xl mb-4">Loading sprites...</div>
-        <div className="w-64 h-4 bg-gray-700 rounded-full overflow-hidden">
-          <div className="h-full bg-green-500 animate-pulse" style={{ width: '50%' }}></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black">
+        <style>{`
+          @keyframes pixelRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          .pixel-rotate {
+            animation: pixelRotate 2s linear infinite;
+            image-rendering: pixelated;
+          }
+        `}</style>
+        <img 
+          src="/croak.png" 
+          alt="Loading..." 
+          className="pixel-rotate mb-8" 
+          style={{ 
+            width: '120px', 
+            height: '120px',
+            imageRendering: 'pixelated'
+          }} 
+        />
+        <div className="text-green-400 text-2xl mb-4 font-mono font-bold">Loading sprites...</div>
+        <div className="w-64 h-4 bg-gray-700 rounded-full overflow-hidden border-2 border-green-600">
+          <div className="h-full bg-gradient-to-r from-green-500 to-green-400 animate-pulse" style={{ width: '50%' }}></div>
         </div>
       </div>
     );
@@ -2177,6 +2207,13 @@ export default function PixelGame() {
   // Mobile button handlers
   const handleMobileButton = (action: string, pressed: boolean) => {
     const state = gameStateRef.current;
+    
+    // Auto-start music on first mobile button press
+    if (pressed && !musicStartedRef.current && bgMusicRef.current && audioEnabled) {
+      bgMusicRef.current.play().catch(() => {});
+      musicStartedRef.current = true;
+    }
+    
     if (action === 'left') {
       state.keys['ArrowLeft'] = pressed;
     } else if (action === 'right') {
