@@ -1,20 +1,26 @@
 {
-  "name": "flipgame",
-  "version": "1.0.0",
-  "description": "A Mario-like platformer game built with Phaser 3",
-  "main": "index.js",
+  "name": "pixel-game",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "start": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "keywords": ["phaser", "game", "platformer"],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "vite": "^5.0.0"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
   "dependencies": {
-    "phaser": "^3.80.1"
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
