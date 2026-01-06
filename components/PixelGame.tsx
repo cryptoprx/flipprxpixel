@@ -37,11 +37,12 @@ export default function PixelGame() {
   const [spritesLoaded, setSpritesLoaded] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   
-  // Detect mobile device
+  // Detect mobile/tablet device - always show gameboy style on mobile/tablet
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024);
+      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 1024);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -126,6 +127,14 @@ export default function PixelGame() {
   // Audio system - procedural sound generation
   const playSound = (type: string) => {
     if (!audioEnabled) return;
+    
+    // Play bro.mp3 for death sound
+    if (type === 'death') {
+      const audio = new Audio('/bro.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(() => {});
+      return;
+    }
     
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -326,6 +335,14 @@ export default function PixelGame() {
       }
     }
   }, [audioEnabled]);
+
+  // Check if user has seen wallet modal
+  useEffect(() => {
+    const hasSeenWalletModal = localStorage.getItem('flipprx_wallet_modal_seen');
+    if (!hasSeenWalletModal) {
+      setShowWalletModal(true);
+    }
+  }, []);
 
   // Load character sprites
   useEffect(() => {
@@ -1114,6 +1131,7 @@ export default function PixelGame() {
             }
           } else {
             // Player dies - respawn at starting position
+            playSound('death');
             player.x = 80;
             player.y = 115;
             player.velocityX = 0;
@@ -2345,6 +2363,58 @@ export default function PixelGame() {
           <p className="text-gray-600 text-xs">Hold jump longer for higher jumps!</p>
         </div>
       </div>
+
+      {/* Wallet Upgrade Modal */}
+      {showWalletModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}>
+          <div className="bg-gradient-to-b from-green-900 to-green-950 border-8 border-green-600 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-pulse" style={{ animationDuration: '2s' }}>
+            {/* Pixel art style header */}
+            <div className="text-center mb-6">
+              <div className="inline-block bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg border-4 border-yellow-600 shadow-lg mb-4" style={{ fontFamily: 'monospace', fontSize: '1.5rem', letterSpacing: '2px' }}>
+                ⚡ UPGRADE! ⚡
+              </div>
+            </div>
+
+            {/* Story-style message */}
+            <div className="bg-black bg-opacity-50 rounded-lg p-5 mb-6 border-4 border-green-700">
+              <p className="text-green-300 font-mono text-center leading-relaxed mb-4" style={{ fontSize: '1rem' }}>
+                🎮 <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
+              </p>
+              <p className="text-white font-mono text-center leading-relaxed mb-4" style={{ fontSize: '0.95rem' }}>
+                We&apos;ve upgraded to <span className="text-cyan-400 font-bold">FLIPPRX ONE</span> wallet - 
+                <span className="text-green-400 font-bold"> cheaper</span> and 
+                <span className="text-blue-400 font-bold"> faster</span> than ever!
+              </p>
+              <div className="text-center mb-4">
+                <a 
+                  href="https://FLIPPRX.ONE" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-6 py-3 rounded-lg border-4 border-cyan-700 shadow-lg hover:from-cyan-400 hover:to-blue-500 transition-all transform hover:scale-105"
+                  style={{ fontFamily: 'monospace', fontSize: '1.1rem' }}
+                >
+                  🚀 VISIT FLIPPRX.ONE
+                </a>
+              </div>
+              <p className="text-gray-400 font-mono text-center text-sm">
+                In the meantime, enjoy playing with <span className="text-green-400">FLIPPRX</span>! 🎯
+              </p>
+            </div>
+
+            {/* Continue button */}
+            <button
+              onClick={() => {
+                localStorage.setItem('flipprx_wallet_modal_seen', 'true');
+                setShowWalletModal(false);
+              }}
+              className="w-full bg-gradient-to-b from-green-500 to-green-700 text-white font-bold py-4 px-6 rounded-lg border-4 border-green-800 shadow-xl hover:from-green-400 hover:to-green-600 transition-all transform hover:scale-105"
+              style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '1px' }}
+            >
+              ▶️ START PLAYING!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
