@@ -1728,7 +1728,7 @@ export default function PixelGame() {
 
   // Desktop UI
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-green-100 via-green-200 to-green-300 p-4 overflow-auto">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-green-100 via-green-200 to-green-300 overflow-hidden">
       <div className="mb-4 flex items-center justify-center" style={{ marginBottom: 'clamp(1rem, 2vh, 1.5rem)' }}>
         <img src="/flip.png" alt="Flip Game Logo" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(80px, 10vh, 128px)', maxHeight: '128px' }} />
       </div>
