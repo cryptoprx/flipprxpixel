@@ -1422,10 +1422,10 @@ export default function PixelGame() {
           const helmetSprite = spritesRef.current['helmet.png'];
           
           if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
-            // Draw helmet.png sprite above player
+            // Draw helmet.png sprite on player's head
             ctx.save();
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(helmetSprite, px, py - 6, 16, 16);
+            ctx.drawImage(helmetSprite, px, py - 2, 16, 16);
             ctx.restore();
           } else {
             // Fallback to pixel-drawn helmet if image not loaded
@@ -1756,15 +1756,15 @@ export default function PixelGame() {
 
   // Desktop UI
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-green-100 via-green-200 to-green-300 overflow-hidden py-4">
-      <div className="mb-2 flex items-center justify-center">
-        <img src="/flip.png" alt="Flip Game Logo" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(50px, 6vh, 70px)' }} />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-green-100 via-green-200 to-green-300 overflow-hidden py-2">
+      <div className="mb-1 flex items-center justify-center">
+        <img src="/flip.png" alt="Flip Game Logo" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(40px, 5vh, 60px)' }} />
       </div>
       
-      <div className="bg-white rounded-2xl shadow-2xl border-4 border-green-800 w-full max-w-5xl mx-auto px-4 py-3">
-        <div className="flex flex-wrap gap-3 items-center justify-center mb-3">
-          <div className="font-mono text-yellow-600 bg-green-900 px-3 py-1.5 rounded-lg font-bold" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1rem)' }}>SCORE: {score}</div>
-          <div className="font-mono text-cyan-400 bg-green-900 px-3 py-1.5 rounded-lg font-bold" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1rem)' }}>STAGE: {currentStage}/10</div>
+      <div className="bg-white rounded-2xl shadow-2xl border-4 border-green-800 w-full max-w-4xl mx-auto px-3 py-2">
+        <div className="flex flex-wrap gap-2 items-center justify-center mb-2">
+          <div className="font-mono text-yellow-600 bg-green-900 px-2 py-1 rounded-lg font-bold" style={{ fontSize: 'clamp(0.75rem, 1.25vw, 0.875rem)' }}>SCORE: {score}</div>
+          <div className="font-mono text-cyan-400 bg-green-900 px-2 py-1 rounded-lg font-bold" style={{ fontSize: 'clamp(0.75rem, 1.25vw, 0.875rem)' }}>STAGE: {currentStage}/10</div>
           <button
             onClick={() => {
               if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
@@ -1772,8 +1772,8 @@ export default function PixelGame() {
               }
               setAudioEnabled(!audioEnabled);
             }}
-            className={`px-4 py-1.5 ${audioEnabled ? 'bg-green-700 hover:bg-green-800' : 'bg-red-600 hover:bg-red-700'} text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg`}
-            style={{ fontSize: 'clamp(0.75rem, 1.25vw, 0.875rem)' }}
+            className={`px-3 py-1 ${audioEnabled ? 'bg-green-700 hover:bg-green-800' : 'bg-red-600 hover:bg-red-700'} text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg`}
+            style={{ fontSize: 'clamp(0.625rem, 1vw, 0.75rem)' }}
           >
             {audioEnabled ? '🔊 SOUND ON' : '🔇 SOUND OFF'}
           </button>
@@ -1795,10 +1795,10 @@ export default function PixelGame() {
         </div>
       </div>
       
-      <div className="text-center mt-2">
-        <div className="bg-white rounded-lg px-4 py-2 inline-block shadow-lg border-2 border-green-800">
-          <p className="text-gray-800 font-mono font-semibold" style={{ fontSize: 'clamp(0.625rem, 1.25vw, 0.875rem)' }}>⬅️ ➡️ Arrow Keys / WASD to move • ⬆️ Space/W/Up to jump</p>
-          <p className="text-gray-600 mt-0.5" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.75rem)' }}>Hold jump longer for higher jumps!</p>
+      <div className="text-center mt-1">
+        <div className="bg-white rounded-lg px-3 py-1.5 inline-block shadow-lg border-2 border-green-800">
+          <p className="text-gray-800 font-mono font-semibold" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.75rem)' }}>⬅️ ➡️ Arrow Keys / WASD to move • ⬆️ Space/W/Up to jump</p>
+          <p className="text-gray-600" style={{ fontSize: 'clamp(0.4rem, 0.875vw, 0.625rem)' }}>Hold jump longer for higher jumps!</p>
         </div>
       </div>
     </div>
