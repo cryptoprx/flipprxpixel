@@ -331,6 +331,7 @@ export default function PixelGame() {
       'jump1.PNG',
       'jump2.PNG',
       'jump3.PNG',
+      'helmet.png',
     ];
 
     let loadedCount = 0;
@@ -353,7 +354,9 @@ export default function PixelGame() {
       };
       // Add cache busting for standing.png to force reload
       const cacheBuster = file === 'standing.png' ? `?v=${Date.now()}` : '';
-      img.src = `/sprites/${file}${cacheBuster}`;
+      // helmet.png is in root /public, others are in /sprites
+      const path = file === 'helmet.png' ? `/${file}` : `/sprites/${file}${cacheBuster}`;
+      img.src = path;
       spritesRef.current[file] = img;
     });
 
@@ -1416,21 +1419,32 @@ export default function PixelGame() {
         if (helmetFlash) {
           const px = Math.floor(state.player.x);
           const py = Math.floor(state.player.y);
-          ctx.fillStyle = '#C0C0C0';
-          ctx.fillRect(px + 1, py - 3, 14, 8);
-          ctx.fillRect(px + 2, py - 4, 12, 1);
-          ctx.fillStyle = '#A9A9A9';
-          ctx.fillRect(px + 2, py - 2, 12, 6);
-          ctx.fillStyle = '#E0E0E0';
-          ctx.fillRect(px + 3, py - 3, 2, 6);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(px + 1, py - 5, 14, 1);
-          ctx.fillRect(px, py - 4, 1, 9);
-          ctx.fillRect(px + 15, py - 4, 1, 9);
-          ctx.fillRect(px + 1, py + 5, 14, 1);
-          ctx.fillRect(px + 4, py, 8, 2);
-          ctx.fillStyle = '#A9A9A9';
-          ctx.fillRect(px + 7, py + 2, 2, 3);
+          const helmetSprite = spritesRef.current['helmet.png'];
+          
+          if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
+            // Draw helmet.png sprite above player
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(helmetSprite, px, py - 6, 16, 16);
+            ctx.restore();
+          } else {
+            // Fallback to pixel-drawn helmet if image not loaded
+            ctx.fillStyle = '#C0C0C0';
+            ctx.fillRect(px + 1, py - 3, 14, 8);
+            ctx.fillRect(px + 2, py - 4, 12, 1);
+            ctx.fillStyle = '#A9A9A9';
+            ctx.fillRect(px + 2, py - 2, 12, 6);
+            ctx.fillStyle = '#E0E0E0';
+            ctx.fillRect(px + 3, py - 3, 2, 6);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(px + 1, py - 5, 14, 1);
+            ctx.fillRect(px, py - 4, 1, 9);
+            ctx.fillRect(px + 15, py - 4, 1, 9);
+            ctx.fillRect(px + 1, py + 5, 14, 1);
+            ctx.fillRect(px + 4, py, 8, 2);
+            ctx.fillStyle = '#A9A9A9';
+            ctx.fillRect(px + 7, py + 2, 2, 3);
+          }
         }
       }
 
