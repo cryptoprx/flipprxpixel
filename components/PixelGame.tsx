@@ -1351,27 +1351,7 @@ export default function PixelGame() {
         }
       });
 
-      // Draw coins with black outline - pixel perfect
-      state.coins.forEach(coin => {
-        if (!coin.collected) {
-          const y = Math.floor(coin.y + Math.sin(coin.floatOffset) * 4);
-          const x = Math.floor(coin.x);
-          // Black outline
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(x + 1, y, 6, 1);
-          ctx.fillRect(x + 1, y + 8, 6, 1);
-          ctx.fillRect(x, y + 2, 1, 4);
-          ctx.fillRect(x + 7, y + 2, 1, 4);
-          ctx.fillRect(x + 2, y - 1, 4, 1);
-          ctx.fillRect(x + 2, y + 9, 4, 1);
-          // Coin body
-          ctx.fillStyle = '#FFD700';
-          ctx.fillRect(x + 2, y, 4, 8);
-          ctx.fillRect(x, y + 2, 8, 4);
-          ctx.fillStyle = '#FFA500';
-          ctx.fillRect(x + 3, y + 2, 2, 4);
-        }
-      });
+      // Coins will be drawn later (after blackhole scene) so they appear on top
       
       // Draw portal with clean pixel art animation
       if (state.portal && state.portal.active) {
@@ -1864,39 +1844,80 @@ export default function PixelGame() {
           horizonSize
         );
         
-        // Draw falling player with rotation and trail
+        // Draw falling player with actual sprite and rotation
         const playerFallY = 60 + Math.min(state.blackholeFallSpeed, 50);
         const playerRotation = time * 10;
         
-        // Player trail effect (solid colors, no alpha)
-        const trailColors = ['#004400', '#006600', '#008800', '#00AA00'];
-        for (let trail = 0; trail < 4; trail++) {
-          const trailY = playerFallY - (trail + 1) * 4;
-          ctx.fillStyle = trailColors[trail];
-          ctx.fillRect(Math.floor(centerX - 6), Math.floor(trailY), 12, 12);
+        // Player trail effect with actual sprite (fading copies)
+        const trailSprites = [
+          { offset: 3, sprite: 'idle' },
+          { offset: 2, sprite: 'walk1' },
+          { offset: 1, sprite: 'walk2' }
+        ];
+        
+        trailSprites.forEach((trail, index) => {
+          const trailY = playerFallY - (trail.offset + 1) * 8;
+          const trailX = Math.floor(centerX - 8);
+          const trailRotation = playerRotation - trail.offset * 30;
+          
+          // Draw darker version of sprite for trail
+          if (spritesRef.current[trail.sprite]) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 16;
+            tempCanvas.height = 16;
+            const tempCtx = tempCanvas.getContext('2d')!;
+            tempCtx.imageSmoothingEnabled = false;
+            
+            // Draw sprite
+            tempCtx.drawImage(spritesRef.current[trail.sprite], 0, 0);
+            
+            // Darken it
+            tempCtx.globalCompositeOperation = 'source-atop';
+            tempCtx.fillStyle = `rgba(0, 100, 0, ${0.3 + index * 0.2})`;
+            tempCtx.fillRect(0, 0, 16, 16);
+            
+            ctx.save();
+            ctx.translate(trailX + 8, Math.floor(trailY) + 8);
+            ctx.rotate((trailRotation * Math.PI) / 180);
+            ctx.drawImage(tempCanvas, -8, -8);
+            ctx.restore();
+          }
+        });
+        
+        // Draw main falling player with actual sprite and rotation
+        const rotFrame = Math.floor(playerRotation / 45) % 8;
+        const frameNames = ['idle', 'walk1', 'walk2', 'walk3', 'walk4', 'walk3', 'walk2', 'walk1'];
+        const currentFrame = frameNames[rotFrame];
+        
+        if (spritesRef.current[currentFrame]) {
+          ctx.save();
+          ctx.translate(Math.floor(centerX), Math.floor(playerFallY) + 8);
+          ctx.rotate((playerRotation * Math.PI) / 180);
+          ctx.drawImage(spritesRef.current[currentFrame], -8, -8);
+          ctx.restore();
         }
         
-        // Draw player with rotation effect (simplified pixel rotation)
-        const rotFrame = Math.floor(playerRotation / 90) % 4;
+        // Draw chart at bottom with enhanced layout
+        const chartStartX = 35;
+        const chartY = GAME_HEIGHT - 65;
+        
+        // Chart background panel
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(20, chartY - 25, GAME_WIDTH - 40, 80);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(22, chartY - 23, GAME_WIDTH - 44, 76);
+        
+        // Chart title with better styling
         ctx.fillStyle = '#00FF00';
-        if (rotFrame === 0 || rotFrame === 2) {
-          ctx.fillRect(centerX - 8, playerFallY, 16, 16);
-        } else {
-          ctx.fillRect(centerX - 6, playerFallY - 2, 12, 20);
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText('MARKET CHART', chartStartX + 10, chartY - 15);
+        
+        // Grid lines
+        ctx.fillStyle = '#333333';
+        for (let i = 0; i < 3; i++) {
+          const gridY = chartY - i * 15;
+          ctx.fillRect(chartStartX - 5, gridY, 200, 1);
         }
-        
-        // Player outline glow (solid color)
-        ctx.fillStyle = '#00AA00';
-        ctx.fillRect(Math.floor(centerX - 9), Math.floor(playerFallY - 1), 18, 18);
-        
-        // Draw chart at bottom
-        const chartStartX = 40;
-        const chartY = GAME_HEIGHT - 70;
-        
-        // Chart title
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '8px monospace';
-        ctx.fillText('MARKET CHART', chartStartX, chartY - 10);
         
         // Draw pixel art chart bars with crisp quality
         state.chartBars.forEach((bar, index) => {
@@ -2023,12 +2044,40 @@ export default function PixelGame() {
             ctx.fillText('RESTART!', centerX - 25, resultY + 12);
           }
         } else {
-          // Show bar count
-          ctx.fillStyle = '#FFFF00';
-          ctx.font = '8px monospace';
-          ctx.fillText(`Bar ${state.chartBars.length}/5`, centerX - 20, GAME_HEIGHT - 20);
+          // Show bar count with better styling
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(centerX - 32, GAME_HEIGHT - 28, 64, 12);
+          ctx.fillStyle = '#00FF00';
+          ctx.fillRect(centerX - 30, GAME_HEIGHT - 26, 60, 8);
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 6px monospace';
+          ctx.fillText(`BAR ${state.chartBars.length}/5`, centerX - 18, GAME_HEIGHT - 20);
         }
         ctx.restore();
+      }
+      
+      // Draw coins AFTER blackhole scene so they appear on top
+      if (!state.inBlackhole) {
+        state.coins.forEach(coin => {
+          if (!coin.collected) {
+            const y = Math.floor(coin.y + Math.sin(coin.floatOffset) * 4);
+            const x = Math.floor(coin.x);
+            // Black outline
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + 1, y, 6, 1);
+            ctx.fillRect(x + 1, y + 8, 6, 1);
+            ctx.fillRect(x, y + 2, 1, 4);
+            ctx.fillRect(x + 7, y + 2, 1, 4);
+            ctx.fillRect(x + 2, y - 1, 4, 1);
+            ctx.fillRect(x + 2, y + 9, 4, 1);
+            // Coin body
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(x + 2, y, 4, 8);
+            ctx.fillRect(x, y + 2, 8, 4);
+            ctx.fillStyle = '#FFA500';
+            ctx.fillRect(x + 3, y + 2, 2, 4);
+          }
+        });
       }
     };
 
