@@ -117,15 +117,15 @@ export default function PixelGame() {
     4000,  // Stage 9
     4400,  // Stage 10
   ];
-  const GRAVITY = 680;
-  const PLAYER_SPEED = 110;
-  const PLAYER_ACCEL = 900;
-  const PLAYER_FRICTION = 1200;
-  const AIR_FRICTION = 150;
-  const JUMP_VELOCITY = -280;
-  const COYOTE_TIME = 0.13;
-  const JUMP_BUFFER = 0.18;
-  const MAX_FALL_SPEED = 420;
+  const GRAVITY = 750;
+  const PLAYER_SPEED = 130;
+  const PLAYER_ACCEL = 1200;
+  const PLAYER_FRICTION = 1500;
+  const AIR_FRICTION = 220;
+  const JUMP_VELOCITY = -310;
+  const COYOTE_TIME = 0.16;
+  const JUMP_BUFFER = 0.22;
+  const MAX_FALL_SPEED = 480;
 
   // Audio system - procedural sound generation
   const playSound = (type: string) => {
@@ -617,15 +617,15 @@ export default function PixelGame() {
         playSound('jump');
         
         // Spawn jump particles - enhanced with more variety
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 16; i++) {
           state.particles.push({
-            x: player.x + 8 + (Math.random() - 0.5) * 12,
+            x: player.x + 8 + (Math.random() - 0.5) * 14,
             y: player.y + 16,
-            vx: (Math.random() - 0.5) * 80,
-            vy: -Math.random() * 60 - 20,
-            life: 0.6,
-            maxLife: 0.6,
-            color: i % 4 === 0 ? '#FFD700' : i % 4 === 1 ? '#FFA500' : (Math.random() > 0.5 ? '#D2691E' : '#8B4513'),
+            vx: (Math.random() - 0.5) * 100,
+            vy: -Math.random() * 80 - 30,
+            life: 0.7,
+            maxLife: 0.7,
+            color: i % 5 === 0 ? '#FFD700' : i % 5 === 1 ? '#FFA500' : i % 5 === 2 ? '#FF6347' : i % 5 === 3 ? '#D2691E' : '#8B4513',
           });
         }
       }
@@ -723,23 +723,23 @@ export default function PixelGame() {
             player.onGround = true;
             
             // Landing particles if falling fast - enhanced
-            if (landingSpeed > 120) {
+            if (landingSpeed > 100) {
               playSound('land');
-              const particleCount = Math.min(12, Math.floor(landingSpeed / 20));
+              const particleCount = Math.min(20, Math.floor(landingSpeed / 15));
               for (let i = 0; i < particleCount; i++) {
                 state.particles.push({
                   x: player.x + 4 + Math.random() * 8,
                   y: player.y + 16,
-                  vx: (Math.random() - 0.5) * 60,
-                  vy: -Math.random() * 30,
-                  life: 0.4,
-                  maxLife: 0.4,
-                  color: i % 2 === 0 ? '#D2691E' : '#A0522D',
+                  vx: (Math.random() - 0.5) * 80,
+                  vy: -Math.random() * 50,
+                  life: 0.5,
+                  maxLife: 0.5,
+                  color: i % 3 === 0 ? '#D2691E' : i % 3 === 1 ? '#A0522D' : '#8B4513',
                 });
               }
               // Small screen shake on hard landing
               if (landingSpeed > 250) {
-                state.screenShake = 0.08;
+                state.screenShake = 0.1;
               }
             }
           } else if (player.velocityY < 0 && wasBelow) {
@@ -1036,17 +1036,19 @@ export default function PixelGame() {
             const comboBonus = state.combo > 1 ? state.combo * 50 : 0;
             setScore(s => s + 100 + comboBonus);
             
-            // Spawn coin particles
-            for (let j = 0; j < 12; j++) {
-              const angle = (Math.PI * 2 * j) / 12;
+            // Spawn enhanced coin particles with combo effect
+            const particleCount = 12 + (state.combo > 1 ? state.combo * 2 : 0);
+            for (let j = 0; j < particleCount; j++) {
+              const angle = (Math.PI * 2 * j) / particleCount;
+              const speed = 80 + (state.combo > 1 ? state.combo * 10 : 0);
               state.particles.push({
                 x: coin.x + 4,
                 y: coin.y + 4,
-                vx: Math.cos(angle) * 80,
-                vy: Math.sin(angle) * 80 - 20,
-                life: 0.5,
-                maxLife: 0.5,
-                color: j % 2 === 0 ? '#FFD700' : '#FFA500',
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 30,
+                life: 0.6,
+                maxLife: 0.6,
+                color: j % 3 === 0 ? '#FFD700' : j % 3 === 1 ? '#FFA500' : '#FFFF00',
               });
             }
           }
@@ -1060,25 +1062,73 @@ export default function PixelGame() {
         const oldEnemyX = enemy.x;
         const oldEnemyY = enemy.y;
         
+        // Apply gravity to all enemies including snakes
+        if (!('velocityY' in enemy)) {
+          (enemy as any).velocityY = 0;
+        }
+        // Apply gravity
+        (enemy as any).velocityY += GRAVITY * dt;
+        (enemy as any).velocityY = Math.min((enemy as any).velocityY, MAX_FALL_SPEED);
+        enemy.y += (enemy as any).velocityY * dt;
+        
         // Different movement for snake vs others
         if (enemy.type === 'snake') {
-          // Snake moves with wave pattern
-          enemy.waveOffset = (enemy.waveOffset || 0) + dt * 4;
-          const speed = 35;
+          // Enhanced snake slithering on ground with occasional hops
+          enemy.waveOffset = (enemy.waveOffset || 0) + dt * 6;
+          
+          // Variable speed based on wave motion (faster at wave peaks)
+          const waveMotion = Math.sin(enemy.waveOffset);
+          const speedMultiplier = 1 + Math.abs(waveMotion) * 0.3;
+          const speed = 45 * speedMultiplier;
           enemy.x += enemy.direction * speed * dt;
-          // Slithering wave motion
-          const baseY = oldEnemyY;
-          enemy.y = baseY + Math.sin(enemy.waveOffset) * 3;
+          
+          // Initialize hop timer if not present
+          if (!('hopTimer' in enemy)) {
+            (enemy as any).hopTimer = Math.random() * 3;
+          }
+          
+          // Occasional small hops while slithering
+          (enemy as any).hopTimer -= dt;
+          if ((enemy as any).hopTimer <= 0 && Math.abs((enemy as any).velocityY) < 10) {
+            // Small hop
+            (enemy as any).velocityY = -120;
+            (enemy as any).hopTimer = 2 + Math.random() * 2; // Hop every 2-4 seconds
+          }
         } else {
           // Goomba and badguy move normally
           enemy.x += enemy.direction * 30 * dt;
         }
         
-        // Check for platform edges and walls
-        const onPlatform = state.platforms.some(p => 
-          enemy.x + 6 > p.x && enemy.x + 6 < p.x + p.width && 
-          Math.abs(enemy.y + 12 - p.y) < 4
-        );
+        // Check for ground collision (enemies land on platforms)
+        let onPlatform = false;
+        for (const platform of state.platforms) {
+          if (enemy.x + 12 > platform.x && enemy.x < platform.x + platform.width) {
+            // Check if enemy is falling onto platform from above
+            if ((enemy as any).velocityY >= 0 && oldEnemyY + 12 <= platform.y + 2 && enemy.y + 12 >= platform.y) {
+              enemy.y = platform.y - 12;
+              (enemy as any).velocityY = 0;
+              onPlatform = true;
+              
+              // Add slight horizontal wave motion for snakes on ground
+              if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
+                const groundWave = Math.sin(enemy.waveOffset) * 0.5;
+                enemy.x += groundWave;
+              }
+              break;
+            }
+            // Check if already on platform
+            if (Math.abs(enemy.y + 12 - platform.y) < 2) {
+              onPlatform = true;
+              
+              // Add slight horizontal wave motion for snakes on ground
+              if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
+                const groundWave = Math.sin(enemy.waveOffset) * 0.5;
+                enemy.x += groundWave;
+              }
+              break;
+            }
+          }
+        }
         
         // Check for walls/obstacles ahead
         const hitWall = state.platforms.some(p => {
@@ -1094,10 +1144,23 @@ export default function PixelGame() {
                   (enemy.direction < 0 && enemyLeft < p.x + p.width && oldEnemyX >= p.x + p.width));
         });
         
-        if (!onPlatform || hitWall || enemy.x < 0 || enemy.x > state.stageWidth) {
+        // Turn around at edges or walls
+        if (hitWall || enemy.x < 0 || enemy.x > state.stageWidth) {
           enemy.direction *= -1;
           enemy.x = oldEnemyX; // Reset position if hit wall
           if (enemy.type === 'snake') enemy.y = oldEnemyY;
+        }
+        
+        // Turn around at platform edges (only if on ground)
+        if (onPlatform && !hitWall && enemy.type !== 'snake') {
+          const platformAhead = state.platforms.some(p => {
+            const checkX = enemy.x + (enemy.direction > 0 ? 14 : -2);
+            return checkX > p.x && checkX < p.x + p.width && 
+                   Math.abs(enemy.y + 12 - p.y) < 2;
+          });
+          if (!platformAhead) {
+            enemy.direction *= -1;
+          }
         }
         
         // Check collision with player
@@ -1256,8 +1319,13 @@ export default function PixelGame() {
     const render = (ctx: CanvasRenderingContext2D) => {
       const state = gameStateRef.current;
       
-      // Clear canvas
-      ctx.fillStyle = '#87CEEB';
+      // Clear canvas with beautiful gradient sky
+      const skyGradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+      skyGradient.addColorStop(0, '#5DADE2');
+      skyGradient.addColorStop(0.4, '#85C1E9');
+      skyGradient.addColorStop(0.7, '#AED6F1');
+      skyGradient.addColorStop(1, '#D6EAF8');
+      ctx.fillStyle = skyGradient;
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
       ctx.save();
@@ -1265,10 +1333,10 @@ export default function PixelGame() {
       const shakeX = state.screenShake > 0 ? Math.floor((Math.random() - 0.5) * state.screenShake * 3) : 0;
       ctx.translate(Math.floor(-state.camera.x + shakeX), Math.floor(-state.camera.y));
 
-      // Draw clouds (far background) - pixel perfect
-      for (let i = 0; i < 12; i++) {
-        const x = Math.floor(i * 100 + 20 - state.camera.x * 0.2);
-        const y = Math.floor(20 + (i % 3) * 15);
+      // Draw clouds (far background) - pixel perfect with depth
+      for (let i = 0; i < 18; i++) {
+        const x = Math.floor(i * 85 + 15 - state.camera.x * 0.12);
+        const y = Math.floor(12 + (i % 4) * 10);
         // Cloud shape
         ctx.fillRect(x, y + 4, 16, 8);
         ctx.fillRect(x + 4, y, 8, 4);
@@ -1284,9 +1352,9 @@ export default function PixelGame() {
         ctx.fillStyle = '#FFFFFF';
       }
 
-      // Draw parallax mountains (background) - pixel perfect
-      for (let i = 0; i < 10; i++) {
-        const x = Math.floor(i * 120 + 60 - state.camera.x * 0.3);
+      // Draw parallax mountains (background) - pixel perfect with better depth
+      for (let i = 0; i < 14; i++) {
+        const x = Math.floor(i * 105 + 45 - state.camera.x * 0.22);
         // Mountain body
         ctx.fillStyle = '#6B7280';
         ctx.fillRect(x - 16, 90, 32, 42);
@@ -1305,9 +1373,9 @@ export default function PixelGame() {
         ctx.fillRect(x + 8, 74, 1, 8);
       }
 
-      // Draw parallax hills - pixel perfect
-      for (let i = 0; i < 16; i++) {
-        const x = Math.floor(i * 80 + 40 - state.camera.x * 0.5);
+      // Draw parallax hills - pixel perfect with enhanced depth
+      for (let i = 0; i < 24; i++) {
+        const x = Math.floor(i * 65 + 30 - state.camera.x * 0.4);
         ctx.fillStyle = '#22C55E';
         ctx.fillRect(x - 16, 110, 32, 22);
         ctx.fillRect(x - 12, 106, 24, 4);
@@ -1319,9 +1387,9 @@ export default function PixelGame() {
         ctx.fillRect(x + 12, 106, 1, 4);
       }
 
-      // Draw bushes (foreground decoration) - pixel perfect
-      for (let i = 0; i < 20; i++) {
-        const x = Math.floor(i * 60 + 10 - state.camera.x * 0.8);
+      // Draw bushes (foreground decoration) - pixel perfect with variety
+      for (let i = 0; i < 28; i++) {
+        const x = Math.floor(i * 52 + 8 - state.camera.x * 0.75);
         const y = 120;
         ctx.fillStyle = '#10B981';
         ctx.fillRect(x, y, 12, 8);
@@ -1354,31 +1422,48 @@ export default function PixelGame() {
             ctx.fillRect(platform.x + 3 + i * 4, platform.y + 3, 2, 2);
           }
         } else if (platform.type === 'brick') {
-          // Brick with black outline
+          // Brick with enhanced texture and depth
           ctx.fillStyle = '#000000';
           ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-          ctx.fillStyle = '#FF6347';
+          ctx.fillStyle = '#C0504D';
           ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
-          ctx.fillStyle = '#FF7F50';
+          ctx.fillStyle = '#E26B6B';
           ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-          ctx.fillStyle = '#8B0000';
+          // Highlight
+          ctx.fillStyle = '#F08080';
+          ctx.fillRect(platform.x + 2, platform.y + 2, 3, 3);
+          // Brick pattern
+          ctx.fillStyle = '#8B3A3A';
           ctx.fillRect(platform.x + 8, platform.y + 1, 1, 7);
           ctx.fillRect(platform.x + 1, platform.y + 8, 7, 1);
+          // Shadow
+          ctx.fillStyle = '#5C1A1A';
+          ctx.fillRect(platform.x + 12, platform.y + 12, 2, 2);
         } else if (platform.type === 'question') {
-          // Question block with black outline
+          // Question block with animated shimmer
           ctx.fillStyle = '#000000';
           ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
           
           if (platform.used) {
-            // Used block - gray/brown
-            ctx.fillStyle = '#8B7355';
+            // Used block - gray/brown with depth
+            ctx.fillStyle = '#6B5D4F';
             ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
+            ctx.fillStyle = '#8B7355';
+            ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
             ctx.fillStyle = '#A0826D';
             ctx.fillRect(platform.x + 3, platform.y + 3, platform.width - 6, platform.height - 6);
           } else {
-            // Active question block - gold
-            ctx.fillStyle = '#FFD700';
+            // Active question block - gold with shimmer animation
+            const shimmer = Math.floor(performance.now() / 150) % 3;
+            const baseColor = shimmer === 0 ? '#FFD700' : shimmer === 1 ? '#FFDF00' : '#FFC700';
+            ctx.fillStyle = baseColor;
             ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
+            ctx.fillStyle = '#FFB700';
+            ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
+            // Bright highlight
+            ctx.fillStyle = '#FFFF99';
+            ctx.fillRect(platform.x + 2, platform.y + 2, 4, 4);
+            // Inner glow
             ctx.fillStyle = '#FFA500';
             ctx.fillRect(platform.x + 3, platform.y + 3, platform.width - 6, platform.height - 6);
             ctx.fillStyle = '#000000';
@@ -1390,13 +1475,22 @@ export default function PixelGame() {
             ctx.fillRect(platform.x + 7, platform.y + 12, 2, 2);
           }
         } else if (platform.type === 'pipe') {
-          // Pipe with black outline
+          // Pipe with 3D depth and shading
           ctx.fillStyle = '#000000';
           ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-          ctx.fillStyle = '#228B22';
+          ctx.fillStyle = '#1B5E20';
           ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
-          ctx.fillStyle = '#32CD32';
-          ctx.fillRect(platform.x + 5, platform.y + 5, 6, 6);
+          ctx.fillStyle = '#2E7D32';
+          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
+          // Highlight
+          ctx.fillStyle = '#66BB6A';
+          ctx.fillRect(platform.x + 2, platform.y + 2, 4, 4);
+          // Inner pipe
+          ctx.fillStyle = '#1B5E20';
+          ctx.fillRect(platform.x + 4, platform.y + 4, 8, 8);
+          // Shadow
+          ctx.fillStyle = '#0D3818';
+          ctx.fillRect(platform.x + 11, platform.y + 11, 3, 3);
         }
       });
 
@@ -1472,33 +1566,61 @@ export default function PixelGame() {
           const ey = Math.floor(enemy.y);
           
           if (enemy.type === 'snake') {
-            // Snake enemy - green with scales
-            // Black outline
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(ex - 1, ey + 2, 14, 1);
-            ctx.fillRect(ex - 1, ey + 11, 14, 1);
-            ctx.fillRect(ex - 1, ey + 2, 1, 9);
-            ctx.fillRect(ex + 12, ey + 2, 1, 9);
-            // Snake body - green
-            ctx.fillStyle = '#00AA00';
-            ctx.fillRect(ex, ey + 2, 12, 9);
-            ctx.fillStyle = '#00FF00';
-            ctx.fillRect(ex + 1, ey + 3, 10, 7);
-            // Scale pattern
-            ctx.fillStyle = '#008800';
-            for (let i = 0; i < 3; i++) {
-              ctx.fillRect(ex + 2 + i * 3, ey + 4, 2, 2);
-              ctx.fillRect(ex + 3 + i * 3, ey + 7, 2, 2);
+            // Enhanced snake with segmented body and slithering animation
+            const wavePhase = (enemy.waveOffset || 0);
+            const bodySegments = 5;
+            
+            // Draw snake body segments from tail to head
+            for (let seg = bodySegments - 1; seg >= 0; seg--) {
+              const segmentX = ex - seg * 2.5;
+              const segmentWave = Math.sin(wavePhase + seg * 0.5) * 2;
+              const segmentY = ey + 5 + segmentWave;
+              
+              // Segment size decreases towards tail
+              const segWidth = seg === 0 ? 4 : 3; // Head is wider
+              const segHeight = seg === 0 ? 5 : 4;
+              
+              // Black outline
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(Math.floor(segmentX - 1), Math.floor(segmentY - 1), segWidth + 2, segHeight + 2);
+              
+              // Segment color - darker towards tail
+              const greenShade = seg === 0 ? '#00CC00' : seg < 2 ? '#00AA00' : '#008800';
+              ctx.fillStyle = greenShade;
+              ctx.fillRect(Math.floor(segmentX), Math.floor(segmentY), segWidth, segHeight);
+              
+              // Highlight on top
+              ctx.fillStyle = '#00FF00';
+              ctx.fillRect(Math.floor(segmentX) + 1, Math.floor(segmentY), segWidth - 2, 1);
+              
+              // Scale pattern (every other segment)
+              if (seg % 2 === 0 && seg > 0) {
+                ctx.fillStyle = '#006600';
+                ctx.fillRect(Math.floor(segmentX) + 1, Math.floor(segmentY) + 2, 1, 1);
+              }
             }
-            // Snake eyes - red
+            
+            // Draw head details
+            const headX = ex;
+            const headY = ey + 5 + Math.sin(wavePhase) * 2;
+            
+            // Eyes with yellow pupils
+            ctx.fillStyle = '#FFFF00';
+            ctx.fillRect(Math.floor(headX) + 1, Math.floor(headY) + 1, 1, 1);
+            
+            // Red eye highlight
             ctx.fillStyle = '#FF0000';
-            ctx.fillRect(ex + 2, ey + 4, 2, 2);
-            ctx.fillRect(ex + 8, ey + 4, 2, 2);
-            // Forked tongue
-            ctx.fillStyle = '#FF1493';
-            ctx.fillRect(ex + 5, ey + 9, 2, 2);
-            ctx.fillRect(ex + 4, ey + 10, 1, 1);
-            ctx.fillRect(ex + 7, ey + 10, 1, 1);
+            ctx.fillRect(Math.floor(headX) + 1, Math.floor(headY) + 1, 1, 1);
+            
+            // Animated forked tongue (flicks in and out)
+            const tongueFlick = Math.sin(wavePhase * 3) > 0.5;
+            if (tongueFlick) {
+              ctx.fillStyle = '#FF1493';
+              const tongueDir = enemy.direction > 0 ? 1 : -1;
+              ctx.fillRect(Math.floor(headX) + (tongueDir > 0 ? 4 : -2), Math.floor(headY) + 3, 2, 1);
+              ctx.fillRect(Math.floor(headX) + (tongueDir > 0 ? 5 : -2), Math.floor(headY) + 2, 1, 1);
+              ctx.fillRect(Math.floor(headX) + (tongueDir > 0 ? 5 : -2), Math.floor(headY) + 4, 1, 1);
+            }
           } else {
             // Badguy enemy - animated walking sprite
             // Use enemy's own animation frame counter for smooth animation
