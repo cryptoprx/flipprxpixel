@@ -73,7 +73,7 @@ export function generateStage(stageNumber: number): StageData {
   let x = 96;
   let patternIndex = 0;
   
-  while (x < width - 300) {
+  while (x < width - 150) {
     // Check if we're near a gap - if so, create platforms to cross it
     const nearGap = gapPositions.find(gap => x >= gap.start - 100 && x <= gap.end + 50);
     
@@ -158,6 +158,32 @@ export function generateStage(stageNumber: number): StageData {
     }
     
     patternIndex++;
+  }
+  
+  // Add final stretch platforms to ensure content reaches near the goal
+  const finalStretchStart = width - 400;
+  let finalX = finalStretchStart;
+  while (finalX < width - 120) {
+    const pattern = Math.floor(Math.random() * 3);
+    
+    if (pattern === 0) {
+      // Horizontal platform
+      for (let i = 0; i < 3; i++) {
+        platforms.push({ x: finalX + i * 16, y: 96, width: 16, height: 16, type: 'brick' });
+      }
+      finalX += 48 + 64;
+    } else if (pattern === 1) {
+      // Single jump platform
+      platforms.push({ x: finalX, y: 80, width: 16, height: 16, type: 'brick' });
+      platforms.push({ x: finalX + 16, y: 80, width: 16, height: 16, type: 'brick' });
+      finalX += 32 + 72;
+    } else {
+      // Stair up
+      for (let i = 0; i < 3; i++) {
+        platforms.push({ x: finalX + i * 16, y: 112 - i * 16, width: 16, height: 16, type: 'brick' });
+      }
+      finalX += 48 + 64;
+    }
   }
   
   // Add challenging staircases - more complex in later stages

@@ -1440,56 +1440,63 @@ export default function PixelGame() {
         ctx.fillRect(x + 12, y + 8, 8, 1);
       }
 
-      // Draw parallax mountains (background) - pixel perfect with better depth
+      // Draw parallax mountains (background) - extend to bottom of screen
       for (let i = 0; i < 14; i++) {
         const x = Math.floor(i * 105 + 45 - state.camera.x * 0.22);
-        // Mountain body
+        const mountainHeight = 160 - 74; // From peak to bottom of canvas
+        
+        // Mountain body - extends to bottom
         ctx.fillStyle = '#6B7280';
-        ctx.fillRect(x - 16, 90, 32, 42);
+        ctx.fillRect(x - 16, 90, 32, 70); // Extended to bottom (160)
         ctx.fillRect(x - 12, 82, 24, 8);
         ctx.fillRect(x - 8, 74, 16, 8);
+        
         // Snow cap
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(x - 6, 74, 12, 4);
-        // Black outline
+        
+        // Black outline (no bottom outline since it extends off screen)
         ctx.fillStyle = '#000000';
-        ctx.fillRect(x - 17, 90, 1, 42);
-        ctx.fillRect(x + 16, 90, 1, 42);
+        ctx.fillRect(x - 17, 90, 1, 70);
+        ctx.fillRect(x + 16, 90, 1, 70);
         ctx.fillRect(x - 13, 82, 1, 8);
         ctx.fillRect(x + 12, 82, 1, 8);
         ctx.fillRect(x - 9, 74, 1, 8);
         ctx.fillRect(x + 8, 74, 1, 8);
       }
 
-      // Draw parallax hills - pixel perfect with enhanced depth
+      // Draw parallax hills - extend to bottom of screen
       for (let i = 0; i < 24; i++) {
         const x = Math.floor(i * 65 + 30 - state.camera.x * 0.4);
+        
+        // Hill body - extends to bottom
         ctx.fillStyle = '#22C55E';
-        ctx.fillRect(x - 16, 110, 32, 22);
+        ctx.fillRect(x - 16, 110, 32, 50); // Extended to bottom (160)
         ctx.fillRect(x - 12, 106, 24, 4);
-        // Black outline
+        
+        // Black outline (no bottom outline since it extends off screen)
         ctx.fillStyle = '#000000';
-        ctx.fillRect(x - 17, 110, 1, 22);
-        ctx.fillRect(x + 16, 110, 1, 22);
+        ctx.fillRect(x - 17, 110, 1, 50);
+        ctx.fillRect(x + 16, 110, 1, 50);
         ctx.fillRect(x - 13, 106, 1, 4);
         ctx.fillRect(x + 12, 106, 1, 4);
       }
 
-      // Draw bushes (foreground decoration) - enhanced with more detail
+      // Draw bushes (foreground decoration) - extend to bottom like mountains
       for (let i = 0; i < 28; i++) {
         const x = Math.floor(i * 52 + 8 - state.camera.x * 0.75);
         const y = 120;
         const bushType = i % 3;
         
-        // Bush base
+        // Bush base - extends to bottom of screen (y=160)
         ctx.fillStyle = '#10B981';
-        ctx.fillRect(x, y, 12, 8);
-        ctx.fillRect(x + 2, y - 2, 8, 2);
+        ctx.fillRect(x, y, 12, 40); // Extended to bottom (160)
+        ctx.fillRect(x + 2, y - 2, 8, 2); // Top rounded part
         
         // Add variety to bushes
         if (bushType === 0) {
-          ctx.fillRect(x - 2, y + 2, 2, 4);
-          ctx.fillRect(x + 12, y + 2, 2, 4);
+          ctx.fillRect(x - 2, y + 2, 2, 38); // Extended side bulges to bottom
+          ctx.fillRect(x + 12, y + 2, 2, 38);
         } else if (bushType === 1) {
           ctx.fillRect(x + 4, y - 4, 4, 2);
         }
@@ -1504,12 +1511,11 @@ export default function PixelGame() {
         ctx.fillRect(x + 7, y + 4, 2, 2);
         ctx.fillRect(x + 3, y + 5, 1, 1);
         
-        // Black outline
+        // Black outline (no bottom outline - extends off screen)
         ctx.fillStyle = '#000000';
-        ctx.fillRect(x - 1, y, 1, 8);
-        ctx.fillRect(x + 12, y, 1, 8);
+        ctx.fillRect(x - 1, y, 1, 40);
+        ctx.fillRect(x + 12, y, 1, 40);
         ctx.fillRect(x, y - 1, 12, 1);
-        ctx.fillRect(x, y + 8, 12, 1);
         ctx.fillRect(x + 1, y - 2, 1, 2);
         ctx.fillRect(x + 10, y - 2, 1, 2);
         ctx.fillRect(x + 2, y - 3, 8, 1);
@@ -2240,70 +2246,102 @@ export default function PixelGame() {
             const x = Math.floor(coin.x);
             const spinFrame = Math.floor((performance.now() / 100) % 8);
             
-            // Enhanced coin with 3D spinning effect
-            // Black outline
+            // Optimized coin with pixel-perfect 3D spinning effect
+            // Black outline - cleaner and more precise
             ctx.fillStyle = '#000000';
             if (spinFrame < 2 || spinFrame > 5) {
-              // Full width
-              ctx.fillRect(x + 1, y, 6, 1);
-              ctx.fillRect(x + 1, y + 8, 6, 1);
-              ctx.fillRect(x, y + 2, 1, 4);
-              ctx.fillRect(x + 7, y + 2, 1, 4);
-              ctx.fillRect(x + 2, y - 1, 4, 1);
-              ctx.fillRect(x + 2, y + 9, 4, 1);
-            } else if (spinFrame === 2 || spinFrame === 5) {
-              // Medium width
+              // Full width - front/back view
               ctx.fillRect(x + 2, y, 4, 1);
-              ctx.fillRect(x + 2, y + 8, 4, 1);
-              ctx.fillRect(x + 1, y + 1, 1, 6);
-              ctx.fillRect(x + 6, y + 1, 1, 6);
+              ctx.fillRect(x + 2, y + 7, 4, 1);
+              ctx.fillRect(x + 1, y + 1, 1, 5);
+              ctx.fillRect(x + 6, y + 1, 1, 5);
+              ctx.fillRect(x, y + 2, 1, 3);
+              ctx.fillRect(x + 7, y + 2, 1, 3);
+              ctx.fillRect(x + 1, y + 6, 1, 1);
+              ctx.fillRect(x + 6, y + 6, 1, 1);
+            } else if (spinFrame === 2 || spinFrame === 5) {
+              // Medium width - 3/4 view
+              ctx.fillRect(x + 2, y, 3, 1);
+              ctx.fillRect(x + 2, y + 7, 3, 1);
+              ctx.fillRect(x + 1, y + 1, 1, 5);
+              ctx.fillRect(x + 5, y + 1, 1, 5);
+              ctx.fillRect(x + 1, y + 6, 1, 1);
+              ctx.fillRect(x + 5, y + 6, 1, 1);
             } else {
-              // Thin (side view)
-              ctx.fillRect(x + 3, y, 2, 1);
-              ctx.fillRect(x + 3, y + 8, 2, 1);
-              ctx.fillRect(x + 2, y + 1, 1, 6);
-              ctx.fillRect(x + 5, y + 1, 1, 6);
+              // Thin - side view
+              ctx.fillRect(x + 3, y, 1, 1);
+              ctx.fillRect(x + 3, y + 7, 1, 1);
+              ctx.fillRect(x + 2, y + 1, 1, 5);
+              ctx.fillRect(x + 4, y + 1, 1, 5);
+              ctx.fillRect(x + 2, y + 6, 1, 1);
+              ctx.fillRect(x + 4, y + 6, 1, 1);
             }
             
-            // Coin body with gradient
+            // Coin body with enhanced gradient and shading
             if (spinFrame < 2 || spinFrame > 5) {
-              // Full coin
+              // Full coin - front/back view
+              // Base gold
               ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + 2, y, 4, 8);
-              ctx.fillRect(x, y + 2, 8, 4);
+              ctx.fillRect(x + 2, y + 1, 4, 5);
+              ctx.fillRect(x + 1, y + 2, 6, 3);
               
-              // Bright highlight
-              ctx.fillStyle = '#FFFF99';
-              ctx.fillRect(x + 1, y + 1, 2, 2);
-              ctx.fillRect(x + 2, y + 2, 1, 1);
+              // Bright highlight (top-left)
+              ctx.fillStyle = '#FFFF00';
+              ctx.fillRect(x + 2, y + 1, 2, 1);
+              ctx.fillRect(x + 1, y + 2, 2, 1);
               
-              // Inner shadow
-              ctx.fillStyle = '#FFA500';
-              ctx.fillRect(x + 3, y + 2, 2, 4);
-              ctx.fillRect(x + 5, y + 4, 2, 2);
+              // Light highlight
+              ctx.fillStyle = '#FFED4E';
+              ctx.fillRect(x + 2, y + 2, 2, 2);
+              ctx.fillRect(x + 4, y + 1, 1, 1);
               
-              // Dark edge
-              ctx.fillStyle = '#FF8C00';
-              ctx.fillRect(x + 6, y + 5, 1, 2);
+              // Mid tone
+              ctx.fillStyle = '#FFC700';
+              ctx.fillRect(x + 4, y + 3, 2, 2);
+              ctx.fillRect(x + 3, y + 4, 1, 1);
+              
+              // Shadow (bottom-right)
+              ctx.fillStyle = '#CC9900';
+              ctx.fillRect(x + 5, y + 4, 1, 1);
+              ctx.fillRect(x + 4, y + 5, 2, 1);
+              
+              // Dark shadow
+              ctx.fillStyle = '#996600';
+              ctx.fillRect(x + 5, y + 5, 1, 1);
             } else if (spinFrame === 2 || spinFrame === 5) {
-              // Medium coin
+              // Medium coin - 3/4 view
               ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + 2, y, 4, 8);
-              ctx.fillRect(x + 1, y + 2, 6, 4);
+              ctx.fillRect(x + 2, y + 1, 3, 5);
+              ctx.fillRect(x + 1, y + 2, 4, 3);
               
-              ctx.fillStyle = '#FFFF99';
-              ctx.fillRect(x + 2, y + 1, 2, 2);
+              // Highlight
+              ctx.fillStyle = '#FFFF00';
+              ctx.fillRect(x + 2, y + 1, 1, 1);
+              ctx.fillRect(x + 1, y + 2, 1, 1);
               
-              ctx.fillStyle = '#FFA500';
-              ctx.fillRect(x + 3, y + 3, 2, 3);
+              ctx.fillStyle = '#FFED4E';
+              ctx.fillRect(x + 2, y + 2, 2, 2);
+              
+              // Shadow
+              ctx.fillStyle = '#FFC700';
+              ctx.fillRect(x + 3, y + 4, 1, 1);
+              ctx.fillRect(x + 4, y + 3, 1, 2);
+              
+              ctx.fillStyle = '#CC9900';
+              ctx.fillRect(x + 4, y + 5, 1, 1);
             } else {
-              // Thin coin (side view)
+              // Thin coin - side view
               ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + 3, y, 2, 8);
-              ctx.fillRect(x + 2, y + 2, 4, 4);
+              ctx.fillRect(x + 3, y + 1, 1, 5);
+              ctx.fillRect(x + 2, y + 2, 2, 3);
               
-              ctx.fillStyle = '#FFA500';
-              ctx.fillRect(x + 3, y + 2, 2, 4);
+              // Highlight
+              ctx.fillStyle = '#FFED4E';
+              ctx.fillRect(x + 2, y + 2, 1, 2);
+              
+              // Shadow
+              ctx.fillStyle = '#CC9900';
+              ctx.fillRect(x + 3, y + 4, 1, 2);
             }
           }
         });
