@@ -13,89 +13,170 @@ export function generateStage(stageNumber: number): StageData {
   const coins: Array<{ x: number; y: number; collected: boolean; floatOffset: number }> = [];
   const enemies: Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake'; waveOffset?: number }> = [];
   
-  // Stage widths increase with difficulty
-  const stageWidths = [800, 1200, 1600, 2000, 2400, 2800, 3200, 3600, 4000, 4400];
-  const width = stageWidths[stageNumber - 1] || 800;
-  const groundBlocks = Math.ceil(width / 16);
+  // Stage widths increase dramatically with difficulty - each stage much longer
+  const stageWidths = [
+    1000,   // Stage 1 - Tutorial
+    1800,   // Stage 2
+    2600,   // Stage 3
+    3400,   // Stage 4
+    4200,   // Stage 5
+    5000,   // Stage 6
+    5800,   // Stage 7
+    6600,   // Stage 8
+    7400,   // Stage 9
+    8200    // Stage 10 - Final challenge
+  ];
+  const width = stageWidths[stageNumber - 1] || 1000;
   
-  // Ground
-  for (let i = 0; i < groundBlocks; i++) {
-    platforms.push({ x: i * 16, y: 128, width: 16, height: 16, type: 'ground' });
+  // Difficulty scaling
+  const difficulty = stageNumber;
+  
+  // Ground with deadly gaps (cliffs/pits) - more gaps in harder stages
+  const gapCount = Math.floor(difficulty * 1.5); // More gaps as difficulty increases
+  const gapPositions: Array<{ start: number; end: number }> = [];
+  
+  // Generate gap positions - ensure they're spaced out
+  for (let i = 0; i < gapCount; i++) {
+    const minGapStart = 200 + (i * (width - 400) / (gapCount + 1));
+    const gapStart = minGapStart + Math.random() * 100;
+    const gapWidth = 48 + (difficulty * 8) + Math.random() * 32; // Wider gaps in later stages
+    const gapEnd = gapStart + gapWidth;
+    
+    // Ensure gap doesn't overlap with other gaps
+    const overlaps = gapPositions.some(gap => 
+      (gapStart >= gap.start && gapStart <= gap.end) ||
+      (gapEnd >= gap.start && gapEnd <= gap.end)
+    );
+    
+    if (!overlaps && gapEnd < width - 200) {
+      gapPositions.push({ start: gapStart, end: gapEnd });
+    }
   }
   
-  // Difficulty scaling with better progression
-  const difficulty = stageNumber;
-  const platformDensity = 0.18 + (difficulty * 0.06); // More platforms in later stages
-  const enemyCount = Math.min(3 + difficulty * 2, 28); // More enemies
-  const coinCount = Math.min(22 + difficulty * 6, 70); // More coins
-  const questionBlockCount = Math.min(7 + difficulty, 20);
+  // Build ground with gaps
+  for (let x = 0; x < width; x += 16) {
+    const isInGap = gapPositions.some(gap => x >= gap.start && x < gap.end);
+    
+    if (!isInGap) {
+      platforms.push({ x, y: 128, width: 16, height: 16, type: 'ground' });
+    }
+  }
   
-  // Generate structured platform formations for professional look
+  // Difficulty scaling with aggressive progression
+  const platformDensity = 0.18 + (difficulty * 0.06);
+  const enemyCount = Math.min(5 + difficulty * 3, 40); // Significantly more enemies
+  const coinCount = Math.min(30 + difficulty * 8, 100); // More coins for longer stages
+  const questionBlockCount = Math.min(8 + difficulty * 2, 25);
+  const minGapBetweenPlatforms = Math.max(64, 96 - difficulty * 4); // Smaller gaps = harder jumps
+  
+  // Generate structured platform formations with increasing difficulty
   let x = 96;
   let patternIndex = 0;
   
-  while (x < width - 250) {
-    // Alternate between different platform patterns
-    const pattern = patternIndex % 4;
+  while (x < width - 300) {
+    // Check if we're near a gap - if so, create platforms to cross it
+    const nearGap = gapPositions.find(gap => x >= gap.start - 100 && x <= gap.end + 50);
     
-    if (pattern === 0) {
-      // Horizontal platform series with consistent spacing
-      const platformLength = 3 + Math.floor(difficulty / 3);
-      const baseY = 96 - (difficulty * 2);
-      for (let i = 0; i < platformLength; i++) {
-        platforms.push({ x: x + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
-      }
-      x += platformLength * 16 + 80;
-    } else if (pattern === 1) {
-      // Pyramid formation
-      const pyramidHeight = 2 + Math.floor(difficulty / 4);
-      const baseY = 104;
-      for (let row = 0; row < pyramidHeight; row++) {
-        const blocksInRow = pyramidHeight - row;
-        for (let col = 0; col < blocksInRow; col++) {
-          platforms.push({ 
-            x: x + (row * 8) + col * 16, 
-            y: baseY - row * 16, 
-            width: 16, 
-            height: 16, 
-            type: 'brick' 
-          });
+    if (nearGap) {
+      // Create challenging platforms to cross the gap
+      const gapWidth = nearGap.end - nearGap.start;
+      const platformCount = Math.ceil(gapWidth / 48) + 1;
+      
+      for (let i = 0; i < platformCount; i++) {
+        const platformX = nearGap.start - 32 + (i * (gapWidth + 64) / platformCount);
+        const platformY = 88 - (i % 2) * 16 - (difficulty * 2); // Zigzag pattern
+        
+        // Single or double block platforms
+        const blockCount = difficulty < 5 ? 2 : 1; // Harder stages = smaller platforms
+        for (let b = 0; b < blockCount; b++) {
+          platforms.push({ x: platformX + b * 16, y: platformY, width: 16, height: 16, type: 'brick' });
         }
       }
-      x += pyramidHeight * 16 + 96;
-    } else if (pattern === 2) {
-      // Floating island with multiple levels
-      const baseY = 88;
-      // Bottom level - 4 blocks
-      for (let i = 0; i < 4; i++) {
-        platforms.push({ x: x + i * 16, y: baseY + 16, width: 16, height: 16, type: 'brick' });
-      }
-      // Top level - 2 blocks centered
-      for (let i = 0; i < 2; i++) {
-        platforms.push({ x: x + 16 + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
-      }
-      x += 64 + 88;
+      
+      x = nearGap.end + 80;
     } else {
-      // Gap with single platform for jumping challenge
-      const platformY = 80 - (difficulty * 1.5);
-      platforms.push({ x: x, y: platformY, width: 16, height: 16, type: 'brick' });
-      platforms.push({ x: x + 16, y: platformY, width: 16, height: 16, type: 'brick' });
-      x += 32 + 112;
+      // Normal platform patterns - more challenging in later stages
+      const pattern = patternIndex % 5;
+      
+      if (pattern === 0) {
+        // Horizontal platform series
+        const platformLength = 2 + Math.floor(difficulty / 2);
+        const baseY = 96 - (difficulty * 3);
+        for (let i = 0; i < platformLength; i++) {
+          platforms.push({ x: x + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
+        }
+        x += platformLength * 16 + minGapBetweenPlatforms;
+      } else if (pattern === 1) {
+        // Pyramid formation
+        const pyramidHeight = 2 + Math.floor(difficulty / 3);
+        const baseY = 104;
+        for (let row = 0; row < pyramidHeight; row++) {
+          const blocksInRow = pyramidHeight - row;
+          for (let col = 0; col < blocksInRow; col++) {
+            platforms.push({ 
+              x: x + (row * 8) + col * 16, 
+              y: baseY - row * 16, 
+              width: 16, 
+              height: 16, 
+              type: 'brick' 
+            });
+          }
+        }
+        x += pyramidHeight * 16 + minGapBetweenPlatforms + 20;
+      } else if (pattern === 2) {
+        // Floating island with multiple levels
+        const baseY = 88 - (difficulty * 2);
+        const bottomBlocks = difficulty < 5 ? 4 : 3;
+        const topBlocks = difficulty < 5 ? 2 : 1;
+        
+        // Bottom level
+        for (let i = 0; i < bottomBlocks; i++) {
+          platforms.push({ x: x + i * 16, y: baseY + 16, width: 16, height: 16, type: 'brick' });
+        }
+        // Top level
+        for (let i = 0; i < topBlocks; i++) {
+          platforms.push({ x: x + 16 + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
+        }
+        x += bottomBlocks * 16 + minGapBetweenPlatforms;
+      } else if (pattern === 3) {
+        // Single platform jump challenge
+        const platformY = 80 - (difficulty * 2);
+        const blockCount = difficulty < 6 ? 2 : 1;
+        for (let i = 0; i < blockCount; i++) {
+          platforms.push({ x: x + i * 16, y: platformY, width: 16, height: 16, type: 'brick' });
+        }
+        x += blockCount * 16 + minGapBetweenPlatforms + 30;
+      } else {
+        // Vertical column challenge
+        const columnHeight = 2 + Math.floor(difficulty / 4);
+        const baseY = 112;
+        for (let h = 0; h < columnHeight; h++) {
+          platforms.push({ x: x, y: baseY - h * 16, width: 16, height: 16, type: 'brick' });
+        }
+        x += 16 + minGapBetweenPlatforms + 40;
+      }
     }
     
     patternIndex++;
   }
   
-  // Add perfectly aligned staircases
-  const staircaseCount = 2 + Math.floor(difficulty / 3);
+  // Add challenging staircases - more complex in later stages
+  const staircaseCount = 3 + Math.floor(difficulty / 2);
   for (let s = 0; s < staircaseCount; s++) {
-    const stairX = 200 + s * Math.floor((width - 400) / staircaseCount);
-    const stairLength = 4 + Math.floor(difficulty / 3);
-    const ascending = s % 2 === 0; // Alternate ascending/descending
+    const stairX = 250 + s * Math.floor((width - 500) / staircaseCount);
+    const stairLength = 5 + Math.floor(difficulty / 2);
+    const ascending = s % 2 === 0;
     
-    for (let i = 0; i < stairLength; i++) {
-      const yOffset = ascending ? -i * 16 : i * 16;
-      platforms.push({ x: stairX + i * 16, y: 112 + yOffset, width: 16, height: 16, type: 'brick' });
+    // Check if staircase would be in a gap
+    const inGap = gapPositions.some(gap => 
+      stairX >= gap.start && stairX + stairLength * 16 <= gap.end
+    );
+    
+    if (!inGap) {
+      for (let i = 0; i < stairLength; i++) {
+        const yOffset = ascending ? -i * 16 : i * 16;
+        platforms.push({ x: stairX + i * 16, y: 112 + yOffset, width: 16, height: 16, type: 'brick' });
+      }
     }
   }
   

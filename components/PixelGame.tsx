@@ -18,6 +18,7 @@ interface Sprite {
   rotation: number;
   hasHelmet: boolean;
   helmetTimer: number;
+  landingTimer: number;
 }
 
 interface Particle {
@@ -57,7 +58,7 @@ export default function PixelGame() {
   const gameStateRef = useRef({
     player: {
       x: 80,
-      y: 115,
+      y: 112,
       width: 16,
       height: 16,
       velocityX: 0,
@@ -70,6 +71,7 @@ export default function PixelGame() {
       rotation: 0,
       hasHelmet: false,
       helmetTimer: 0,
+      landingTimer: 0,
     } as Sprite,
     keys: {} as Record<string, boolean>,
     coyoteTime: 0,
@@ -104,18 +106,18 @@ export default function PixelGame() {
   const GAME_HEIGHT = 144;
   const SCALE = 4;
   
-  // Stage widths (in pixels) - each stage gets progressively longer
+  // Stage widths (in pixels) - each stage gets progressively longer and harder
   const STAGE_WIDTHS = [
-    800,   // Stage 1
-    1200,  // Stage 2
-    1600,  // Stage 3
-    2000,  // Stage 4
-    2400,  // Stage 5
-    2800,  // Stage 6
-    3200,  // Stage 7
-    3600,  // Stage 8
-    4000,  // Stage 9
-    4400,  // Stage 10
+    1000,   // Stage 1 - Tutorial
+    1800,   // Stage 2
+    2600,   // Stage 3
+    3400,   // Stage 4
+    4200,   // Stage 5
+    5000,   // Stage 6
+    5800,   // Stage 7
+    6600,   // Stage 8
+    7400,   // Stage 9
+    8200,   // Stage 10 - Final challenge
   ];
   const GRAVITY = 750;
   const PLAYER_SPEED = 130;
@@ -358,6 +360,7 @@ export default function PixelGame() {
       'jump1.PNG',
       'jump2.PNG',
       'jump3.PNG',
+      'jumpfall.png',
       'helmet.png',
       '1.png',
       '2.png',
@@ -446,6 +449,8 @@ export default function PixelGame() {
       spriteKey = 'jump2.PNG';
     } else if (frame === 'jump3') {
       spriteKey = 'jump3.PNG';
+    } else if (frame === 'crouch') {
+      spriteKey = 'jumpfall.png';
     }
 
     const sprite = spritesRef.current[spriteKey];
@@ -511,7 +516,7 @@ export default function PixelGame() {
     
     // Reset player position and animation state
     state.player.x = 80;
-    state.player.y = 115;
+    state.player.y = 112;
     state.player.velocityX = 0;
     state.player.velocityY = 0;
     state.player.rotation = 0;
@@ -614,6 +619,7 @@ export default function PixelGame() {
         player.velocityY = JUMP_VELOCITY;
         state.jumpBuffer = 0;
         state.coyoteTime = 0;
+        player.landingTimer = 0;
         playSound('jump');
         
         // Spawn jump particles - enhanced with more variety
@@ -652,9 +658,10 @@ export default function PixelGame() {
       if (player.onGround && player.velocityY >= 0) {
         for (const platform of state.platforms) {
           if (platform.broken) continue;
+          // Strict check - player must be exactly on platform (within 0.5 pixels)
           if (player.x + player.width > platform.x &&
               player.x < platform.x + platform.width &&
-              Math.abs(player.y + player.height - platform.y) < 2) {
+              Math.abs(player.y + player.height - platform.y) < 0.5) {
             stillOnGround = true;
             break;
           }
@@ -709,18 +716,21 @@ export default function PixelGame() {
             player.y < platform.y + platform.height) {
           
           // Vertical collision (landing on top or hitting bottom)
-          const wasAbove = oldY + player.height <= platform.y + 4; // Allow 4 pixel tolerance
+          const wasAbove = oldY + player.height <= platform.y + 1; // Strict tolerance - only 1 pixel
           const wasBelow = oldY >= platform.y + platform.height;
           
           if (player.velocityY >= 0 && wasAbove) {
             // Landing on top or standing on platform
             const landingSpeed = player.velocityY;
-            // Only snap position if actually falling, not when standing still
-            if (player.velocityY > 0.1) {
-              player.y = platform.y - player.height;
-            }
+            // Always snap to exact position on platform
+            player.y = platform.y - player.height;
             player.velocityY = 0;
             player.onGround = true;
+            
+            // Set landing timer for crouch animation (brief crouch on landing)
+            if (landingSpeed > 50) {
+              player.landingTimer = 0.15;
+            }
             
             // Landing particles if falling fast - enhanced
             if (landingSpeed > 100) {
@@ -897,15 +907,15 @@ export default function PixelGame() {
             state.screenShake = 0.1;
           }
           
-          // Horizontal collision (hitting sides)
+          // Horizontal collision (hitting sides) with 1-pixel spacing
           const wasOnLeft = oldX + player.width <= platform.x;
           const wasOnRight = oldX >= platform.x + platform.width;
           
           if (player.velocityX > 0 && wasOnLeft) {
-            player.x = platform.x - player.width;
+            player.x = platform.x - player.width - 1; // Add 1-pixel gap
             player.velocityX = 0;
           } else if (player.velocityX < 0 && wasOnRight) {
-            player.x = platform.x + platform.width;
+            player.x = platform.x + platform.width + 1; // Add 1-pixel gap
             player.velocityX = 0;
           }
         }
@@ -935,10 +945,28 @@ export default function PixelGame() {
         }
       }
       
+      // Update landing timer
+      if (player.landingTimer > 0) {
+        player.landingTimer -= dt;
+      }
+      
       // Simple animation logic
       if (!player.onGround) {
-        // JUMPING
-        player.currentAnimation = 'jump';
+        // JUMPING or FALLING
+        if (player.velocityY > 100) {
+          // Falling fast - show crouch sprite (preparing to land)
+          player.currentAnimation = 'crouch';
+          player.animationFrame = 0;
+          player.animationTimer = 0;
+        } else {
+          // Rising or slow fall - show jump animation
+          player.currentAnimation = 'jump';
+          player.animationFrame = 0;
+          player.animationTimer = 0;
+        }
+      } else if (player.landingTimer > 0) {
+        // Just landed - show crouch sprite briefly
+        player.currentAnimation = 'crouch';
         player.animationFrame = 0;
         player.animationTimer = 0;
       } else if (Math.abs(player.velocityX) < 0.1) {
@@ -1104,7 +1132,7 @@ export default function PixelGame() {
         for (const platform of state.platforms) {
           if (enemy.x + 12 > platform.x && enemy.x < platform.x + platform.width) {
             // Check if enemy is falling onto platform from above
-            if ((enemy as any).velocityY >= 0 && oldEnemyY + 12 <= platform.y + 2 && enemy.y + 12 >= platform.y) {
+            if ((enemy as any).velocityY >= 0 && oldEnemyY + 12 <= platform.y + 1 && enemy.y + 12 >= platform.y) {
               enemy.y = platform.y - 12;
               (enemy as any).velocityY = 0;
               onPlatform = true;
@@ -1116,9 +1144,10 @@ export default function PixelGame() {
               }
               break;
             }
-            // Check if already on platform
-            if (Math.abs(enemy.y + 12 - platform.y) < 2) {
+            // Check if already on platform (strict tolerance)
+            if (Math.abs(enemy.y + 12 - platform.y) < 0.5) {
               onPlatform = true;
+              enemy.y = platform.y - 12; // Snap to exact position
               
               // Add slight horizontal wave motion for snakes on ground
               if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
@@ -1145,21 +1174,37 @@ export default function PixelGame() {
         });
         
         // Turn around at edges or walls
-        if (hitWall || enemy.x < 0 || enemy.x > state.stageWidth) {
+        if (hitWall) {
           enemy.direction *= -1;
-          enemy.x = oldEnemyX; // Reset position if hit wall
+          // Push enemy away from wall slightly to prevent getting stuck
+          if (enemy.direction > 0) {
+            enemy.x = oldEnemyX - 2;
+          } else {
+            enemy.x = oldEnemyX + 2;
+          }
           if (enemy.type === 'snake') enemy.y = oldEnemyY;
         }
         
-        // Turn around at platform edges (only if on ground)
+        // Turn around at stage boundaries
+        if (enemy.x < 0) {
+          enemy.x = 0;
+          enemy.direction = 1;
+        } else if (enemy.x > state.stageWidth - 12) {
+          enemy.x = state.stageWidth - 12;
+          enemy.direction = -1;
+        }
+        
+        // Turn around at platform edges (only if on ground and not a snake)
         if (onPlatform && !hitWall && enemy.type !== 'snake') {
           const platformAhead = state.platforms.some(p => {
             const checkX = enemy.x + (enemy.direction > 0 ? 14 : -2);
             return checkX > p.x && checkX < p.x + p.width && 
-                   Math.abs(enemy.y + 12 - p.y) < 2;
+                   Math.abs(enemy.y + 12 - p.y) < 0.5;
           });
           if (!platformAhead) {
             enemy.direction *= -1;
+            // Move enemy back slightly to prevent edge hanging
+            enemy.x += enemy.direction * 2;
           }
         }
         
@@ -1219,7 +1264,7 @@ export default function PixelGame() {
             // Player dies - respawn at starting position
             playSound('death');
             player.x = 80;
-            player.y = 115;
+            player.y = 112;
             player.velocityX = 0;
             player.velocityY = 0;
             player.onGround = true;
@@ -1303,15 +1348,39 @@ export default function PixelGame() {
         state.camera.y = 0;
       }
 
-      // Death check (fell off stage)
+      // Death check (fell off stage into pit/gap)
       if (player.y > 200) {
+        // Play death sound
+        playSound('death');
+        
+        // Create death particles
+        for (let i = 0; i < 30; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 40 + Math.random() * 80;
+          state.particles.push({
+            x: player.x + 8,
+            y: 200,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 100,
+            life: 1.0,
+            maxLife: 1.0,
+            color: ['#FF0000', '#FF4500', '#FF6347', '#8B0000'][i % 4],
+          });
+        }
+        
+        // Reset player position
         player.x = 80;
-        player.y = 115;
+        player.y = 112;
         player.velocityX = 0;
         player.velocityY = 0;
         player.onGround = true;
+        player.rotation = 0;
+        player.hasHelmet = false;
+        player.helmetTimer = 0;
         state.combo = 0;
         state.comboTimer = 0;
+        
+        // Reset score on death
         setScore(0);
       }
     };
@@ -1333,23 +1402,42 @@ export default function PixelGame() {
       const shakeX = state.screenShake > 0 ? Math.floor((Math.random() - 0.5) * state.screenShake * 3) : 0;
       ctx.translate(Math.floor(-state.camera.x + shakeX), Math.floor(-state.camera.y));
 
-      // Draw clouds (far background) - pixel perfect with depth
+      // Draw clouds (far background) - enhanced with more detail
       for (let i = 0; i < 18; i++) {
         const x = Math.floor(i * 85 + 15 - state.camera.x * 0.12);
         const y = Math.floor(12 + (i % 4) * 10);
-        // Cloud shape
+        
+        // Cloud base shape
+        ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(x, y + 4, 16, 8);
         ctx.fillRect(x + 4, y, 8, 4);
         ctx.fillRect(x + 12, y + 2, 8, 6);
+        ctx.fillRect(x - 4, y + 6, 4, 4);
+        
+        // Cloud highlights for depth
+        ctx.fillStyle = '#F0F8FF';
+        ctx.fillRect(x + 1, y + 5, 6, 3);
+        ctx.fillRect(x + 5, y + 1, 4, 2);
+        
+        // Soft shadows
+        ctx.fillStyle = '#E6F2FF';
+        ctx.fillRect(x + 10, y + 8, 4, 2);
+        ctx.fillRect(x + 2, y + 10, 8, 1);
+        
         // Black outline
         ctx.fillStyle = '#000000';
+        ctx.fillRect(x - 5, y + 6, 1, 4);
         ctx.fillRect(x - 1, y + 4, 1, 8);
         ctx.fillRect(x + 16, y + 4, 1, 8);
+        ctx.fillRect(x + 20, y + 2, 1, 6);
+        ctx.fillRect(x - 4, y + 5, 4, 1);
+        ctx.fillRect(x - 4, y + 10, 4, 1);
         ctx.fillRect(x, y + 3, 16, 1);
         ctx.fillRect(x, y + 12, 16, 1);
         ctx.fillRect(x + 4, y - 1, 8, 1);
+        ctx.fillRect(x + 4, y + 4, 8, 1);
         ctx.fillRect(x + 12, y + 1, 8, 1);
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(x + 12, y + 8, 8, 1);
       }
 
       // Draw parallax mountains (background) - pixel perfect with better depth
@@ -1387,13 +1475,35 @@ export default function PixelGame() {
         ctx.fillRect(x + 12, 106, 1, 4);
       }
 
-      // Draw bushes (foreground decoration) - pixel perfect with variety
+      // Draw bushes (foreground decoration) - enhanced with more detail
       for (let i = 0; i < 28; i++) {
         const x = Math.floor(i * 52 + 8 - state.camera.x * 0.75);
         const y = 120;
+        const bushType = i % 3;
+        
+        // Bush base
         ctx.fillStyle = '#10B981';
         ctx.fillRect(x, y, 12, 8);
         ctx.fillRect(x + 2, y - 2, 8, 2);
+        
+        // Add variety to bushes
+        if (bushType === 0) {
+          ctx.fillRect(x - 2, y + 2, 2, 4);
+          ctx.fillRect(x + 12, y + 2, 2, 4);
+        } else if (bushType === 1) {
+          ctx.fillRect(x + 4, y - 4, 4, 2);
+        }
+        
+        // Highlights for depth
+        ctx.fillStyle = '#34D399';
+        ctx.fillRect(x + 1, y + 1, 4, 2);
+        ctx.fillRect(x + 3, y - 1, 3, 1);
+        
+        // Dark spots for texture
+        ctx.fillStyle = '#059669';
+        ctx.fillRect(x + 7, y + 4, 2, 2);
+        ctx.fillRect(x + 3, y + 5, 1, 1);
+        
         // Black outline
         ctx.fillStyle = '#000000';
         ctx.fillRect(x - 1, y, 1, 8);
@@ -1403,6 +1513,19 @@ export default function PixelGame() {
         ctx.fillRect(x + 1, y - 2, 1, 2);
         ctx.fillRect(x + 10, y - 2, 1, 2);
         ctx.fillRect(x + 2, y - 3, 8, 1);
+        
+        if (bushType === 0) {
+          ctx.fillRect(x - 3, y + 2, 1, 4);
+          ctx.fillRect(x + 14, y + 2, 1, 4);
+          ctx.fillRect(x - 2, y + 1, 2, 1);
+          ctx.fillRect(x - 2, y + 6, 2, 1);
+          ctx.fillRect(x + 12, y + 1, 2, 1);
+          ctx.fillRect(x + 12, y + 6, 2, 1);
+        } else if (bushType === 1) {
+          ctx.fillRect(x + 3, y - 4, 1, 2);
+          ctx.fillRect(x + 8, y - 4, 1, 2);
+          ctx.fillRect(x + 4, y - 5, 4, 1);
+        }
       }
 
       // Draw platforms (skip broken bricks)
@@ -1410,87 +1533,179 @@ export default function PixelGame() {
         if (platform.broken) return; // Don't draw broken bricks
         
         if (platform.type === 'ground') {
-          // Ground tile with black outline
+          // Enhanced ground tile with rich texture and depth
+          // Black outline
           ctx.fillStyle = '#000000';
           ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+          
+          // Base brown layer
           ctx.fillStyle = '#8B4513';
           ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
+          
+          // Top soil layer with gradient effect
           ctx.fillStyle = '#D2691E';
-          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
+          ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, 4);
+          
+          // Middle dirt layer
           ctx.fillStyle = '#A0522D';
-          for (let i = 0; i < 3; i++) {
-            ctx.fillRect(platform.x + 3 + i * 4, platform.y + 3, 2, 2);
+          ctx.fillRect(platform.x + 1, platform.y + 5, platform.width - 2, platform.height - 6);
+          
+          // Texture details - dirt spots
+          ctx.fillStyle = '#8B4513';
+          for (let i = 0; i < Math.floor(platform.width / 5); i++) {
+            ctx.fillRect(platform.x + 2 + i * 5, platform.y + 3, 2, 2);
+            ctx.fillRect(platform.x + 3 + i * 5, platform.y + 7, 1, 1);
+          }
+          
+          // Highlight on top edge
+          ctx.fillStyle = '#CD853F';
+          ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, 1);
+          
+          // Dark spots for depth
+          ctx.fillStyle = '#654321';
+          for (let i = 0; i < Math.floor(platform.width / 6); i++) {
+            ctx.fillRect(platform.x + 4 + i * 6, platform.y + 9, 1, 1);
           }
         } else if (platform.type === 'brick') {
-          // Brick with enhanced texture and depth
+          // Enhanced brick with detailed texture and 3D depth
+          // Black outline
           ctx.fillStyle = '#000000';
           ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+          
+          // Base brick color
           ctx.fillStyle = '#C0504D';
           ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
+          
+          // Lighter brick face
           ctx.fillStyle = '#E26B6B';
           ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-          // Highlight
+          
+          // Top highlight for 3D effect
           ctx.fillStyle = '#F08080';
-          ctx.fillRect(platform.x + 2, platform.y + 2, 3, 3);
-          // Brick pattern
+          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, 2);
+          
+          // Left highlight
+          ctx.fillStyle = '#F08080';
+          ctx.fillRect(platform.x + 2, platform.y + 2, 2, platform.height - 4);
+          
+          // Brick mortar lines (horizontal)
           ctx.fillStyle = '#8B3A3A';
+          ctx.fillRect(platform.x + 1, platform.y + 8, platform.width - 2, 1);
+          
+          // Brick mortar lines (vertical) - offset pattern
           ctx.fillRect(platform.x + 8, platform.y + 1, 1, 7);
-          ctx.fillRect(platform.x + 1, platform.y + 8, 7, 1);
-          // Shadow
+          ctx.fillRect(platform.x + 4, platform.y + 8, 1, 6);
+          ctx.fillRect(platform.x + 12, platform.y + 8, 1, 6);
+          
+          // Bottom shadow for depth
           ctx.fillStyle = '#5C1A1A';
-          ctx.fillRect(platform.x + 12, platform.y + 12, 2, 2);
+          ctx.fillRect(platform.x + 2, platform.y + platform.height - 3, platform.width - 4, 1);
+          
+          // Right shadow
+          ctx.fillRect(platform.x + platform.width - 3, platform.y + 2, 1, platform.height - 4);
+          
+          // Texture spots
+          ctx.fillStyle = '#D05050';
+          ctx.fillRect(platform.x + 4, platform.y + 4, 1, 1);
+          ctx.fillRect(platform.x + 10, platform.y + 5, 1, 1);
+          ctx.fillRect(platform.x + 6, platform.y + 10, 1, 1);
         } else if (platform.type === 'question') {
           // Question block with animated shimmer
           ctx.fillStyle = '#000000';
           ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
           
           if (platform.used) {
-            // Used block - gray/brown with depth
+            // Used block - gray/brown with enhanced depth
             ctx.fillStyle = '#6B5D4F';
             ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
             ctx.fillStyle = '#8B7355';
             ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
             ctx.fillStyle = '#A0826D';
             ctx.fillRect(platform.x + 3, platform.y + 3, platform.width - 6, platform.height - 6);
+            
+            // Add texture to used block
+            ctx.fillStyle = '#6B5D4F';
+            ctx.fillRect(platform.x + 5, platform.y + 5, 2, 2);
+            ctx.fillRect(platform.x + 9, platform.y + 7, 2, 2);
+            
+            // Bottom shadow
+            ctx.fillStyle = '#5A4D3F';
+            ctx.fillRect(platform.x + 3, platform.y + platform.height - 4, platform.width - 6, 1);
           } else {
-            // Active question block - gold with shimmer animation
+            // Active question block - gold with enhanced shimmer animation
             const shimmer = Math.floor(performance.now() / 150) % 3;
             const baseColor = shimmer === 0 ? '#FFD700' : shimmer === 1 ? '#FFDF00' : '#FFC700';
             ctx.fillStyle = baseColor;
             ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
+            
+            // Mid-tone layer
             ctx.fillStyle = '#FFB700';
             ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-            // Bright highlight
+            
+            // Top and left highlights for 3D effect
             ctx.fillStyle = '#FFFF99';
-            ctx.fillRect(platform.x + 2, platform.y + 2, 4, 4);
+            ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, 2);
+            ctx.fillRect(platform.x + 2, platform.y + 2, 2, platform.height - 4);
+            
             // Inner glow
             ctx.fillStyle = '#FFA500';
-            ctx.fillRect(platform.x + 3, platform.y + 3, platform.width - 6, platform.height - 6);
+            ctx.fillRect(platform.x + 4, platform.y + 4, platform.width - 8, platform.height - 8);
+            
+            // Bottom and right shadows
+            ctx.fillStyle = '#CC8800';
+            ctx.fillRect(platform.x + 2, platform.y + platform.height - 4, platform.width - 4, 2);
+            ctx.fillRect(platform.x + platform.width - 4, platform.y + 2, 2, platform.height - 4);
+            
+            // Draw enhanced "?" symbol
             ctx.fillStyle = '#000000';
-            // Draw "?"
-            ctx.fillRect(platform.x + 6, platform.y + 5, 2, 2);
-            ctx.fillRect(platform.x + 8, platform.y + 5, 2, 2);
+            // Top curve
+            ctx.fillRect(platform.x + 6, platform.y + 5, 4, 2);
             ctx.fillRect(platform.x + 8, platform.y + 7, 2, 2);
+            // Middle
             ctx.fillRect(platform.x + 7, platform.y + 9, 2, 2);
+            // Dot
             ctx.fillRect(platform.x + 7, platform.y + 12, 2, 2);
+            
+            // Add white highlight to "?"
+            ctx.fillStyle = shimmer === 1 ? '#FFFFFF' : baseColor;
+            ctx.fillRect(platform.x + 6, platform.y + 5, 1, 1);
           }
         } else if (platform.type === 'pipe') {
-          // Pipe with 3D depth and shading
+          // Enhanced pipe with better 3D depth and texture
+          // Black outline
           ctx.fillStyle = '#000000';
           ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+          
+          // Dark green base
           ctx.fillStyle = '#1B5E20';
           ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
+          
+          // Mid-tone green
           ctx.fillStyle = '#2E7D32';
           ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-          // Highlight
+          
+          // Top and left highlights
           ctx.fillStyle = '#66BB6A';
-          ctx.fillRect(platform.x + 2, platform.y + 2, 4, 4);
-          // Inner pipe
-          ctx.fillStyle = '#1B5E20';
-          ctx.fillRect(platform.x + 4, platform.y + 4, 8, 8);
-          // Shadow
+          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, 2);
+          ctx.fillRect(platform.x + 2, platform.y + 2, 2, platform.height - 4);
+          
+          // Inner pipe opening (darker)
           ctx.fillStyle = '#0D3818';
-          ctx.fillRect(platform.x + 11, platform.y + 11, 3, 3);
+          ctx.fillRect(platform.x + 5, platform.y + 5, platform.width - 10, platform.height - 10);
+          
+          // Inner pipe rim
+          ctx.fillStyle = '#1B5E20';
+          ctx.fillRect(platform.x + 6, platform.y + 6, platform.width - 12, platform.height - 12);
+          
+          // Bottom and right shadows
+          ctx.fillStyle = '#0D3818';
+          ctx.fillRect(platform.x + 2, platform.y + platform.height - 4, platform.width - 4, 2);
+          ctx.fillRect(platform.x + platform.width - 4, platform.y + 2, 2, platform.height - 4);
+          
+          // Texture details
+          ctx.fillStyle = '#4CAF50';
+          ctx.fillRect(platform.x + 3, platform.y + 3, 1, 1);
+          ctx.fillRect(platform.x + platform.width - 4, platform.y + 4, 1, 1);
         }
       });
 
@@ -1565,7 +1780,90 @@ export default function PixelGame() {
           const ex = Math.floor(enemy.x);
           const ey = Math.floor(enemy.y);
           
-          if (enemy.type === 'snake') {
+          if (enemy.type === 'goomba') {
+            // Optimized and enhanced goomba with smooth walking animation
+            const walkCycle = Math.floor((performance.now() / 150) % 2);
+            const bounce = Math.abs(Math.sin(performance.now() / 150)) * 0.5; // Subtle bounce
+            const eyOffset = Math.floor(ey - bounce);
+            
+            // Main body outline (mushroom shape with rounded top)
+            ctx.fillStyle = '#000000';
+            // Top edge (rounded, no corners)
+            ctx.fillRect(ex + 1, eyOffset - 1, 10, 1);
+            // Left edge (starts below top corner)
+            ctx.fillRect(ex - 1, eyOffset, 1, 12);
+            // Right edge (starts below top corner)
+            ctx.fillRect(ex + 12, eyOffset, 1, 12);
+            // Bottom edge
+            ctx.fillRect(ex, eyOffset + 12, 12, 1);
+            // Bottom corners only
+            ctx.fillRect(ex - 1, eyOffset + 12, 1, 1); // Bottom-left corner
+            ctx.fillRect(ex + 12, eyOffset + 12, 1, 1); // Bottom-right corner
+            
+            // Mushroom cap - rich brown gradient
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(ex, eyOffset, 12, 6);
+            
+            // Cap top highlight
+            ctx.fillStyle = '#A0522D';
+            ctx.fillRect(ex + 1, eyOffset, 10, 1);
+            ctx.fillRect(ex + 2, eyOffset + 1, 8, 1);
+            
+            // Cap shadow/depth
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(ex + 1, eyOffset + 4, 10, 2);
+            
+            // Body/stem - lighter tan color
+            ctx.fillStyle = '#D2B48C';
+            ctx.fillRect(ex + 2, eyOffset + 6, 8, 5);
+            
+            // Body shading
+            ctx.fillStyle = '#C19A6B';
+            ctx.fillRect(ex + 7, eyOffset + 7, 3, 4);
+            
+            // Angry eyebrows - thicker and more defined
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(ex + 2, eyOffset + 6, 3, 1);
+            ctx.fillRect(ex + 7, eyOffset + 6, 3, 1);
+            ctx.fillRect(ex + 3, eyOffset + 5, 1, 1); // Eyebrow angle
+            ctx.fillRect(ex + 8, eyOffset + 5, 1, 1);
+            
+            // Eyes - larger and more expressive
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(ex + 2, eyOffset + 7, 3, 2);
+            ctx.fillRect(ex + 7, eyOffset + 7, 3, 2);
+            
+            // Pupils - look in movement direction
+            ctx.fillStyle = '#000000';
+            const pupilX = enemy.direction > 0 ? 1 : 0;
+            ctx.fillRect(ex + 3 + pupilX, eyOffset + 8, 1, 1);
+            ctx.fillRect(ex + 8 + pupilX, eyOffset + 8, 1, 1);
+            
+            // Frown/mouth
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(ex + 4, eyOffset + 9, 4, 1);
+            
+            // Fangs
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(ex + 4, eyOffset + 10, 1, 1);
+            ctx.fillRect(ex + 7, eyOffset + 10, 1, 1);
+            
+            // Feet - smooth walking animation
+            ctx.fillStyle = '#654321';
+            if (walkCycle === 0) {
+              ctx.fillRect(ex + 1, eyOffset + 11, 2, 1);
+              ctx.fillRect(ex + 9, eyOffset + 11, 2, 1);
+            } else {
+              ctx.fillRect(ex + 2, eyOffset + 11, 2, 1);
+              ctx.fillRect(ex + 8, eyOffset + 11, 2, 1);
+            }
+            
+            // Texture spots for depth
+            ctx.fillStyle = '#A0826D';
+            ctx.fillRect(ex + 3, eyOffset + 2, 1, 1);
+            ctx.fillRect(ex + 8, eyOffset + 3, 1, 1);
+            
+          } else if (enemy.type === 'snake') {
             // Enhanced snake with segmented body and slithering animation
             const wavePhase = (enemy.waveOffset || 0);
             const bodySegments = 5;
@@ -1653,32 +1951,64 @@ export default function PixelGame() {
         }
       });
 
-      // Draw finish line flag at goal
+      // Draw finish line flag at goal - enhanced
       const flagX = Math.floor(state.goalX);
       const flagY = 96;
       const flagWave = Math.sin(performance.now() / 200) * 2;
       
-      // Flag pole - black outline
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(flagX - 1, flagY, 3, 33);
+      // Pole wood texture (no outline)
       ctx.fillStyle = '#8B4513';
-      ctx.fillRect(flagX, flagY, 1, 32);
+      ctx.fillRect(flagX, flagY, 2, 32);
       
-      // Flag - checkered pattern
+      // Pole highlight
+      ctx.fillStyle = '#A0522D';
+      ctx.fillRect(flagX, flagY, 1, 2);
+      ctx.fillRect(flagX, flagY + 8, 1, 2);
+      ctx.fillRect(flagX, flagY + 16, 1, 2);
+      ctx.fillRect(flagX, flagY + 24, 1, 2);
+      
+      // Pole top ornament (golden ball - no outline)
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(flagX, flagY - 3, 2, 3);
+      ctx.fillStyle = '#FFFF99';
+      ctx.fillRect(flagX, flagY - 3, 1, 1);
+      
+      // Flag - enhanced checkered pattern with wave
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 4; col++) {
           const isBlack = (row + col) % 2 === 0;
+          const waveOffset = Math.floor(flagWave * (row / 3));
+          
+          // Main square color
           ctx.fillStyle = isBlack ? '#000000' : '#FFFFFF';
-          ctx.fillRect(flagX + 1 + col * 3 + Math.floor(flagWave * (row / 3)), flagY + row * 3, 3, 3);
+          ctx.fillRect(flagX + 1 + col * 3 + waveOffset, flagY + row * 3, 3, 3);
+          
+          // Add slight shading to white squares for depth
+          if (!isBlack) {
+            ctx.fillStyle = '#F0F0F0';
+            ctx.fillRect(flagX + 1 + col * 3 + waveOffset + 2, flagY + row * 3 + 2, 1, 1);
+          }
         }
       }
       
-      // Flag outline
+      // Flag outline (follows wave)
       ctx.fillStyle = '#000000';
-      ctx.fillRect(flagX + 1, flagY - 1, 12, 1);
-      ctx.fillRect(flagX + 1, flagY + 9, 12, 1);
+      for (let row = 0; row < 3; row++) {
+        const waveOffset = Math.floor(flagWave * (row / 3));
+        if (row === 0) {
+          ctx.fillRect(flagX + 1 + waveOffset, flagY - 1, 12, 1);
+        }
+        if (row === 2) {
+          ctx.fillRect(flagX + 1 + waveOffset, flagY + 9, 12, 1);
+        }
+      }
       ctx.fillRect(flagX, flagY, 1, 9);
-      ctx.fillRect(flagX + 13, flagY, 1, 9);
+      
+      // Right edge of flag (wavy)
+      for (let row = 0; row < 3; row++) {
+        const waveOffset = Math.floor(flagWave * (row / 3));
+        ctx.fillRect(flagX + 13 + waveOffset, flagY + row * 3, 1, 3);
+      }
 
       // Draw particles
       state.particles.forEach(p => {
@@ -1908,20 +2238,73 @@ export default function PixelGame() {
           if (!coin.collected) {
             const y = Math.floor(coin.y + Math.sin(coin.floatOffset) * 4);
             const x = Math.floor(coin.x);
+            const spinFrame = Math.floor((performance.now() / 100) % 8);
+            
+            // Enhanced coin with 3D spinning effect
             // Black outline
             ctx.fillStyle = '#000000';
-            ctx.fillRect(x + 1, y, 6, 1);
-            ctx.fillRect(x + 1, y + 8, 6, 1);
-            ctx.fillRect(x, y + 2, 1, 4);
-            ctx.fillRect(x + 7, y + 2, 1, 4);
-            ctx.fillRect(x + 2, y - 1, 4, 1);
-            ctx.fillRect(x + 2, y + 9, 4, 1);
-            // Coin body
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(x + 2, y, 4, 8);
-            ctx.fillRect(x, y + 2, 8, 4);
-            ctx.fillStyle = '#FFA500';
-            ctx.fillRect(x + 3, y + 2, 2, 4);
+            if (spinFrame < 2 || spinFrame > 5) {
+              // Full width
+              ctx.fillRect(x + 1, y, 6, 1);
+              ctx.fillRect(x + 1, y + 8, 6, 1);
+              ctx.fillRect(x, y + 2, 1, 4);
+              ctx.fillRect(x + 7, y + 2, 1, 4);
+              ctx.fillRect(x + 2, y - 1, 4, 1);
+              ctx.fillRect(x + 2, y + 9, 4, 1);
+            } else if (spinFrame === 2 || spinFrame === 5) {
+              // Medium width
+              ctx.fillRect(x + 2, y, 4, 1);
+              ctx.fillRect(x + 2, y + 8, 4, 1);
+              ctx.fillRect(x + 1, y + 1, 1, 6);
+              ctx.fillRect(x + 6, y + 1, 1, 6);
+            } else {
+              // Thin (side view)
+              ctx.fillRect(x + 3, y, 2, 1);
+              ctx.fillRect(x + 3, y + 8, 2, 1);
+              ctx.fillRect(x + 2, y + 1, 1, 6);
+              ctx.fillRect(x + 5, y + 1, 1, 6);
+            }
+            
+            // Coin body with gradient
+            if (spinFrame < 2 || spinFrame > 5) {
+              // Full coin
+              ctx.fillStyle = '#FFD700';
+              ctx.fillRect(x + 2, y, 4, 8);
+              ctx.fillRect(x, y + 2, 8, 4);
+              
+              // Bright highlight
+              ctx.fillStyle = '#FFFF99';
+              ctx.fillRect(x + 1, y + 1, 2, 2);
+              ctx.fillRect(x + 2, y + 2, 1, 1);
+              
+              // Inner shadow
+              ctx.fillStyle = '#FFA500';
+              ctx.fillRect(x + 3, y + 2, 2, 4);
+              ctx.fillRect(x + 5, y + 4, 2, 2);
+              
+              // Dark edge
+              ctx.fillStyle = '#FF8C00';
+              ctx.fillRect(x + 6, y + 5, 1, 2);
+            } else if (spinFrame === 2 || spinFrame === 5) {
+              // Medium coin
+              ctx.fillStyle = '#FFD700';
+              ctx.fillRect(x + 2, y, 4, 8);
+              ctx.fillRect(x + 1, y + 2, 6, 4);
+              
+              ctx.fillStyle = '#FFFF99';
+              ctx.fillRect(x + 2, y + 1, 2, 2);
+              
+              ctx.fillStyle = '#FFA500';
+              ctx.fillRect(x + 3, y + 3, 2, 3);
+            } else {
+              // Thin coin (side view)
+              ctx.fillStyle = '#FFD700';
+              ctx.fillRect(x + 3, y, 2, 8);
+              ctx.fillRect(x + 2, y + 2, 4, 4);
+              
+              ctx.fillStyle = '#FFA500';
+              ctx.fillRect(x + 3, y + 2, 2, 4);
+            }
           }
         });
       }
