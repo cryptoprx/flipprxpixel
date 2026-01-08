@@ -539,7 +539,7 @@ export default function PixelGame() {
       state.waterGun = null;
     }
     
-    // Spawn boss for stage 10
+    // Spawn boss for stage 10 - boss appears at end of stage
     if (stageNum === 10) {
       state.boss = {
         x: stageData.width - 300,
