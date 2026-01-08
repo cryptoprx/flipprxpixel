@@ -19,6 +19,9 @@ interface Sprite {
   hasHelmet: boolean;
   helmetTimer: number;
   landingTimer: number;
+  hasWaterGun: boolean;
+  waterGunTimer: number;
+  shootCooldown: number;
 }
 
 interface Particle {
@@ -72,6 +75,9 @@ export default function PixelGame() {
       hasHelmet: false,
       helmetTimer: 0,
       landingTimer: 0,
+      hasWaterGun: false,
+      waterGunTimer: 0,
+      shootCooldown: 0,
     } as Sprite,
     keys: {} as Record<string, boolean>,
     coyoteTime: 0,
@@ -90,6 +96,9 @@ export default function PixelGame() {
     celebrationTimer: 0,
     coins: [] as Array<{ x: number; y: number; collected: boolean; floatOffset: number }>,
     enemies: [] as Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake' | 'badguy'; waveOffset?: number; animFrame?: number }>,
+    boss: null as { x: number; y: number; health: number; maxHealth: number; direction: number; state: 'idle' | 'walking' | 'attacking' | 'hurt' | 'defeated'; attackTimer: number; moveTimer: number; invulnerable: boolean; invulnerableTimer: number } | null,
+    waterGun: null as { x: number; y: number; collected: boolean } | null,
+    waterProjectiles: [] as Array<{ x: number; y: number; vx: number; vy: number; life: number }>,
     particles: [] as Particle[],
     platforms: [] as Array<{ x: number; y: number; width: number; height: number; type: string; used?: boolean; broken?: boolean; bounceOffset?: number }>,
     portal: null as { x: number; y: number; animationFrame: number; active: boolean } | null,
@@ -119,15 +128,15 @@ export default function PixelGame() {
     7400,   // Stage 9
     8200,   // Stage 10 - Final challenge
   ];
-  const GRAVITY = 750;
-  const PLAYER_SPEED = 130;
-  const PLAYER_ACCEL = 1200;
-  const PLAYER_FRICTION = 1500;
-  const AIR_FRICTION = 220;
-  const JUMP_VELOCITY = -310;
-  const COYOTE_TIME = 0.16;
-  const JUMP_BUFFER = 0.22;
-  const MAX_FALL_SPEED = 480;
+  const GRAVITY = 800; // Slightly increased for snappier feel
+  const PLAYER_SPEED = 140; // Faster movement
+  const PLAYER_ACCEL = 1400; // Quicker acceleration
+  const PLAYER_FRICTION = 1600; // Better stopping
+  const AIR_FRICTION = 280; // More air control
+  const JUMP_VELOCITY = -320; // Slightly higher jump
+  const COYOTE_TIME = 0.18; // More forgiving edge jumps
+  const JUMP_BUFFER = 0.24; // More forgiving jump timing
+  const MAX_FALL_SPEED = 500; // Slightly faster falling
 
   // Audio system - procedural sound generation
   const playSound = (type: string) => {
@@ -506,6 +515,48 @@ export default function PixelGame() {
       state.portal = null;
     }
     
+    // Spawn water gun power-up in hard-to-reach areas (stages 3-9)
+    if (stageNum >= 3 && stageNum <= 9) {
+      // Find a high platform (hard to reach)
+      const highPlatforms = state.platforms.filter(p => 
+        p.type === 'brick' && p.y < 80 && p.x > 300 && p.x < stageData.width - 300
+      );
+      
+      if (highPlatforms.length > 0) {
+        const randomPlatform = highPlatforms[Math.floor(Math.random() * highPlatforms.length)];
+        state.waterGun = {
+          x: randomPlatform.x + 4,
+          y: randomPlatform.y - 12,
+          collected: false
+        };
+      } else {
+        state.waterGun = null;
+      }
+    } else {
+      state.waterGun = null;
+    }
+    
+    // Spawn boss for stage 10
+    if (stageNum === 10) {
+      state.boss = {
+        x: stageData.width - 300,
+        y: 80,
+        health: 10,
+        maxHealth: 10,
+        direction: -1,
+        state: 'idle',
+        attackTimer: 0,
+        moveTimer: 0,
+        invulnerable: false,
+        invulnerableTimer: 0
+      };
+    } else {
+      state.boss = null;
+    }
+    
+    // Reset water projectiles
+    state.waterProjectiles = [];
+    
     // Reset blackhole state
     state.inBlackhole = false;
     state.blackholeTimer = 0;
@@ -622,16 +673,18 @@ export default function PixelGame() {
         player.landingTimer = 0;
         playSound('jump');
         
-        // Spawn jump particles - enhanced with more variety
-        for (let i = 0; i < 16; i++) {
+        // Spawn jump particles - enhanced burst effect
+        for (let i = 0; i < 18; i++) {
+          const angle = Math.PI * (0.3 + Math.random() * 0.4); // Upward burst
+          const speed = 50 + Math.random() * 70;
           state.particles.push({
-            x: player.x + 8 + (Math.random() - 0.5) * 14,
+            x: player.x + 8 + (Math.random() - 0.5) * 10,
             y: player.y + 16,
-            vx: (Math.random() - 0.5) * 100,
-            vy: -Math.random() * 80 - 30,
-            life: 0.7,
-            maxLife: 0.7,
-            color: i % 5 === 0 ? '#FFD700' : i % 5 === 1 ? '#FFA500' : i % 5 === 2 ? '#FF6347' : i % 5 === 3 ? '#D2691E' : '#8B4513',
+            vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
+            vy: -Math.sin(angle) * speed - 40,
+            life: 0.6 + Math.random() * 0.2,
+            maxLife: 0.6 + Math.random() * 0.2,
+            color: i % 5 === 0 ? '#FFD700' : i % 5 === 1 ? '#FFA500' : i % 5 === 2 ? '#FF6347' : i % 5 === 3 ? '#D2691E' : '#CD853F',
           });
         }
       }
@@ -732,24 +785,26 @@ export default function PixelGame() {
               player.landingTimer = 0.15;
             }
             
-            // Landing particles if falling fast - enhanced
+            // Landing particles if falling fast - enhanced dust cloud effect
             if (landingSpeed > 100) {
               playSound('land');
-              const particleCount = Math.min(20, Math.floor(landingSpeed / 15));
+              const particleCount = Math.min(25, Math.floor(landingSpeed / 12));
               for (let i = 0; i < particleCount; i++) {
+                const angle = Math.PI * (0.2 + Math.random() * 0.6); // Spread upward
+                const speed = 40 + Math.random() * 60;
                 state.particles.push({
-                  x: player.x + 4 + Math.random() * 8,
+                  x: player.x + 8 + (Math.random() - 0.5) * 12,
                   y: player.y + 16,
-                  vx: (Math.random() - 0.5) * 80,
-                  vy: -Math.random() * 50,
-                  life: 0.5,
-                  maxLife: 0.5,
-                  color: i % 3 === 0 ? '#D2691E' : i % 3 === 1 ? '#A0522D' : '#8B4513',
+                  vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
+                  vy: -Math.sin(angle) * speed,
+                  life: 0.6 + Math.random() * 0.3,
+                  maxLife: 0.6 + Math.random() * 0.3,
+                  color: i % 4 === 0 ? '#D2691E' : i % 4 === 1 ? '#A0522D' : i % 4 === 2 ? '#8B4513' : '#CD853F',
                 });
               }
               // Small screen shake on hard landing
               if (landingSpeed > 250) {
-                state.screenShake = 0.1;
+                state.screenShake = 0.12;
               }
             }
           } else if (player.velocityY < 0 && wasBelow) {
@@ -945,6 +1000,50 @@ export default function PixelGame() {
         }
       }
       
+      // Update water gun timer
+      if (player.hasWaterGun) {
+        player.waterGunTimer -= dt;
+        if (player.waterGunTimer <= 0) {
+          player.hasWaterGun = false;
+          player.waterGunTimer = 0;
+        }
+      }
+      
+      // Update shoot cooldown
+      if (player.shootCooldown > 0) {
+        player.shootCooldown -= dt;
+      }
+      
+      // Shoot water gun with X key
+      if (player.hasWaterGun && player.shootCooldown <= 0) {
+        const shootKey = state.keys['x'] || state.keys['X'];
+        if (shootKey) {
+          player.shootCooldown = 0.3; // 3 shots per second
+          const direction = player.facingLeft ? -1 : 1;
+          state.waterProjectiles.push({
+            x: player.x + (direction > 0 ? 16 : 0),
+            y: player.y + 6,
+            vx: direction * 250,
+            vy: 0,
+            life: 1.5
+          });
+          playSound('jump'); // Water shoot sound
+          
+          // Spawn water particles
+          for (let i = 0; i < 5; i++) {
+            state.particles.push({
+              x: player.x + (direction > 0 ? 16 : 0),
+              y: player.y + 6,
+              vx: direction * (200 + Math.random() * 50),
+              vy: (Math.random() - 0.5) * 30,
+              life: 0.3,
+              maxLife: 0.3,
+              color: '#00BFFF'
+            });
+          }
+        }
+      }
+      
       // Update landing timer
       if (player.landingTimer > 0) {
         player.landingTimer -= dt;
@@ -1083,6 +1182,67 @@ export default function PixelGame() {
         }
       });
 
+      // Check water gun collection
+      if (state.waterGun && !state.waterGun.collected) {
+        if (Math.abs(player.x - state.waterGun.x) < 12 && Math.abs(player.y - state.waterGun.y) < 12) {
+          state.waterGun.collected = true;
+          player.hasWaterGun = true;
+          player.waterGunTimer = 15; // 15 seconds of water gun
+          playSound('coin');
+          setScore(s => s + 500);
+          
+          // Spawn power-up particles
+          for (let j = 0; j < 20; j++) {
+            const angle = (Math.PI * 2 * j) / 20;
+            state.particles.push({
+              x: state.waterGun.x + 4,
+              y: state.waterGun.y + 6,
+              vx: Math.cos(angle) * 100,
+              vy: Math.sin(angle) * 100 - 40,
+              life: 0.8,
+              maxLife: 0.8,
+              color: j % 3 === 0 ? '#00BFFF' : j % 3 === 1 ? '#1E90FF' : '#87CEEB',
+            });
+          }
+        }
+      }
+      
+      // Update water projectiles
+      state.waterProjectiles = state.waterProjectiles.filter(proj => {
+        proj.x += proj.vx * dt;
+        proj.y += proj.vy * dt;
+        proj.life -= dt;
+        
+        // Check collision with enemies
+        state.enemies.forEach(enemy => {
+          if (enemy.alive && Math.abs(proj.x - enemy.x) < 12 && Math.abs(proj.y - enemy.y) < 12) {
+            enemy.alive = false;
+            proj.life = 0;
+            playSound('stomp');
+            state.combo++;
+            state.comboTimer = 3.5;
+            const comboBonus = state.combo > 1 ? state.combo * 100 : 0;
+            setScore(s => s + 200 + comboBonus);
+            
+            // Spawn water splash particles
+            for (let j = 0; j < 15; j++) {
+              const angle = (Math.PI * 2 * j) / 15;
+              state.particles.push({
+                x: enemy.x + 6,
+                y: enemy.y + 6,
+                vx: Math.cos(angle) * 90,
+                vy: Math.sin(angle) * 90 - 40,
+                life: 0.7,
+                maxLife: 0.7,
+                color: j % 2 === 0 ? '#00BFFF' : '#1E90FF',
+              });
+            }
+          }
+        });
+        
+        return proj.life > 0;
+      });
+      
       // Update enemies
       state.enemies.forEach(enemy => {
         if (!enemy.alive) return;
@@ -1283,6 +1443,226 @@ export default function PixelGame() {
         }
       }
       
+      // Update boss (Stage 10 only)
+      if (state.boss && state.boss.health > 0) {
+        const boss = state.boss;
+        
+        // Initialize velocityY if not present
+        if (!('velocityY' in boss)) {
+          (boss as any).velocityY = 0;
+        }
+        
+        // Apply gravity to boss
+        (boss as any).velocityY += GRAVITY * dt;
+        (boss as any).velocityY = Math.min((boss as any).velocityY, MAX_FALL_SPEED);
+        boss.y += (boss as any).velocityY * dt;
+        
+        // Keep boss on ground with proper collision
+        let bossOnGround = false;
+        for (const platform of state.platforms) {
+          if (boss.x + 48 > platform.x && boss.x < platform.x + platform.width) {
+            if ((boss as any).velocityY >= 0 && boss.y + 48 >= platform.y && boss.y + 48 <= platform.y + 8) {
+              boss.y = platform.y - 48;
+              (boss as any).velocityY = 0;
+              bossOnGround = true;
+              break;
+            }
+          }
+        }
+        
+        // Update invulnerability timer
+        if (boss.invulnerable) {
+          boss.invulnerableTimer -= dt;
+          if (boss.invulnerableTimer <= 0) {
+            boss.invulnerable = false;
+          }
+        }
+        
+        // Boss AI state machine
+        if (boss.state === 'defeated') {
+          // Boss is defeated, do nothing
+        } else if (boss.state === 'hurt') {
+          // Hurt state - brief pause with knockback
+          boss.moveTimer -= dt;
+          boss.x += -boss.direction * 15 * dt; // Knockback
+          if (boss.moveTimer <= 0) {
+            boss.state = 'walking';
+            boss.moveTimer = 2 + Math.random() * 2;
+          }
+        } else if (boss.state === 'attacking') {
+          // Attack animation
+          boss.attackTimer -= dt;
+          if (boss.attackTimer <= 0) {
+            boss.state = 'walking';
+            boss.moveTimer = 1.5 + Math.random() * 1.5;
+          }
+        } else {
+          // Walking/Idle state
+          boss.moveTimer -= dt;
+          
+          // Move towards player with acceleration
+          const distToPlayer = player.x - boss.x;
+          if (Math.abs(distToPlayer) > 100) {
+            boss.direction = distToPlayer > 0 ? 1 : -1;
+            // Variable speed based on distance
+            const speed = Math.min(35, 20 + Math.abs(distToPlayer) * 0.05);
+            boss.x += boss.direction * speed * dt;
+            boss.state = 'walking';
+            
+            // Boss can jump over obstacles
+            if (bossOnGround && Math.random() < 0.02) {
+              (boss as any).velocityY = -200;
+            }
+          } else {
+            boss.state = 'idle';
+          }
+          
+          // Attack if close to player
+          if (Math.abs(distToPlayer) < 100 && boss.moveTimer <= 0) {
+            boss.state = 'attacking';
+            boss.attackTimer = 0.8;
+            boss.moveTimer = 2;
+            
+            // Create rock projectile attack with spread
+            const rockSpeed = 180;
+            const rockDir = boss.direction;
+            for (let i = 0; i < 5; i++) {
+              const spreadAngle = (i - 2) * 0.15;
+              const vx = Math.cos(spreadAngle) * rockSpeed * rockDir;
+              const vy = Math.sin(spreadAngle) * rockSpeed - 80;
+              state.particles.push({
+                x: boss.x + 24,
+                y: boss.y + 20,
+                vx: vx,
+                vy: vy,
+                life: 2.5,
+                maxLife: 2.5,
+                color: '#8B7355',
+              });
+            }
+            playSound('break');
+          }
+        }
+        
+        // Boss collision with player - STRICT HEAD HITBOX
+        const bossHeadX = boss.x + 16; // Center of head
+        const bossHeadY = boss.y;
+        const bossHeadWidth = 16; // Small precise hitbox
+        const bossHeadHeight = 12;
+        
+        // Check if player is in boss area
+        if (Math.abs(player.x - boss.x) < 48 && Math.abs(player.y - boss.y) < 52) {
+          // STRICT head hit detection - must hit center of head
+          if (player.velocityY > 50 && 
+              player.y + player.height >= bossHeadY && 
+              player.y + player.height <= bossHeadY + bossHeadHeight &&
+              player.x + player.width > bossHeadX && 
+              player.x < bossHeadX + bossHeadWidth &&
+              !boss.invulnerable) {
+            // Perfect head hit!
+            boss.health -= 1;
+            boss.invulnerable = true;
+            boss.invulnerableTimer = 1.5;
+            boss.state = 'hurt';
+            boss.moveTimer = 0.6;
+            
+            player.velocityY = -280; // Strong bounce
+            playSound('stomp');
+            state.screenShake = 0.3;
+            setScore(s => s + 500);
+            
+            // Hit particles
+            for (let i = 0; i < 25; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 70 + Math.random() * 90;
+              state.particles.push({
+                x: boss.x + 24,
+                y: boss.y + 8,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 100,
+                life: 1.0,
+                maxLife: 1.0,
+                color: ['#8B7355', '#A0826D', '#654321', '#FFD700'][i % 4],
+              });
+            }
+            
+            // Check if boss defeated
+            if (boss.health <= 0) {
+              boss.state = 'defeated';
+              playSound('celebration');
+              state.screenShake = 0.6;
+              setScore(s => s + 5000);
+              
+              // Massive explosion particles
+              for (let i = 0; i < 150; i++) {
+                const angle = (Math.PI * 2 * i) / 150;
+                const speed = 120 + Math.random() * 180;
+                state.particles.push({
+                  x: boss.x + 24,
+                  y: boss.y + 24,
+                  vx: Math.cos(angle) * speed,
+                  vy: Math.sin(angle) * speed - 120,
+                  life: 2.0,
+                  maxLife: 2.0,
+                  color: ['#8B7355', '#654321', '#A0826D', '#FFD700', '#FF4500'][i % 5],
+                });
+              }
+            }
+          } else if (player.y + player.height > boss.y + 12 && player.velocityY >= 0) {
+            // Missed the head - hit body instead - RESET PLAYER
+            if (!player.hasHelmet) {
+              player.x = 80;
+              player.y = 112;
+              player.velocityX = 0;
+              player.velocityY = 0;
+              player.onGround = true;
+              playSound('death');
+              state.screenShake = 0.4;
+              
+              // Show miss particles
+              for (let i = 0; i < 10; i++) {
+                state.particles.push({
+                  x: player.x + 8,
+                  y: player.y + 8,
+                  vx: (Math.random() - 0.5) * 100,
+                  vy: -50 - Math.random() * 50,
+                  life: 0.5,
+                  maxLife: 0.5,
+                  color: '#FF0000',
+                });
+              }
+            }
+          } else if (boss.state === 'attacking' && !player.hasHelmet) {
+            // Boss attack hits player
+            player.x = 80;
+            player.y = 112;
+            player.velocityX = 0;
+            player.velocityY = 0;
+            player.onGround = true;
+            playSound('death');
+            state.screenShake = 0.4;
+          }
+        }
+        
+        // Rock projectile collision with player
+        state.particles.forEach(p => {
+          if (p.color === '#8B7355' && p.life > 0) {
+            if (Math.abs(player.x - p.x) < 12 && Math.abs(player.y - p.y) < 12) {
+              if (!player.hasHelmet) {
+                player.x = 80;
+                player.y = 112;
+                player.velocityX = 0;
+                player.velocityY = 0;
+                player.onGround = true;
+                playSound('death');
+                state.screenShake = 0.3;
+                p.life = 0; // Remove projectile
+              }
+            }
+          }
+        });
+      }
+      
       // Update screen shake
       if (state.screenShake > 0) {
         state.screenShake = Math.max(0, state.screenShake - dt);
@@ -1333,9 +1713,13 @@ export default function PixelGame() {
         }
       }
 
-      // Smooth camera follow with screen shake - optimized and pixel perfect
-      state.camera.targetX = Math.max(0, Math.min(player.x - GAME_WIDTH / 2, state.stageWidth - GAME_WIDTH));
-      const cameraSpeed = player.onGround ? 10 : 8; // Faster camera when on ground
+      // Smooth camera follow with lookahead and screen shake - optimized and pixel perfect
+      const lookahead = player.velocityX * 0.15; // Camera looks ahead in movement direction
+      state.camera.targetX = Math.max(0, Math.min(player.x + lookahead - GAME_WIDTH / 2, state.stageWidth - GAME_WIDTH));
+      // Adaptive camera speed based on distance and player state
+      const distance = Math.abs(state.camera.targetX - state.camera.x);
+      const baseSpeed = player.onGround ? 12 : 9; // Faster camera when on ground
+      const cameraSpeed = baseSpeed + Math.min(distance * 0.02, 5); // Speed up when far from target
       state.camera.x += (state.camera.targetX - state.camera.x) * cameraSpeed * dt;
       // Floor camera position for pixel-perfect rendering
       state.camera.x = Math.floor(state.camera.x);
@@ -1957,6 +2341,177 @@ export default function PixelGame() {
         }
       });
 
+      // Draw boss (Stage 10 rock monster)
+      if (state.boss && state.boss.health > 0) {
+        const boss = state.boss;
+        const bx = Math.floor(boss.x);
+        const by = Math.floor(boss.y);
+        const isHurt = boss.invulnerable;
+        const flash = isHurt && Math.floor(performance.now() / 100) % 2 === 0;
+        
+        // Walking animation bobbing
+        const walkBob = boss.state === 'walking' ? Math.sin(performance.now() / 150) * 2 : 0;
+        const byAnimated = by + walkBob;
+        
+        if (!flash) {
+          // Rock monster - large imposing boss (48x48 pixels)
+          
+          // Base body - dark gray rock with animation
+          ctx.fillStyle = '#4A4A4A';
+          ctx.fillRect(bx + 8, byAnimated + 12, 32, 36); // Main body
+          ctx.fillRect(bx + 4, byAnimated + 16, 40, 28); // Wider middle
+          
+          // Rock texture - lighter gray patches with more detail
+          ctx.fillStyle = '#6B6B6B';
+          ctx.fillRect(bx + 10, byAnimated + 14, 8, 8);
+          ctx.fillRect(bx + 28, byAnimated + 18, 10, 10);
+          ctx.fillRect(bx + 12, byAnimated + 32, 12, 8);
+          ctx.fillRect(bx + 32, byAnimated + 36, 8, 6);
+          ctx.fillRect(bx + 6, byAnimated + 22, 6, 6);
+          
+          // Additional rock highlights
+          ctx.fillStyle = '#8B8B8B';
+          ctx.fillRect(bx + 11, byAnimated + 15, 3, 3);
+          ctx.fillRect(bx + 29, byAnimated + 19, 4, 4);
+          
+          // Dark cracks and shadows - more pronounced
+          ctx.fillStyle = '#2A2A2A';
+          ctx.fillRect(bx + 16, byAnimated + 20, 2, 12);
+          ctx.fillRect(bx + 28, byAnimated + 24, 2, 10);
+          ctx.fillRect(bx + 20, byAnimated + 28, 8, 2);
+          ctx.fillRect(bx + 10, byAnimated + 40, 28, 4);
+          ctx.fillRect(bx + 24, byAnimated + 18, 1, 8);
+          
+          // Head - rounded top with better shaping
+          ctx.fillStyle = '#5A5A5A';
+          ctx.fillRect(bx + 12, byAnimated + 4, 24, 12);
+          ctx.fillRect(bx + 16, byAnimated, 16, 4);
+          ctx.fillRect(bx + 14, byAnimated + 2, 20, 2);
+          
+          // Head highlights - more prominent
+          ctx.fillStyle = '#7A7A7A';
+          ctx.fillRect(bx + 14, byAnimated + 6, 8, 4);
+          ctx.fillRect(bx + 18, byAnimated + 2, 6, 2);
+          ctx.fillRect(bx + 26, byAnimated + 8, 4, 3);
+          
+          // Glowing red eyes with intensity based on state
+          const eyeGlow = Math.sin(performance.now() / 200) * 0.3 + 0.7;
+          const eyeIntensity = boss.state === 'attacking' ? 1.0 : boss.state === 'hurt' ? 0.5 : 0.8;
+          ctx.fillStyle = boss.state === 'attacking' ? '#FF0000' : boss.state === 'hurt' ? '#FF8800' : '#FF4500';
+          ctx.globalAlpha = eyeGlow * eyeIntensity;
+          ctx.fillRect(bx + 16, byAnimated + 8, 4, 4);
+          ctx.fillRect(bx + 28, byAnimated + 8, 4, 4);
+          ctx.globalAlpha = 1.0;
+          
+          // Eye pupils - look at player
+          const lookDir = boss.direction > 0 ? 1 : 0;
+          ctx.fillStyle = '#FFFF00';
+          ctx.fillRect(bx + 17 + lookDir, byAnimated + 9, 2, 2);
+          ctx.fillRect(bx + 29 + lookDir, byAnimated + 9, 2, 2);
+          
+          // Angry mouth/crack - changes with state
+          ctx.fillStyle = '#000000';
+          if (boss.state === 'attacking') {
+            // Open mouth when attacking
+            ctx.fillRect(bx + 20, byAnimated + 14, 8, 3);
+            ctx.fillRect(bx + 18, byAnimated + 14, 2, 2);
+            ctx.fillRect(bx + 28, byAnimated + 14, 2, 2);
+            ctx.fillStyle = '#8B0000';
+            ctx.fillRect(bx + 21, byAnimated + 15, 6, 1);
+          } else {
+            ctx.fillRect(bx + 20, byAnimated + 14, 8, 2);
+            ctx.fillRect(bx + 18, byAnimated + 14, 2, 1);
+            ctx.fillRect(bx + 28, byAnimated + 14, 2, 1);
+          }
+          
+          // Arms - massive rocky limbs with animation
+          const armSwing = boss.state === 'walking' ? Math.sin(performance.now() / 150) * 2 : 0;
+          if (boss.state === 'attacking') {
+            // Arms raised for attack
+            ctx.fillStyle = '#4A4A4A';
+            // Left arm
+            ctx.fillRect(bx, byAnimated + 20, 8, 16);
+            ctx.fillRect(bx - 4, byAnimated + 16, 4, 8);
+            // Right arm
+            ctx.fillRect(bx + 40, byAnimated + 20, 8, 16);
+            ctx.fillRect(bx + 48, byAnimated + 16, 4, 8);
+            
+            // Arm highlights when attacking
+            ctx.fillStyle = '#6B6B6B';
+            ctx.fillRect(bx + 2, byAnimated + 22, 3, 4);
+            ctx.fillRect(bx + 42, byAnimated + 22, 3, 4);
+          } else {
+            // Arms down with swing animation
+            ctx.fillStyle = '#4A4A4A';
+            // Left arm
+            ctx.fillRect(bx, byAnimated + 24 + armSwing, 8, 20);
+            ctx.fillRect(bx - 2, byAnimated + 40 + armSwing, 4, 4);
+            // Right arm
+            ctx.fillRect(bx + 40, byAnimated + 24 - armSwing, 8, 20);
+            ctx.fillRect(bx + 46, byAnimated + 40 - armSwing, 4, 4);
+            
+            // Arm highlights
+            ctx.fillStyle = '#6B6B6B';
+            ctx.fillRect(bx + 2, byAnimated + 26 + armSwing, 3, 6);
+            ctx.fillRect(bx + 42, byAnimated + 26 - armSwing, 3, 6);
+          }
+          
+          // Legs - sturdy base
+          ctx.fillStyle = '#3A3A3A';
+          ctx.fillRect(bx + 8, byAnimated + 44, 12, 4);
+          ctx.fillRect(bx + 28, byAnimated + 44, 12, 4);
+          
+          // Leg highlights
+          ctx.fillStyle = '#4A4A4A';
+          ctx.fillRect(bx + 9, byAnimated + 44, 4, 2);
+          ctx.fillRect(bx + 29, byAnimated + 44, 4, 2);
+          
+          // Black outline for definition
+          ctx.fillStyle = '#000000';
+          // Head outline
+          ctx.fillRect(bx + 16, byAnimated - 1, 16, 1);
+          ctx.fillRect(bx + 11, byAnimated + 4, 1, 12);
+          ctx.fillRect(bx + 36, byAnimated + 4, 1, 12);
+          // Body outline
+          ctx.fillRect(bx + 3, byAnimated + 16, 1, 28);
+          ctx.fillRect(bx + 44, byAnimated + 16, 1, 28);
+          
+          // Visual indicator for head hitbox (subtle yellow outline)
+          if (!boss.invulnerable) {
+            ctx.strokeStyle = '#FFFF00';
+            ctx.globalAlpha = 0.3 + Math.sin(performance.now() / 300) * 0.2;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx + 16, byAnimated, 16, 12);
+            ctx.globalAlpha = 1.0;
+          }
+          
+          // Boss health bar above head
+          const healthBarWidth = 48;
+          const healthBarHeight = 5;
+          const healthPercent = boss.health / boss.maxHealth;
+          
+          // Background
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(bx, byAnimated - 12, healthBarWidth, healthBarHeight);
+          
+          // Health (color gradient based on health)
+          const healthColor = healthPercent > 0.5 ? '#00FF00' : healthPercent > 0.25 ? '#FFFF00' : '#FF0000';
+          ctx.fillStyle = healthColor;
+          ctx.fillRect(bx + 1, byAnimated - 11, (healthBarWidth - 2) * healthPercent, healthBarHeight - 2);
+          
+          // Health bar segments
+          ctx.fillStyle = '#000000';
+          for (let i = 1; i < 10; i++) {
+            ctx.fillRect(bx + (i * 4.8), byAnimated - 11, 1, healthBarHeight - 2);
+          }
+          
+          // Health numbers
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 8px monospace';
+          ctx.fillText(`${boss.health}/${boss.maxHealth}`, bx + 14, byAnimated - 14);
+        }
+      }
+
       // Draw finish line flag at goal - enhanced
       const flagX = Math.floor(state.goalX);
       const flagY = 96;
@@ -2016,18 +2571,64 @@ export default function PixelGame() {
         ctx.fillRect(flagX + 13 + waveOffset, flagY + row * 3, 1, 3);
       }
 
-      // Draw particles
+      // Draw particles with enhanced effects
       state.particles.forEach(p => {
         const lifePercent = p.life / p.maxLife;
-        // Use different sizes instead of alpha for fading effect
-        if (lifePercent > 0.66) {
-          ctx.fillStyle = p.color;
-          ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 2, 2);
-        } else if (lifePercent > 0.33) {
-          ctx.fillStyle = p.color;
-          ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 1);
+        const px = Math.floor(p.x);
+        const py = Math.floor(p.y);
+        
+        // Different rendering based on particle type (color)
+        if (p.color === '#FFD700' || p.color === '#FFFF00') {
+          // Gold/yellow particles (coins, boss defeat) - with glow
+          if (lifePercent > 0.5) {
+            ctx.fillStyle = '#FFFF99';
+            ctx.fillRect(px - 1, py - 1, 4, 4);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 2, 2);
+          } else if (lifePercent > 0.25) {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 2, 2);
+          } else {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 1, 1);
+          }
+        } else if (p.color === '#8B7355') {
+          // Rock projectiles - larger and more visible
+          if (lifePercent > 0.7) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(px - 1, py - 1, 5, 5);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 3, 3);
+            ctx.fillStyle = '#A0826D';
+            ctx.fillRect(px + 1, py + 1, 1, 1);
+          } else if (lifePercent > 0.4) {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 3, 3);
+          } else {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 2, 2);
+          }
+        } else if (p.color === '#FF0000') {
+          // Red particles (miss indicator) - bright and noticeable
+          if (lifePercent > 0.6) {
+            ctx.fillStyle = '#FF6666';
+            ctx.fillRect(px - 1, py - 1, 4, 4);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 2, 2);
+          } else if (lifePercent > 0.3) {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 2, 2);
+          }
+        } else {
+          // Regular particles - standard fade
+          if (lifePercent > 0.66) {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 2, 2);
+          } else if (lifePercent > 0.33) {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(px, py, 1, 1);
+          }
         }
-        // Particles below 33% life are not drawn (fade out)
       });
 
       // ========== SIMPLE RENDERING - SINGLE DRAW CALL ==========
@@ -2346,6 +2947,55 @@ export default function PixelGame() {
           }
         });
       }
+      
+      // Draw water gun power-up
+      if (state.waterGun && !state.waterGun.collected) {
+        const wgx = Math.floor(state.waterGun.x);
+        const wgy = Math.floor(state.waterGun.y + Math.sin(performance.now() / 200) * 2);
+        
+        // Water gun pixel art (8x12)
+        // Black outline
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(wgx, wgy, 8, 12);
+        
+        // Gun body - blue
+        ctx.fillStyle = '#1E90FF';
+        ctx.fillRect(wgx + 1, wgy + 1, 6, 10);
+        
+        // Barrel
+        ctx.fillStyle = '#4169E1';
+        ctx.fillRect(wgx + 2, wgy + 1, 4, 4);
+        
+        // Handle
+        ctx.fillStyle = '#00BFFF';
+        ctx.fillRect(wgx + 2, wgy + 6, 4, 4);
+        
+        // Highlight
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillRect(wgx + 2, wgy + 2, 2, 2);
+        ctx.fillRect(wgx + 3, wgy + 7, 2, 2);
+        
+        // Water droplet effect
+        const droplet = Math.floor(performance.now() / 300) % 3;
+        if (droplet === 0) {
+          ctx.fillStyle = '#00BFFF';
+          ctx.fillRect(wgx + 4, wgy - 2, 1, 1);
+        }
+      }
+      
+      // Draw water projectiles
+      state.waterProjectiles.forEach(proj => {
+        const px = Math.floor(proj.x);
+        const py = Math.floor(proj.y);
+        
+        // Water droplet with trail
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillRect(px - 2, py, 4, 2);
+        ctx.fillStyle = '#00BFFF';
+        ctx.fillRect(px - 1, py, 3, 2);
+        ctx.fillStyle = '#1E90FF';
+        ctx.fillRect(px, py, 2, 2);
+      });
 
       ctx.restore();
       
