@@ -3436,9 +3436,30 @@ export default function PixelGame() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-green-100 to-green-200 p-2 overflow-hidden">
         <div className="relative rounded-3xl shadow-2xl w-full max-w-md mx-auto" style={{ background: 'linear-gradient(135deg, rgba(55, 65, 81, 0.95) 0%, rgba(75, 85, 99, 0.9) 50%, rgba(55, 65, 81, 0.95) 100%)', padding: 'clamp(1rem, 4vw, 1.5rem)' }}>
-          {/* Logo Only */}
-          <div className="flex flex-col items-center mb-3">
+          {/* Logo and Audio Button */}
+          <div className="flex items-center justify-between mb-3">
+            <div style={{ width: 'clamp(32px, 8vw, 40px)' }} />
             <img src="/flip.png" alt="Flip Game" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(60px, 15vw, 96px)' }} />
+            <button
+              onClick={() => {
+                if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
+                  bgMusicRef.current.play().catch(() => {});
+                }
+                setAudioEnabled(!audioEnabled);
+              }}
+              className="bg-gradient-to-b from-gray-700 to-gray-800 rounded-full shadow-lg active:from-gray-800 active:to-gray-900 flex items-center justify-center text-white border-2 border-gray-600"
+              style={{ width: 'clamp(32px, 8vw, 40px)', height: 'clamp(32px, 8vw, 40px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+            >
+              {audioEnabled ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+                </svg>
+              )}
+            </button>
           </div>
           
           {/* Screen */}
@@ -3509,51 +3530,31 @@ export default function PixelGame() {
             </div>
             
             {/* Action Buttons */}
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2 items-center">
-                <button
-                  onTouchStart={() => handleMobileButton('shoot', true)}
-                  onTouchEnd={() => handleMobileButton('shoot', false)}
-                  onMouseDown={() => handleMobileButton('shoot', true)}
-                  onMouseUp={() => handleMobileButton('shoot', false)}
-                  onMouseLeave={() => handleMobileButton('shoot', false)}
-                  className="bg-gradient-to-b from-red-600 to-red-800 rounded-full shadow-xl active:from-red-700 active:to-red-900 flex items-center justify-center text-white font-black border-4 border-red-900"
-                  style={{ width: 'clamp(64px, 16vw, 80px)', height: 'clamp(64px, 16vw, 80px)', fontSize: 'clamp(1.5rem, 6vw, 2rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-                >
-                  B
-                </button>
-                <button
-                  onTouchStart={() => handleMobileButton('jump', true)}
-                  onTouchEnd={() => handleMobileButton('jump', false)}
-                  onMouseDown={() => handleMobileButton('jump', true)}
-                  onMouseUp={() => handleMobileButton('jump', false)}
-                  onMouseLeave={() => handleMobileButton('jump', false)}
-                  className="bg-gradient-to-b from-green-600 to-green-800 rounded-full shadow-xl active:from-green-700 active:to-green-900 flex items-center justify-center text-white font-black border-4 border-green-900"
-                  style={{ width: 'clamp(96px, 24vw, 112px)', height: 'clamp(96px, 24vw, 112px)', fontSize: 'clamp(2rem, 8vw, 2.5rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-                >
-                  A
-                </button>
-                <button
-                  onClick={() => {
-                    if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
-                      bgMusicRef.current.play().catch(() => {});
-                    }
-                    setAudioEnabled(!audioEnabled);
-                  }}
-                  className="bg-gradient-to-b from-green-600 to-green-800 rounded-full shadow-xl active:from-green-700 active:to-green-900 flex items-center justify-center text-white border-4 border-green-900"
-                  style={{ width: 'clamp(56px, 14vw, 64px)', height: 'clamp(56px, 14vw, 64px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-                >
-                  {audioEnabled ? (
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                    </svg>
-                  ) : (
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
+            <div className="flex gap-3 items-start">
+              {/* B Button (shoot) */}
+              <button
+                onTouchStart={() => handleMobileButton('shoot', true)}
+                onTouchEnd={() => handleMobileButton('shoot', false)}
+                onMouseDown={() => handleMobileButton('shoot', true)}
+                onMouseUp={() => handleMobileButton('shoot', false)}
+                onMouseLeave={() => handleMobileButton('shoot', false)}
+                className="bg-gradient-to-b from-red-600 to-red-800 rounded-full shadow-xl active:from-red-700 active:to-red-900 flex items-center justify-center text-white font-black border-4 border-red-900"
+                style={{ width: 'clamp(60px, 15vw, 72px)', height: 'clamp(60px, 15vw, 72px)', fontSize: 'clamp(1.5rem, 6vw, 1.75rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(20px, 5vw, 28px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+              >
+                B
+              </button>
+              {/* A Button (jump) */}
+              <button
+                onTouchStart={() => handleMobileButton('jump', true)}
+                onTouchEnd={() => handleMobileButton('jump', false)}
+                onMouseDown={() => handleMobileButton('jump', true)}
+                onMouseUp={() => handleMobileButton('jump', false)}
+                onMouseLeave={() => handleMobileButton('jump', false)}
+                className="bg-gradient-to-b from-green-600 to-green-800 rounded-full shadow-xl active:from-green-700 active:to-green-900 flex items-center justify-center text-white font-black border-4 border-green-900"
+                style={{ width: 'clamp(96px, 24vw, 112px)', height: 'clamp(96px, 24vw, 112px)', fontSize: 'clamp(2rem, 8vw, 2.5rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(-32px, -8vw, -20px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+              >
+                A
+              </button>
             </div>
           </div>
           
