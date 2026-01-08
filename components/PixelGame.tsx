@@ -3467,12 +3467,12 @@ export default function PixelGame() {
           {/* Controls */}
           <div className="flex justify-between items-end">
             {/* D-Pad */}
-            <div className="relative" style={{ width: 'clamp(100px, 25vw, 130px)', height: 'clamp(100px, 25vw, 130px)' }}>
+            <div className="relative" style={{ width: 'clamp(140px, 35vw, 180px)', height: 'clamp(140px, 35vw, 180px)' }}>
               <div className="absolute inset-0 flex items-center justify-center">
                 {/* D-pad cross shape */}
                 <div className="relative" style={{ width: '100%', height: '100%' }}>
                   {/* Horizontal bar */}
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full flex" style={{ height: 'clamp(32px, 8vw, 40px)' }}>
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full flex" style={{ height: 'clamp(48px, 12vw, 60px)' }}>
                     {/* Left button */}
                     <button
                       onTouchStart={() => handleMobileButton('left', true)}
@@ -3483,7 +3483,7 @@ export default function PixelGame() {
                       className="bg-green-900 rounded-l-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
                       style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                     >
-                      <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+                      <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
                       </svg>
                     </button>
@@ -3499,7 +3499,7 @@ export default function PixelGame() {
                       className="bg-green-900 rounded-r-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
                       style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                     >
-                      <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+                      <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
                       </svg>
                     </button>
