@@ -3425,6 +3425,9 @@ export default function PixelGame() {
     } else if (action === 'jump') {
       state.keys['ArrowUp'] = pressed;
       if (pressed) state.jumpBuffer = JUMP_BUFFER;
+    } else if (action === 'shoot') {
+      state.keys['x'] = pressed;
+      state.keys['X'] = pressed;
     }
   };
 
@@ -3464,9 +3467,9 @@ export default function PixelGame() {
           {/* Controls */}
           <div className="flex justify-between items-end">
             {/* D-Pad */}
-            <div className="relative" style={{ width: 'clamp(140px, 35vw, 180px)', height: 'clamp(140px, 35vw, 180px)' }}>
+            <div className="relative" style={{ width: 'clamp(100px, 25vw, 130px)', height: 'clamp(100px, 25vw, 130px)' }}>
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative" style={{ width: 'clamp(120px, 30vw, 150px)', height: 'clamp(120px, 30vw, 150px)' }}>
+                <div className="relative" style={{ width: 'clamp(90px, 22vw, 120px)', height: 'clamp(90px, 22vw, 120px)' }}>
                   {/* Up */}
                   <button
                     className="absolute left-1/2 top-0 -translate-x-1/2 w-16 h-18 bg-gray-800 rounded-t-lg shadow-lg active:bg-gray-700"
@@ -3515,13 +3518,24 @@ export default function PixelGame() {
             <div className="flex flex-col gap-2">
               <div className="flex gap-2 items-center">
                 <button
+                  onTouchStart={() => handleMobileButton('shoot', true)}
+                  onTouchEnd={() => handleMobileButton('shoot', false)}
+                  onMouseDown={() => handleMobileButton('shoot', true)}
+                  onMouseUp={() => handleMobileButton('shoot', false)}
+                  onMouseLeave={() => handleMobileButton('shoot', false)}
+                  className="bg-gradient-to-b from-red-600 to-red-800 rounded-full shadow-xl active:from-red-700 active:to-red-900 flex items-center justify-center text-white font-black border-4 border-red-900"
+                  style={{ width: 'clamp(80px, 20vw, 96px)', height: 'clamp(80px, 20vw, 96px)', fontSize: 'clamp(1.75rem, 7vw, 2.25rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                >
+                  B
+                </button>
+                <button
                   onTouchStart={() => handleMobileButton('jump', true)}
                   onTouchEnd={() => handleMobileButton('jump', false)}
                   onMouseDown={() => handleMobileButton('jump', true)}
                   onMouseUp={() => handleMobileButton('jump', false)}
                   onMouseLeave={() => handleMobileButton('jump', false)}
                   className="bg-gradient-to-b from-green-600 to-green-800 rounded-full shadow-xl active:from-green-700 active:to-green-900 flex items-center justify-center text-white font-black border-4 border-green-900"
-                  style={{ width: 'clamp(72px, 18vw, 88px)', height: 'clamp(72px, 18vw, 88px)', fontSize: 'clamp(1.5rem, 6vw, 2rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                  style={{ width: 'clamp(96px, 24vw, 112px)', height: 'clamp(96px, 24vw, 112px)', fontSize: 'clamp(2rem, 8vw, 2.5rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                 >
                   A
                 </button>
