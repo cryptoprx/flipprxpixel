@@ -509,7 +509,8 @@ export default function PixelGame() {
     state.celebrationTimer = 0;
     
     // Spawn portal randomly (100% chance for testing - change back to 0.3 later)
-    if (Math.random() < 1.0) {
+    // Don't spawn portal on stage 10 (boss stage)
+    if (stageNum !== 10 && Math.random() < 1.0) {
       const portalX = 200 + Math.random() * (stageData.width - 400);
       const portalY = 90; // Above ground level
       state.portal = { x: portalX, y: portalY, animationFrame: 0, active: true };
