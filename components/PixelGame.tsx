@@ -108,6 +108,8 @@ export default function PixelGame() {
     chartBars: [] as Array<{ height: number; color: string }>,
     chartComplete: false,
     chartResult: '' as 'green' | 'red' | '',
+    speechBubble: null as { text: string; timer: number; phraseIndex: number } | null,
+    speechCooldown: 0,
   });
 
   // Game constants
@@ -128,15 +130,15 @@ export default function PixelGame() {
     7400,   // Stage 9
     8200,   // Stage 10 - Final challenge
   ];
-  const GRAVITY = 800; // Slightly increased for snappier feel
-  const PLAYER_SPEED = 140; // Faster movement
-  const PLAYER_ACCEL = 1400; // Quicker acceleration
-  const PLAYER_FRICTION = 1600; // Better stopping
-  const AIR_FRICTION = 280; // More air control
-  const JUMP_VELOCITY = -320; // Slightly higher jump
-  const COYOTE_TIME = 0.18; // More forgiving edge jumps
-  const JUMP_BUFFER = 0.24; // More forgiving jump timing
-  const MAX_FALL_SPEED = 500; // Slightly faster falling
+  const GRAVITY = 850; // Optimized for responsive feel
+  const PLAYER_SPEED = 145; // Smooth movement speed
+  const PLAYER_ACCEL = 1500; // Quick acceleration
+  const PLAYER_FRICTION = 1700; // Precise stopping
+  const AIR_FRICTION = 300; // Enhanced air control
+  const JUMP_VELOCITY = -325; // Perfect jump height
+  const COYOTE_TIME = 0.2; // Forgiving edge jumps
+  const JUMP_BUFFER = 0.25; // Forgiving jump timing
+  const MAX_FALL_SPEED = 480; // Controlled falling
 
   // Audio system - procedural sound generation
   const playSound = (type: string) => {
@@ -673,18 +675,18 @@ export default function PixelGame() {
         player.landingTimer = 0;
         playSound('jump');
         
-        // Spawn jump particles - enhanced burst effect
-        for (let i = 0; i < 18; i++) {
+        // Spawn jump particles - enhanced burst effect with better colors
+        for (let i = 0; i < 20; i++) {
           const angle = Math.PI * (0.3 + Math.random() * 0.4); // Upward burst
-          const speed = 50 + Math.random() * 70;
+          const speed = 55 + Math.random() * 75;
           state.particles.push({
-            x: player.x + 8 + (Math.random() - 0.5) * 10,
+            x: player.x + 8 + (Math.random() - 0.5) * 12,
             y: player.y + 16,
             vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
-            vy: -Math.sin(angle) * speed - 40,
-            life: 0.6 + Math.random() * 0.2,
-            maxLife: 0.6 + Math.random() * 0.2,
-            color: i % 5 === 0 ? '#FFD700' : i % 5 === 1 ? '#FFA500' : i % 5 === 2 ? '#FF6347' : i % 5 === 3 ? '#D2691E' : '#CD853F',
+            vy: -Math.sin(angle) * speed - 45,
+            life: 0.65 + Math.random() * 0.25,
+            maxLife: 0.65 + Math.random() * 0.25,
+            color: i % 6 === 0 ? '#FFD700' : i % 6 === 1 ? '#FFA500' : i % 6 === 2 ? '#FF8C00' : i % 6 === 3 ? '#FFB347' : i % 6 === 4 ? '#F4A460' : '#DEB887',
           });
         }
       }
@@ -788,23 +790,23 @@ export default function PixelGame() {
             // Landing particles if falling fast - enhanced dust cloud effect
             if (landingSpeed > 100) {
               playSound('land');
-              const particleCount = Math.min(25, Math.floor(landingSpeed / 12));
+              const particleCount = Math.min(28, Math.floor(landingSpeed / 11));
               for (let i = 0; i < particleCount; i++) {
                 const angle = Math.PI * (0.2 + Math.random() * 0.6); // Spread upward
-                const speed = 40 + Math.random() * 60;
+                const speed = 45 + Math.random() * 65;
                 state.particles.push({
-                  x: player.x + 8 + (Math.random() - 0.5) * 12,
+                  x: player.x + 8 + (Math.random() - 0.5) * 14,
                   y: player.y + 16,
                   vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
                   vy: -Math.sin(angle) * speed,
-                  life: 0.6 + Math.random() * 0.3,
-                  maxLife: 0.6 + Math.random() * 0.3,
-                  color: i % 4 === 0 ? '#D2691E' : i % 4 === 1 ? '#A0522D' : i % 4 === 2 ? '#8B4513' : '#CD853F',
+                  life: 0.65 + Math.random() * 0.35,
+                  maxLife: 0.65 + Math.random() * 0.35,
+                  color: i % 5 === 0 ? '#D2691E' : i % 5 === 1 ? '#A0522D' : i % 5 === 2 ? '#8B4513' : i % 5 === 3 ? '#CD853F' : '#BC8F8F',
                 });
               }
               // Small screen shake on hard landing
               if (landingSpeed > 250) {
-                state.screenShake = 0.12;
+                state.screenShake = 0.13;
               }
             }
           } else if (player.velocityY < 0 && wasBelow) {
@@ -817,18 +819,18 @@ export default function PixelGame() {
               platform.broken = true;
               playSound('break');
               
-              // Brick break particles
-              for (let i = 0; i < 20; i++) {
+              // Brick break particles - enhanced with more variety
+              for (let i = 0; i < 24; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 40 + Math.random() * 60;
+                const speed = 45 + Math.random() * 65;
                 state.particles.push({
                   x: platform.x + 8,
                   y: platform.y + 8,
                   vx: Math.cos(angle) * speed,
-                  vy: Math.sin(angle) * speed - 50,
-                  life: 0.6,
-                  maxLife: 0.6,
-                  color: Math.random() > 0.5 ? '#FF6347' : '#FF7F50',
+                  vy: Math.sin(angle) * speed - 55,
+                  life: 0.7,
+                  maxLife: 0.7,
+                  color: i % 4 === 0 ? '#FF6347' : i % 4 === 1 ? '#FF7F50' : i % 4 === 2 ? '#E26B6B' : '#CD5C5C',
                 });
               }
               
@@ -934,15 +936,21 @@ export default function PixelGame() {
                 });
               }
             } else {
-              // Spawn enemy (badguy)
-              state.enemies.push({
+              // Spawn enemy (badguy) with upward velocity to pop out
+              const spawnDirection = Math.random() > 0.5 ? 1 : -1;
+              const newEnemy = {
                 x: platform.x + 4,
-                y: platform.y - 16,
-                direction: Math.random() > 0.5 ? 1 : -1,
+                y: platform.y - 12, // Start slightly lower
+                direction: spawnDirection,
                 alive: true,
-                type: 'badguy',
+                type: 'badguy' as const,
                 animFrame: 0
-              });
+              };
+              state.enemies.push(newEnemy);
+              // Add upward velocity to pop out of block and horizontal velocity to move away
+              (newEnemy as any).velocityY = -180;
+              // Give it a strong initial horizontal push to clear the spawn area
+              (newEnemy as any).initialPushX = spawnDirection * 60; // Horizontal push
               // Particle effect (red for danger)
               for (let i = 0; i < 12; i++) {
                 const angle = (Math.PI * 2 * i) / 12;
@@ -1068,21 +1076,26 @@ export default function PixelGame() {
         player.currentAnimation = 'crouch';
         player.animationFrame = 0;
         player.animationTimer = 0;
-      } else if (Math.abs(player.velocityX) < 0.1) {
-        // IDLE - standing still
+      } else if (Math.abs(player.velocityX) < 5) {
+        // IDLE - standing still (increased threshold for smoother transition)
         player.currentAnimation = 'idle';
         player.animationFrame = 0;
         player.animationTimer = 0;
       } else {
-        // WALKING
+        // WALKING - smooth animation speed based on velocity
         if (player.currentAnimation !== 'walk') {
           player.currentAnimation = 'walk';
           player.animationFrame = 0;
           player.animationTimer = 0;
         }
         
+        // Dynamic animation speed based on movement speed for smoother look
+        const speedFactor = Math.abs(player.velocityX) / PLAYER_SPEED;
+        const baseAnimSpeed = 0.12; // Faster base animation
+        const animSpeed = baseAnimSpeed / Math.max(speedFactor, 0.5); // Adjust speed with velocity
+        
         player.animationTimer += dt;
-        if (player.animationTimer > 0.15) {
+        if (player.animationTimer > animSpeed) {
           player.animationFrame = (player.animationFrame + 1) % 4;
           player.animationTimer = 0;
         }
@@ -1163,19 +1176,19 @@ export default function PixelGame() {
             const comboBonus = state.combo > 1 ? state.combo * 50 : 0;
             setScore(s => s + 100 + comboBonus);
             
-            // Spawn enhanced coin particles with combo effect
-            const particleCount = 12 + (state.combo > 1 ? state.combo * 2 : 0);
+            // Spawn enhanced coin particles with combo effect and sparkles
+            const particleCount = 15 + (state.combo > 1 ? state.combo * 2 : 0);
             for (let j = 0; j < particleCount; j++) {
               const angle = (Math.PI * 2 * j) / particleCount;
-              const speed = 80 + (state.combo > 1 ? state.combo * 10 : 0);
+              const speed = 85 + (state.combo > 1 ? state.combo * 12 : 0);
               state.particles.push({
                 x: coin.x + 4,
                 y: coin.y + 4,
                 vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 30,
-                life: 0.6,
-                maxLife: 0.6,
-                color: j % 3 === 0 ? '#FFD700' : j % 3 === 1 ? '#FFA500' : '#FFFF00',
+                vy: Math.sin(angle) * speed - 35,
+                life: 0.7,
+                maxLife: 0.7,
+                color: j % 4 === 0 ? '#FFD700' : j % 4 === 1 ? '#FFA500' : j % 4 === 2 ? '#FFFF00' : '#FFE55C',
               });
             }
           }
@@ -1284,7 +1297,21 @@ export default function PixelGame() {
           }
         } else {
           // Goomba and badguy move normally
-          enemy.x += enemy.direction * 30 * dt;
+          let moveSpeed = 30;
+          
+          // Apply initial horizontal push if spawned from question block
+          if ('initialPushX' in enemy) {
+            enemy.x += (enemy as any).initialPushX * dt;
+            // Decay the push over time
+            (enemy as any).initialPushX *= 0.92;
+            // Remove push when it's weak enough
+            if (Math.abs((enemy as any).initialPushX) < 5) {
+              delete (enemy as any).initialPushX;
+            }
+          } else {
+            // Normal movement
+            enemy.x += enemy.direction * moveSpeed * dt;
+          }
         }
         
         // Check for ground collision (enemies land on platforms)
@@ -1712,14 +1739,49 @@ export default function PixelGame() {
           }
         }
       }
+      
+      // Speech bubble system - character randomly yells 'we flip' phrases
+      if (state.speechCooldown > 0) {
+        state.speechCooldown -= dt;
+      }
+      
+      if (state.speechBubble) {
+        state.speechBubble.timer -= dt;
+        
+        // Progress through phrases: 'we flip' -> 'we flip' -> 'we Flipping'
+        if (state.speechBubble.timer <= 0) {
+          if (state.speechBubble.phraseIndex < 2) {
+            // Move to next phrase
+            state.speechBubble.phraseIndex++;
+            const phrases = ['we flip', 'we flip', 'we Flipping'];
+            state.speechBubble.text = phrases[state.speechBubble.phraseIndex];
+            state.speechBubble.timer = 0.8; // Pause between phrases
+          } else {
+            // End speech bubble
+            state.speechBubble = null;
+            state.speechCooldown = 8 + Math.random() * 7; // 8-15 seconds cooldown
+          }
+        }
+      } else if (state.speechCooldown <= 0 && !state.celebrating && !state.inBlackhole) {
+        // Randomly trigger speech bubble (when moving or jumping)
+        if (Math.abs(player.velocityX) > 20 || !player.onGround) {
+          if (Math.random() < 0.015) { // 1.5% chance per frame when moving
+            state.speechBubble = {
+              text: 'we flip',
+              timer: 0.8,
+              phraseIndex: 0
+            };
+          }
+        }
+      }
 
       // Smooth camera follow with lookahead and screen shake - optimized and pixel perfect
-      const lookahead = player.velocityX * 0.15; // Camera looks ahead in movement direction
+      const lookahead = player.velocityX * 0.18; // Enhanced camera lookahead
       state.camera.targetX = Math.max(0, Math.min(player.x + lookahead - GAME_WIDTH / 2, state.stageWidth - GAME_WIDTH));
       // Adaptive camera speed based on distance and player state
       const distance = Math.abs(state.camera.targetX - state.camera.x);
-      const baseSpeed = player.onGround ? 12 : 9; // Faster camera when on ground
-      const cameraSpeed = baseSpeed + Math.min(distance * 0.02, 5); // Speed up when far from target
+      const baseSpeed = player.onGround ? 13 : 10; // Smoother camera tracking
+      const cameraSpeed = baseSpeed + Math.min(distance * 0.025, 6); // Faster catch-up
       state.camera.x += (state.camera.targetX - state.camera.x) * cameraSpeed * dt;
       // Floor camera position for pixel-perfect rendering
       state.camera.x = Math.floor(state.camera.x);
@@ -2637,10 +2699,17 @@ export default function PixelGame() {
       if (state.player.currentAnimation === 'idle') {
         frameName = 'idle';
       } else if (state.player.currentAnimation === 'walk') {
+        // Ensure animationFrame is valid (0-3) and map to walk sprites
+        const frameIndex = Math.floor(state.player.animationFrame) % 4;
         const walkFrames = ['walk1', 'walk2', 'walk3', 'walk4'];
-        frameName = walkFrames[state.player.animationFrame];
-      } else {
+        frameName = walkFrames[frameIndex];
+      } else if (state.player.currentAnimation === 'jump') {
         frameName = 'jump1';
+      } else if (state.player.currentAnimation === 'crouch') {
+        frameName = 'crouch';
+      } else {
+        // Fallback to idle if animation state is undefined
+        frameName = 'idle';
       }
       
       // Draw player (with helmet rainbow effect if active)
@@ -2729,6 +2798,80 @@ export default function PixelGame() {
         }
       }
 
+      // Draw speech bubble from character's mouth with pixel art text
+      if (state.speechBubble && !state.celebrating && !state.inBlackhole) {
+        ctx.save();
+        
+        const bubbleX = Math.floor(state.player.x + 8);
+        const bubbleY = Math.floor(state.player.y - 8);
+        const text = state.speechBubble.text;
+        
+        // Pixel art letter patterns (3x5 pixels each)
+        const pixelLetters: Record<string, number[][]> = {
+          'W': [[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,1,0,1,1],[1,0,0,0,1]],
+          'E': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,1,1,1,1]],
+          'F': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0]],
+          'L': [[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+          'I': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1]],
+          'P': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0]],
+          'N': [[1,0,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,0,1]],
+          'G': [[0,1,1,1,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,0,0,1],[0,1,1,1,0]],
+          '!': [[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],
+          ' ': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
+        };
+        
+        const upperText = text.toUpperCase();
+        const displayText = text === 'we Flipping' ? upperText + '!' : upperText;
+        
+        // Calculate text width (each letter is 5px wide + 1px spacing)
+        const textWidth = displayText.length * 6 - 1;
+        const textHeight = 5;
+        
+        // Calculate bubble size
+        const bubbleWidth = textWidth + 6;
+        const bubbleHeight = textHeight + 4;
+        
+        // Position bubble above character's head
+        const bx = Math.floor(bubbleX - bubbleWidth / 2);
+        const by = Math.floor(bubbleY - bubbleHeight - 8);
+        
+        // Draw speech bubble tail
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(bubbleX - 1, by + bubbleHeight, 2, 2);
+        ctx.fillRect(bubbleX - 2, by + bubbleHeight + 2, 2, 1);
+        
+        // Draw bubble background with outline
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(bx - 1, by - 1, bubbleWidth + 2, bubbleHeight + 2);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(bx, by, bubbleWidth, bubbleHeight);
+        
+        // Draw pixel art text
+        let xOffset = bx + 3;
+        const yOffset = by + 2;
+        
+        for (let i = 0; i < displayText.length; i++) {
+          const char = displayText[i];
+          const pattern = pixelLetters[char];
+          
+          if (pattern) {
+            // Draw each pixel of the letter
+            for (let row = 0; row < 5; row++) {
+              for (let col = 0; col < 5; col++) {
+                if (pattern[row][col] === 1) {
+                  ctx.fillStyle = '#000000'; // Black text
+                  ctx.fillRect(xOffset + col, yOffset + row, 1, 1);
+                }
+              }
+            }
+          }
+          
+          xOffset += 6; // Move to next letter position (5px + 1px spacing)
+        }
+        
+        ctx.restore();
+      }
+      
       // Draw celebration screen with coin count
       if (state.celebrating) {
         // Semi-transparent overlay
@@ -2791,53 +2934,6 @@ export default function PixelGame() {
         }
       }
       
-      // Draw helmet timer indicator
-      if (state.player.hasHelmet && state.player.helmetTimer > 0 && !state.inBlackhole) {
-        const timerX = Math.floor(state.player.x);
-        const timerY = Math.floor(state.player.y - 20);
-        const timerWidth = Math.floor((state.player.helmetTimer / 10) * 16);
-        
-        // Timer bar background
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(timerX, timerY, 16, 3);
-        // Timer bar fill
-        const timerColor = state.player.helmetTimer > 3 ? '#00FF00' : '#FF0000';
-        ctx.fillStyle = timerColor;
-        ctx.fillRect(timerX, timerY, timerWidth, 3);
-        
-        // Helmet icon above timer
-        ctx.fillStyle = '#C0C0C0';
-        ctx.fillRect(timerX + 6, timerY - 5, 4, 3);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(timerX + 6, timerY - 6, 4, 1);
-      }
-
-      // Draw combo indicator with bounce effect - pixel perfect
-      if (state.combo > 1 && !state.celebrating && !state.inBlackhole) {
-        const comboX = Math.floor(state.player.x);
-        const bounceOffset = Math.floor(Math.sin(state.comboTimer * 10) * 2);
-        const comboY = Math.floor(state.player.y - 12 + bounceOffset);
-        const comboAlpha = Math.min(1, state.comboTimer / 1.5);
-        const scale = 1 + (1 - state.comboTimer / 3) * 0.3;
-        
-        // Only show combo if timer is active (no alpha fade)
-        if (comboAlpha > 0.3) {
-          // Combo text background with glow
-          ctx.fillStyle = '#FFD700';
-          ctx.fillRect(comboX - 9, comboY - 7, 26, 10);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(comboX - 8, comboY - 6, 24, 8);
-          ctx.fillStyle = state.combo > 5 ? '#FF00FF' : state.combo > 3 ? '#FF4500' : '#FFD700';
-          ctx.fillRect(comboX - 7, comboY - 5, 22, 6);
-          
-          // Combo number (simple pixel text)
-          ctx.fillStyle = '#FFFFFF';
-          const comboStr = `x${state.combo}`;
-          for (let i = 0; i < comboStr.length; i++) {
-            ctx.fillRect(comboX - 5 + i * 4, comboY - 3, 2, 4);
-          }
-        }
-      }
 
       // Draw coins in world space (before ctx.restore) so they stay in place
       if (!state.inBlackhole) {
@@ -2998,6 +3094,60 @@ export default function PixelGame() {
       });
 
       ctx.restore();
+      
+      // Draw UI elements in fixed screen position (after ctx.restore)
+      // Draw helmet timer indicator in top right corner
+      if (state.player.hasHelmet && state.player.helmetTimer > 0 && !state.inBlackhole) {
+        const timerX = GAME_WIDTH - 30;
+        const timerY = 5;
+        const timerBarWidth = 24;
+        const timerWidth = Math.floor((state.player.helmetTimer / 10) * timerBarWidth);
+        
+        // Helmet icon
+        ctx.fillStyle = '#C0C0C0';
+        ctx.fillRect(timerX - 8, timerY, 6, 5);
+        ctx.fillRect(timerX - 7, timerY + 1, 4, 3);
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(timerX - 8, timerY, 6, 1);
+        ctx.fillRect(timerX - 8, timerY, 1, 5);
+        ctx.fillRect(timerX - 2, timerY, 1, 5);
+        
+        // Timer bar background
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(timerX, timerY, timerBarWidth, 5);
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(timerX + 1, timerY + 1, timerBarWidth - 2, 3);
+        
+        // Timer bar fill
+        const timerColor = state.player.helmetTimer > 3 ? '#00FF00' : '#FF0000';
+        ctx.fillStyle = timerColor;
+        ctx.fillRect(timerX + 1, timerY + 1, Math.max(0, timerWidth - 2), 3);
+      }
+
+      // Draw combo indicator in top right corner below helmet timer
+      if (state.combo > 1 && !state.celebrating && !state.inBlackhole) {
+        const comboX = GAME_WIDTH - 20;
+        const comboY = 14;
+        const comboAlpha = Math.min(1, state.comboTimer / 1.5);
+        
+        // Only show combo if timer is active
+        if (comboAlpha > 0.3) {
+          // Combo text background with glow
+          ctx.fillStyle = '#FFD700';
+          ctx.fillRect(comboX - 11, comboY - 1, 22, 8);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(comboX - 10, comboY, 20, 6);
+          ctx.fillStyle = state.combo > 5 ? '#FF00FF' : state.combo > 3 ? '#FF4500' : '#FFD700';
+          ctx.fillRect(comboX - 9, comboY + 1, 18, 4);
+          
+          // Combo number (simple pixel text)
+          ctx.fillStyle = '#FFFFFF';
+          const comboStr = `x${state.combo}`;
+          for (let i = 0; i < comboStr.length; i++) {
+            ctx.fillRect(comboX - 7 + i * 4, comboY + 2, 2, 3);
+          }
+        }
+      }
       
       // Draw blackhole mini-game overlay (MUST BE LAST - draws on top of everything)
       if (state.inBlackhole) {
@@ -3179,33 +3329,64 @@ export default function PixelGame() {
           ctx.restore();
         }
         
-        // Draw chart at bottom with enhanced layout
-        const chartStartX = 35;
-        const chartY = GAME_HEIGHT - 65;
+        // Draw chart at bottom with enhanced layout - better centered
+        const chartStartX = 45;
+        const chartY = GAME_HEIGHT - 55;
         
-        // Chart background panel
+        // Chart background panel - more compact
         ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(20, chartY - 25, GAME_WIDTH - 40, 80);
+        ctx.fillRect(15, chartY - 30, GAME_WIDTH - 30, 75);
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(22, chartY - 23, GAME_WIDTH - 44, 76);
+        ctx.fillRect(17, chartY - 28, GAME_WIDTH - 34, 71);
         
-        // Chart title with better styling
-        ctx.fillStyle = '#00FF00';
-        ctx.font = 'bold 8px monospace';
-        ctx.fillText('MARKET CHART', chartStartX + 10, chartY - 15);
+        // Chart title with pixel art text - centered
+        const titleText = 'MARKET CHART';
+        const titleWidth = titleText.length * 6;
+        const titleX = (GAME_WIDTH - titleWidth) / 2;
+        const titleY = chartY - 23;
         
-        // Grid lines
-        ctx.fillStyle = '#333333';
-        for (let i = 0; i < 3; i++) {
-          const gridY = chartY - i * 15;
-          ctx.fillRect(chartStartX - 5, gridY, 200, 1);
+        // Pixel letters for title (reuse from speech bubble)
+        const pixelLetters: Record<string, number[][]> = {
+          'M': [[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+          'A': [[0,1,1,1,0],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
+          'R': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,1,0,0],[1,0,0,1,1]],
+          'K': [[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0]],
+          'E': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,1,1,1,1]],
+          'T': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+          'C': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,0],[1,0,0,0,1],[0,1,1,1,0]],
+          'H': [[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
+          ' ': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
+        };
+        
+        let xPos = titleX;
+        for (let i = 0; i < titleText.length; i++) {
+          const char = titleText[i];
+          const pattern = pixelLetters[char];
+          if (pattern) {
+            for (let row = 0; row < 5; row++) {
+              for (let col = 0; col < 5; col++) {
+                if (pattern[row][col] === 1) {
+                  ctx.fillStyle = '#00FF00';
+                  ctx.fillRect(xPos + col, titleY + row, 1, 1);
+                }
+              }
+            }
+          }
+          xPos += 6;
         }
         
-        // Draw pixel art chart bars with crisp quality
+        // Grid lines - better positioned
+        ctx.fillStyle = '#222222';
+        for (let i = 0; i < 3; i++) {
+          const gridY = chartY - i * 12;
+          ctx.fillRect(chartStartX - 5, gridY, 85, 1);
+        }
+        
+        // Draw pixel art chart bars with crisp quality - better spacing
         state.chartBars.forEach((bar, index) => {
-          const barX = chartStartX + index * 16;
-          const barWidth = 12;
-          const barHeight = Math.floor(bar.height);
+          const barX = chartStartX + index * 15;
+          const barWidth = 11;
+          const barHeight = Math.floor(bar.height * 0.8); // Scale down slightly
           const isGreen = bar.color === 'green';
           
           // Animated appearance (bars grow in)
@@ -3222,10 +3403,10 @@ export default function PixelGame() {
           const shadowColor = isGreen ? '#004400' : '#440000';
           
           // Upper wick (thin line above candle) - pixel perfect
-          const wickTopHeight = 10;
+          const wickTopHeight = 8;
           const wickX = Math.floor(barX + barWidth / 2);
           ctx.fillStyle = midColor;
-          ctx.fillRect(wickX, chartY - animatedHeight - wickTopHeight, 2, wickTopHeight);
+          ctx.fillRect(wickX, chartY - animatedHeight - wickTopHeight, 1, wickTopHeight);
           
           // Main candle body - pixel art style with clean edges
           // Base fill
@@ -3256,9 +3437,9 @@ export default function PixelGame() {
           ctx.fillRect(barX + barWidth - 1, chartY - animatedHeight, 1, animatedHeight);
           
           // Lower wick (thin line below candle)
-          const wickBottomHeight = 8;
+          const wickBottomHeight = 6;
           ctx.fillStyle = midColor;
-          ctx.fillRect(wickX, chartY, 2, wickBottomHeight);
+          ctx.fillRect(wickX, chartY, 1, wickBottomHeight);
           
           // Pulsing glow for last bar when complete (alternating frames instead of alpha)
           if (index === state.chartBars.length - 1 && state.chartComplete) {
@@ -3309,31 +3490,99 @@ export default function PixelGame() {
         
         // Chart baseline
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(chartStartX - 5, chartY, 90, 1);
+        ctx.fillRect(chartStartX - 5, chartY, 85, 2);
         
-        // Result message
+        // Result message with pixel art text
+        const resultPixelLetters: Record<string, number[][]> = {
+          'G': [[0,1,1,1,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,0,0,1],[0,1,1,1,0]],
+          'R': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,1,0,0],[1,0,0,1,1]],
+          'E': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,1,1,1,1]],
+          'N': [[1,0,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,0,1]],
+          'C': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,0],[1,0,0,0,1],[0,1,1,1,0]],
+          'A': [[0,1,1,1,0],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
+          'D': [[1,1,1,0,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,1,0],[1,1,1,0,0]],
+          'L': [[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+          'O': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+          'T': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+          'I': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1]],
+          'U': [[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+          'S': [[0,1,1,1,1],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
+          '!': [[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],
+          ' ': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
+          'B': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0]],
+          '0': [[0,1,1,1,0],[1,0,0,1,1],[1,0,1,0,1],[1,1,0,0,1],[0,1,1,1,0]],
+          '1': [[0,0,1,0,0],[0,1,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],
+          '2': [[0,1,1,1,0],[1,0,0,0,1],[0,0,1,1,0],[0,1,0,0,0],[1,1,1,1,1]],
+          '3': [[1,1,1,1,0],[0,0,0,0,1],[0,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
+          '4': [[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],
+          '5': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
+          '/': [[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0]]
+        };
+        
         if (state.chartComplete) {
-          const resultY = GAME_HEIGHT - 20;
-          if (state.chartResult === 'green') {
-            ctx.fillStyle = '#00FF00';
-            ctx.font = 'bold 10px monospace';
-            ctx.fillText('GREEN CANDLE!', centerX - 40, resultY);
-            ctx.fillText('CONTINUE!', centerX - 30, resultY + 12);
-          } else {
-            ctx.fillStyle = '#FF0000';
-            ctx.font = 'bold 10px monospace';
-            ctx.fillText('RED CANDLE!', centerX - 35, resultY);
-            ctx.fillText('RESTART!', centerX - 25, resultY + 12);
+          const resultY = GAME_HEIGHT - 22;
+          const line1 = state.chartResult === 'green' ? 'GREEN CANDLE!' : 'RED CANDLE!';
+          const line2 = state.chartResult === 'green' ? 'CONTINUE!' : 'RESTART!';
+          const color = state.chartResult === 'green' ? '#00FF00' : '#FF0000';
+          
+          // Draw first line
+          let xPos = centerX - (line1.length * 6) / 2;
+          for (let i = 0; i < line1.length; i++) {
+            const pattern = resultPixelLetters[line1[i]];
+            if (pattern) {
+              for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 5; col++) {
+                  if (pattern[row][col] === 1) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(xPos + col, resultY + row, 1, 1);
+                  }
+                }
+              }
+            }
+            xPos += 6;
+          }
+          
+          // Draw second line
+          xPos = centerX - (line2.length * 6) / 2;
+          for (let i = 0; i < line2.length; i++) {
+            const pattern = resultPixelLetters[line2[i]];
+            if (pattern) {
+              for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 5; col++) {
+                  if (pattern[row][col] === 1) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(xPos + col, resultY + 8 + row, 1, 1);
+                  }
+                }
+              }
+            }
+            xPos += 6;
           }
         } else {
-          // Show bar count with better styling
+          // Show bar count with pixel art text
           ctx.fillStyle = '#000000';
           ctx.fillRect(centerX - 32, GAME_HEIGHT - 28, 64, 12);
           ctx.fillStyle = '#00FF00';
           ctx.fillRect(centerX - 30, GAME_HEIGHT - 26, 60, 8);
-          ctx.fillStyle = '#000000';
-          ctx.font = 'bold 6px monospace';
-          ctx.fillText(`BAR ${state.chartBars.length}/5`, centerX - 18, GAME_HEIGHT - 20);
+          
+          const barText = `BAR ${state.chartBars.length}/5`;
+          let xPos = centerX - (barText.length * 6) / 2;
+          const yPos = GAME_HEIGHT - 24;
+          
+          for (let i = 0; i < barText.length; i++) {
+            const pattern = resultPixelLetters[barText[i]];
+            if (pattern) {
+              for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 5; col++) {
+                  if (pattern[row][col] === 1) {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(xPos + col, yPos + row, 1, 1);
+                  }
+                }
+              }
+            }
+            xPos += 6;
+          }
         }
         ctx.restore();
       }

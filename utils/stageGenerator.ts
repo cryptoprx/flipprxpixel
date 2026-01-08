@@ -62,12 +62,12 @@ export function generateStage(stageNumber: number): StageData {
     }
   }
   
-  // Difficulty scaling with aggressive progression
-  const platformDensity = 0.18 + (difficulty * 0.06);
-  const enemyCount = Math.min(5 + difficulty * 3, 40); // Significantly more enemies
-  const coinCount = Math.min(30 + difficulty * 8, 100); // More coins for longer stages
-  const questionBlockCount = Math.min(8 + difficulty * 2, 25);
-  const minGapBetweenPlatforms = Math.max(64, 96 - difficulty * 4); // Smaller gaps = harder jumps
+  // Difficulty scaling with balanced progression
+  const platformDensity = 0.2 + (difficulty * 0.05);
+  const enemyCount = Math.min(6 + difficulty * 2, 35); // Balanced enemy count
+  const coinCount = Math.min(35 + difficulty * 7, 90); // Strategic coin placement
+  const questionBlockCount = Math.min(10 + difficulty * 2, 22);
+  const minGapBetweenPlatforms = Math.max(68, 100 - difficulty * 4); // Balanced jump difficulty
   
   // Generate structured platform formations with increasing difficulty
   let x = 96;
@@ -99,17 +99,17 @@ export function generateStage(stageNumber: number): StageData {
       const pattern = patternIndex % 5;
       
       if (pattern === 0) {
-        // Horizontal platform series
-        const platformLength = 2 + Math.floor(difficulty / 2);
-        const baseY = 96 - (difficulty * 3);
+        // Horizontal platform series - organized spacing
+        const platformLength = 3 + Math.floor(difficulty / 2);
+        const baseY = 94 - (difficulty * 2.5);
         for (let i = 0; i < platformLength; i++) {
           platforms.push({ x: x + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
         }
         x += platformLength * 16 + minGapBetweenPlatforms;
       } else if (pattern === 1) {
-        // Pyramid formation
-        const pyramidHeight = 2 + Math.floor(difficulty / 3);
-        const baseY = 104;
+        // Pyramid formation - cleaner structure
+        const pyramidHeight = 3 + Math.floor(difficulty / 3);
+        const baseY = 106;
         for (let row = 0; row < pyramidHeight; row++) {
           const blocksInRow = pyramidHeight - row;
           for (let col = 0; col < blocksInRow; col++) {
@@ -122,38 +122,40 @@ export function generateStage(stageNumber: number): StageData {
             });
           }
         }
-        x += pyramidHeight * 16 + minGapBetweenPlatforms + 20;
+        x += pyramidHeight * 16 + minGapBetweenPlatforms + 24;
       } else if (pattern === 2) {
-        // Floating island with multiple levels
-        const baseY = 88 - (difficulty * 2);
+        // Floating island with multiple levels - better organized
+        const baseY = 90 - (difficulty * 2);
         const bottomBlocks = difficulty < 5 ? 4 : 3;
-        const topBlocks = difficulty < 5 ? 2 : 1;
+        const topBlocks = difficulty < 5 ? 3 : 2;
         
         // Bottom level
         for (let i = 0; i < bottomBlocks; i++) {
           platforms.push({ x: x + i * 16, y: baseY + 16, width: 16, height: 16, type: 'brick' });
         }
-        // Top level
+        // Top level - centered
+        const topOffset = Math.floor((bottomBlocks - topBlocks) * 8);
         for (let i = 0; i < topBlocks; i++) {
-          platforms.push({ x: x + 16 + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
+          platforms.push({ x: x + topOffset + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
         }
         x += bottomBlocks * 16 + minGapBetweenPlatforms;
       } else if (pattern === 3) {
-        // Single platform jump challenge
-        const platformY = 80 - (difficulty * 2);
-        const blockCount = difficulty < 6 ? 2 : 1;
-        for (let i = 0; i < blockCount; i++) {
-          platforms.push({ x: x + i * 16, y: platformY, width: 16, height: 16, type: 'brick' });
+        // Stepping stones - organized pattern
+        const stepCount = 3 + Math.floor(difficulty / 3);
+        const baseY = 84 - (difficulty * 2);
+        for (let i = 0; i < stepCount; i++) {
+          const stepY = baseY + (i % 2) * 12;
+          platforms.push({ x: x + i * 24, y: stepY, width: 16, height: 16, type: 'brick' });
         }
-        x += blockCount * 16 + minGapBetweenPlatforms + 30;
+        x += stepCount * 24 + minGapBetweenPlatforms;
       } else {
-        // Vertical column challenge
-        const columnHeight = 2 + Math.floor(difficulty / 4);
+        // Vertical column challenge - cleaner spacing
+        const columnHeight = 3 + Math.floor(difficulty / 4);
         const baseY = 112;
         for (let h = 0; h < columnHeight; h++) {
           platforms.push({ x: x, y: baseY - h * 16, width: 16, height: 16, type: 'brick' });
         }
-        x += 16 + minGapBetweenPlatforms + 40;
+        x += 16 + minGapBetweenPlatforms + 44;
       }
     }
     
@@ -206,18 +208,19 @@ export function generateStage(stageNumber: number): StageData {
     }
   }
   
-  // Add question blocks in strategic positions above platforms
+  // Add question blocks in strategic positions above platforms - better organized
   let qBlocksPlaced = 0;
   for (let i = 0; i < questionBlockCount && qBlocksPlaced < questionBlockCount; i++) {
-    const qx = 120 + (i * Math.floor((width - 240) / questionBlockCount));
-    const qy = 64; // Fixed height for consistency
+    const qx = 140 + (i * Math.floor((width - 280) / questionBlockCount));
+    const qy = 68; // Consistent height for better gameplay
     
     // Check if there's a platform below (within reasonable distance)
     const hasPlatformBelow = platforms.some(p => 
-      Math.abs(p.x - qx) < 32 && p.y > qy && p.y < qy + 64
+      Math.abs(p.x - qx) < 40 && p.y > qy && p.y < qy + 60
     );
     
-    if (hasPlatformBelow || i % 3 === 0) {
+    // Ensure question blocks are accessible
+    if (hasPlatformBelow || i % 2 === 0) {
       platforms.push({ x: qx, y: qy, width: 16, height: 16, type: 'question' });
       qBlocksPlaced++;
     }
@@ -255,16 +258,16 @@ export function generateStage(stageNumber: number): StageData {
   // Generate coins in organized patterns with collision detection
   let coinsPlaced = 0;
   
-  // Place coins above platforms in arcs and lines
+  // Place coins above platforms in organized arcs and patterns
   for (const platform of platforms) {
     if (platform.type === 'brick' && coinsPlaced < coinCount) {
-      // Chance to place coins above this platform
-      if (Math.random() < 0.4) {
-        // Create a small arc of 3-5 coins
+      // Strategic coin placement above platforms
+      if (Math.random() < 0.45) {
+        // Create organized arc of 3-5 coins
         const arcSize = Math.min(3 + Math.floor(Math.random() * 3), coinCount - coinsPlaced);
         for (let c = 0; c < arcSize; c++) {
-          const coinX = platform.x + c * 12;
-          const coinY = platform.y - 28 - Math.abs(c - arcSize / 2) * 4; // Increased gap from 24 to 28
+          const coinX = platform.x + c * 14; // Better spacing
+          const coinY = platform.y - 32 - Math.abs(c - arcSize / 2) * 5; // Cleaner arc
           
           // Only place coin if it doesn't collide with any platform
           if (!coinCollidesWithPlatform(coinX, coinY)) {
@@ -295,10 +298,13 @@ export function generateStage(stageNumber: number): StageData {
     attempts++;
   }
   
-  // Generate enemies - mix of goombas and snakes (more snakes in later stages)
-  // Spawn on ground to avoid getting stuck in platforms
-  for (let i = 0; i < enemyCount; i++) {
-    const ex = 120 + (i * (width - 240) / enemyCount) + Math.random() * 40;
+  // Generate enemies - organized spawn locations with variety
+  // Spawn on ground and platforms to avoid getting stuck
+  let enemiesPlaced = 0;
+  const enemySpacing = (width - 240) / (enemyCount + 1);
+  
+  for (let i = 0; i < enemyCount && enemiesPlaced < enemyCount; i++) {
+    const ex = 140 + (i * enemySpacing) + Math.random() * 30;
     const ey = 116; // Spawn on ground level
     const direction = Math.random() > 0.5 ? 1 : -1;
     
@@ -308,10 +314,13 @@ export function generateStage(stageNumber: number): StageData {
              ey + 12 > p.y && ey < p.y + p.height;
     });
     
-    // Only spawn if not colliding with platform
-    if (!collidesWithPlatform) {
-      // 30% chance for snake, increases with stage difficulty
-      const snakeChance = 0.3 + (difficulty * 0.05);
+    // Check if too close to player start
+    const tooCloseToStart = ex < 200;
+    
+    // Only spawn if not colliding and not too close to start
+    if (!collidesWithPlatform && !tooCloseToStart) {
+      // 35% chance for snake, increases with stage difficulty
+      const snakeChance = 0.35 + (difficulty * 0.04);
       const isSnake = Math.random() < snakeChance;
       
       if (isSnake) {
@@ -319,6 +328,7 @@ export function generateStage(stageNumber: number): StageData {
       } else {
         enemies.push({ x: ex, y: ey, direction, alive: true, type: 'goomba' });
       }
+      enemiesPlaced++;
     }
   }
   
