@@ -42,6 +42,8 @@ export default function PixelGame() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [selectedCharacter, setSelectedCharacter] = useState<'default' | 'guy2' | null>(null);
+  const [showCharacterSelect, setShowCharacterSelect] = useState(true);
   
   // Detect mobile/tablet device - always show gameboy style on mobile/tablet
   useEffect(() => {
@@ -362,6 +364,9 @@ export default function PixelGame() {
 
   // Load character sprites
   useEffect(() => {
+    if (!selectedCharacter) return; // Wait for character selection
+    
+    const characterFolder = selectedCharacter === 'guy2' ? 'guy2/' : '';
     const spriteFiles = [
       'standing.png',
       'step1.PNG',
@@ -414,8 +419,16 @@ export default function PixelGame() {
       };
       // Add cache busting for standing.png to force reload
       const cacheBuster = file === 'standing.png' ? `?v=${Date.now()}` : '';
-      // helmet.png is in root /public, others are in /sprites
-      const path = file === 'helmet.png' ? `/${file}` : `/sprites/${file}${cacheBuster}`;
+      // helmet.png is in root /public, character sprites in /sprites or /sprites/guy2
+      // Badguy sprites (1-8.png) always from /sprites root
+      let path;
+      if (file === 'helmet.png') {
+        path = `/${file}`;
+      } else if (file.match(/^[1-8]\.png$/)) {
+        path = `/sprites/${file}`;
+      } else {
+        path = `/sprites/${characterFolder}${file}${cacheBuster}`;
+      }
       img.src = path;
       spritesRef.current[file] = img;
     });
@@ -429,7 +442,7 @@ export default function PixelGame() {
     }, 5000);
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [selectedCharacter]);
 
   // Draw player sprite using loaded images
   const drawPlayerSprite = (ctx: CanvasRenderingContext2D, x: number, y: number, frame: string, facingLeft: boolean) => {
@@ -471,13 +484,33 @@ export default function PixelGame() {
       const spriteWidth = sprite.naturalWidth;
       const spriteHeight = sprite.naturalHeight;
       
-      // Draw the actual sprite scaled to 16x16
+      // Calculate aspect ratio and scale to fit within 16x16 while maintaining proportions
+      const targetSize = 16;
+      const aspectRatio = spriteWidth / spriteHeight;
+      
+      let drawWidth, drawHeight, offsetX, offsetY;
+      
+      if (aspectRatio > 1) {
+        // Wider than tall - fit to width
+        drawWidth = targetSize;
+        drawHeight = targetSize / aspectRatio;
+        offsetX = 0;
+        offsetY = (targetSize - drawHeight) / 2;
+      } else {
+        // Taller than wide or square - fit to height
+        drawHeight = targetSize;
+        drawWidth = targetSize * aspectRatio;
+        offsetX = (targetSize - drawWidth) / 2;
+        offsetY = 0;
+      }
+      
+      // Draw the sprite with proper aspect ratio and centering
       if (facingLeft) {
         ctx.translate(x + 16, y);
         ctx.scale(-1, 1);
-        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, 0, 0, 16, 16);
+        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, offsetX, offsetY, drawWidth, drawHeight);
       } else {
-        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, x, y, 16, 16);
+        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, x + offsetX, y + offsetY, drawWidth, drawHeight);
       }
     } else {
       // Fallback: draw a simple colored rectangle
@@ -539,10 +572,10 @@ export default function PixelGame() {
       state.waterGun = null;
     }
     
-    // Spawn boss for stage 10 - boss appears at end of stage
+    // Spawn boss for stage 10 - boss appears before the end flag
     if (stageNum === 10) {
       state.boss = {
-        x: stageData.width - 300,
+        x: stageData.goalX - 400,
         y: 80,
         health: 10,
         maxHealth: 10,
@@ -3626,6 +3659,60 @@ export default function PixelGame() {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [spritesLoaded, currentStage]);
+
+  // Character selection modal - show BEFORE loading screen
+  if (showCharacterSelect && !selectedCharacter) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-green-100 to-green-200 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
+          <h1 className="text-4xl font-bold text-center mb-2 text-gray-800">Choose Your Character</h1>
+          <p className="text-center text-gray-600 mb-8">Select a character to start your adventure!</p>
+          
+          <div className="grid grid-cols-2 gap-6">
+            {/* Default Character */}
+            <button
+              onClick={() => {
+                setSelectedCharacter('default');
+                setShowCharacterSelect(false);
+              }}
+              className="group relative bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl p-6 transition-all transform hover:scale-105 active:scale-95 shadow-lg"
+            >
+              <div className="bg-white rounded-lg p-4 mb-4">
+                <img 
+                  src="/sprites/standing.png" 
+                  alt="Default Character" 
+                  className="w-full h-32 object-contain pixelated"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+              </div>
+              <h3 className="text-2xl font-bold text-white text-center">Character 1</h3>
+              <p className="text-blue-100 text-center mt-2">Classic Hero</p>
+            </button>
+
+            {/* Guy2 Character */}
+            <button
+              onClick={() => {
+                setSelectedCharacter('guy2');
+                setShowCharacterSelect(false);
+              }}
+              className="group relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-xl p-6 transition-all transform hover:scale-105 active:scale-95 shadow-lg"
+            >
+              <div className="bg-white rounded-lg p-4 mb-4">
+                <img 
+                  src="/sprites/guy2/standing.png" 
+                  alt="Guy2 Character" 
+                  className="w-full h-32 object-contain pixelated"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+              </div>
+              <h3 className="text-2xl font-bold text-white text-center">Character 2</h3>
+              <p className="text-green-100 text-center mt-2">New Hero</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!spritesLoaded) {
     return (
