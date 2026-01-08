@@ -3508,8 +3508,6 @@ export default function PixelGame() {
                       <path d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
                     </svg>
                   </button>
-                  {/* Center */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-gray-900 rounded-full" />
                 </div>
               </div>
             </div>
@@ -3524,7 +3522,7 @@ export default function PixelGame() {
                   onMouseUp={() => handleMobileButton('shoot', false)}
                   onMouseLeave={() => handleMobileButton('shoot', false)}
                   className="bg-gradient-to-b from-red-600 to-red-800 rounded-full shadow-xl active:from-red-700 active:to-red-900 flex items-center justify-center text-white font-black border-4 border-red-900"
-                  style={{ width: 'clamp(80px, 20vw, 96px)', height: 'clamp(80px, 20vw, 96px)', fontSize: 'clamp(1.75rem, 7vw, 2.25rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                  style={{ width: 'clamp(64px, 16vw, 80px)', height: 'clamp(64px, 16vw, 80px)', fontSize: 'clamp(1.5rem, 6vw, 2rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                 >
                   B
                 </button>
