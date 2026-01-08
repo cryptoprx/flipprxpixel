@@ -3469,12 +3469,12 @@ export default function PixelGame() {
                 <div className="relative" style={{ width: 'clamp(120px, 30vw, 150px)', height: 'clamp(120px, 30vw, 150px)' }}>
                   {/* Up */}
                   <button
-                    className="absolute left-1/2 top-0 -translate-x-1/2 w-12 h-14 bg-gray-800 rounded-t-lg shadow-lg active:bg-gray-700"
+                    className="absolute left-1/2 top-0 -translate-x-1/2 w-16 h-18 bg-gray-800 rounded-t-lg shadow-lg active:bg-gray-700"
                     style={{ opacity: 0.3 }}
                   />
                   {/* Down */}
                   <button
-                    className="absolute left-1/2 bottom-0 -translate-x-1/2 w-12 h-14 bg-gray-800 rounded-b-lg shadow-lg active:bg-gray-700"
+                    className="absolute left-1/2 bottom-0 -translate-x-1/2 w-16 h-18 bg-gray-800 rounded-b-lg shadow-lg active:bg-gray-700"
                     style={{ opacity: 0.3 }}
                   />
                   {/* Left */}
@@ -3484,11 +3484,11 @@ export default function PixelGame() {
                     onMouseDown={() => handleMobileButton('left', true)}
                     onMouseUp={() => handleMobileButton('left', false)}
                     onMouseLeave={() => handleMobileButton('left', false)}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-14 h-12 bg-green-900 rounded-l-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-18 h-16 bg-green-900 rounded-l-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
                     style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                   >
-                    <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M11 2L5 8l6 6V2z"/>
+                    <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
                     </svg>
                   </button>
                   {/* Right */}
@@ -3498,15 +3498,15 @@ export default function PixelGame() {
                     onMouseDown={() => handleMobileButton('right', true)}
                     onMouseUp={() => handleMobileButton('right', false)}
                     onMouseLeave={() => handleMobileButton('right', false)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 w-14 h-12 bg-green-900 rounded-r-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 w-18 h-16 bg-green-900 rounded-r-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
                     style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                   >
-                    <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M5 2v12l6-6-6-6z"/>
+                    <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
                     </svg>
                   </button>
                   {/* Center */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-gray-900 rounded-full" />
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-gray-900 rounded-full" />
                 </div>
               </div>
             </div>
