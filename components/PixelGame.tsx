@@ -42,8 +42,7 @@ export default function PixelGame() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [selectedCharacter, setSelectedCharacter] = useState<'default' | 'guy2' | null>(null);
-  const [showCharacterSelect, setShowCharacterSelect] = useState(true);
+  const [selectedCharacter, setSelectedCharacter] = useState<'guy1' | 'guy2'>('guy1');
   
   // Detect mobile/tablet device - always show gameboy style on mobile/tablet
   useEffect(() => {
@@ -98,7 +97,6 @@ export default function PixelGame() {
     celebrationTimer: 0,
     coins: [] as Array<{ x: number; y: number; collected: boolean; floatOffset: number }>,
     enemies: [] as Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake' | 'badguy'; waveOffset?: number; animFrame?: number }>,
-    boss: null as { x: number; y: number; health: number; maxHealth: number; direction: number; state: 'idle' | 'walking' | 'attacking' | 'hurt' | 'defeated'; attackTimer: number; moveTimer: number; invulnerable: boolean; invulnerableTimer: number } | null,
     waterGun: null as { x: number; y: number; collected: boolean } | null,
     waterProjectiles: [] as Array<{ x: number; y: number; vx: number; vy: number; life: number }>,
     particles: [] as Particle[],
@@ -364,9 +362,6 @@ export default function PixelGame() {
 
   // Load character sprites
   useEffect(() => {
-    if (!selectedCharacter) return; // Wait for character selection
-    
-    const characterFolder = selectedCharacter === 'guy2' ? 'guy2/' : '';
     const spriteFiles = [
       'standing.png',
       'step1.PNG',
@@ -387,12 +382,26 @@ export default function PixelGame() {
       '7.png',
       '8.png',
     ];
+    
+    // Guy2 sprite files (lowercase extensions)
+    const guy2SpriteFiles = [
+      'standing.png',
+      'step1.png',
+      'step2.png',
+      'step3.png',
+      'step4.png',
+      'jump1.png',
+      'jump2.png',
+      'jump3.png',
+      'jumpfall.png',
+    ];
 
     let loadedCount = 0;
-    const totalSprites = spriteFiles.length;
+    const totalSprites = spriteFiles.length + guy2SpriteFiles.length;
     const startTime = Date.now();
     const minLoadingTime = 1500; // Show loading screen for at least 1.5 seconds
 
+    // Load guy1 sprites
     spriteFiles.forEach(file => {
       const img = new Image();
       img.onload = () => {
@@ -419,18 +428,39 @@ export default function PixelGame() {
       };
       // Add cache busting for standing.png to force reload
       const cacheBuster = file === 'standing.png' ? `?v=${Date.now()}` : '';
-      // helmet.png is in root /public, character sprites in /sprites or /sprites/guy2
-      // Badguy sprites (1-8.png) always from /sprites root
-      let path;
-      if (file === 'helmet.png') {
-        path = `/${file}`;
-      } else if (file.match(/^[1-8]\.png$/)) {
-        path = `/sprites/${file}`;
-      } else {
-        path = `/sprites/${characterFolder}${file}${cacheBuster}`;
-      }
+      // helmet.png is in root /public, others are in /sprites
+      const path = file === 'helmet.png' ? `/${file}` : `/sprites/${file}${cacheBuster}`;
       img.src = path;
       spritesRef.current[file] = img;
+    });
+    
+    // Load guy2 sprites
+    guy2SpriteFiles.forEach(file => {
+      const img = new Image();
+      img.onload = () => {
+        loadedCount++;
+        if (loadedCount === totalSprites) {
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          setTimeout(() => {
+            setSpritesLoaded(true);
+          }, remainingTime);
+        }
+      };
+      img.onerror = () => {
+        console.error('Failed to load guy2 sprite:', file);
+        loadedCount++;
+        if (loadedCount === totalSprites) {
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          setTimeout(() => {
+            setSpritesLoaded(true);
+          }, remainingTime);
+        }
+      };
+      const path = `/sprites/guy2/${file}`;
+      img.src = path;
+      spritesRef.current[`guy2_${file}`] = img;
     });
 
     // Timeout fallback - only if sprites haven't loaded
@@ -442,7 +472,7 @@ export default function PixelGame() {
     }, 5000);
 
     return () => clearTimeout(timeout);
-  }, [selectedCharacter]);
+  }, []);
 
   // Draw player sprite using loaded images
   const drawPlayerSprite = (ctx: CanvasRenderingContext2D, x: number, y: number, frame: string, facingLeft: boolean) => {
@@ -455,29 +485,31 @@ export default function PixelGame() {
 
     ctx.save();
     
-    // Determine which sprite to use
+    // Determine which sprite to use based on frame
     let spriteKey = 'standing.png';
     if (frame === 'idle') {
       spriteKey = 'standing.png';
     } else if (frame === 'walk1') {
-      spriteKey = 'step1.PNG';
+      spriteKey = selectedCharacter === 'guy2' ? 'step1.png' : 'step1.PNG';
     } else if (frame === 'walk2') {
-      spriteKey = 'step2.PNG';
+      spriteKey = selectedCharacter === 'guy2' ? 'step2.png' : 'step2.PNG';
     } else if (frame === 'walk3') {
-      spriteKey = 'step3.PNG';
+      spriteKey = selectedCharacter === 'guy2' ? 'step3.png' : 'step3.PNG';
     } else if (frame === 'walk4') {
-      spriteKey = 'step4.PNG';
+      spriteKey = selectedCharacter === 'guy2' ? 'step4.png' : 'step4.PNG';
     } else if (frame === 'jump1') {
-      spriteKey = 'jump1.PNG';
+      spriteKey = selectedCharacter === 'guy2' ? 'jump1.png' : 'jump1.PNG';
     } else if (frame === 'jump2') {
-      spriteKey = 'jump2.PNG';
+      spriteKey = selectedCharacter === 'guy2' ? 'jump2.png' : 'jump2.PNG';
     } else if (frame === 'jump3') {
-      spriteKey = 'jump3.PNG';
+      spriteKey = selectedCharacter === 'guy2' ? 'jump3.png' : 'jump3.PNG';
     } else if (frame === 'crouch') {
       spriteKey = 'jumpfall.png';
     }
 
-    const sprite = spritesRef.current[spriteKey];
+    // Add character prefix for guy2 sprites
+    const finalSpriteKey = selectedCharacter === 'guy2' ? `guy2_${spriteKey}` : spriteKey;
+    const sprite = spritesRef.current[finalSpriteKey];
     
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
       // Get actual sprite dimensions
@@ -542,8 +574,7 @@ export default function PixelGame() {
     state.celebrationTimer = 0;
     
     // Spawn portal randomly (100% chance for testing - change back to 0.3 later)
-    // Don't spawn portal on stage 10 (boss stage)
-    if (stageNum !== 10 && Math.random() < 1.0) {
+    if (Math.random() < 1.0) {
       const portalX = 200 + Math.random() * (stageData.width - 400);
       const portalY = 90; // Above ground level
       state.portal = { x: portalX, y: portalY, animationFrame: 0, active: true };
@@ -572,23 +603,7 @@ export default function PixelGame() {
       state.waterGun = null;
     }
     
-    // Spawn boss for stage 10 - boss appears before the end flag
-    if (stageNum === 10) {
-      state.boss = {
-        x: stageData.goalX - 400,
-        y: 80,
-        health: 10,
-        maxHealth: 10,
-        direction: -1,
-        state: 'idle',
-        attackTimer: 0,
-        moveTimer: 0,
-        invulnerable: false,
-        invulnerableTimer: 0
-      };
-    } else {
-      state.boss = null;
-    }
+    // Boss will be added later with sprite-based system
     
     // Reset water projectiles
     state.waterProjectiles = [];
@@ -1504,225 +1519,7 @@ export default function PixelGame() {
         }
       }
       
-      // Update boss (Stage 10 only)
-      if (state.boss && state.boss.health > 0) {
-        const boss = state.boss;
-        
-        // Initialize velocityY if not present
-        if (!('velocityY' in boss)) {
-          (boss as any).velocityY = 0;
-        }
-        
-        // Apply gravity to boss
-        (boss as any).velocityY += GRAVITY * dt;
-        (boss as any).velocityY = Math.min((boss as any).velocityY, MAX_FALL_SPEED);
-        boss.y += (boss as any).velocityY * dt;
-        
-        // Keep boss on ground with proper collision
-        let bossOnGround = false;
-        for (const platform of state.platforms) {
-          if (boss.x + 48 > platform.x && boss.x < platform.x + platform.width) {
-            if ((boss as any).velocityY >= 0 && boss.y + 48 >= platform.y && boss.y + 48 <= platform.y + 8) {
-              boss.y = platform.y - 48;
-              (boss as any).velocityY = 0;
-              bossOnGround = true;
-              break;
-            }
-          }
-        }
-        
-        // Update invulnerability timer
-        if (boss.invulnerable) {
-          boss.invulnerableTimer -= dt;
-          if (boss.invulnerableTimer <= 0) {
-            boss.invulnerable = false;
-          }
-        }
-        
-        // Boss AI state machine
-        if (boss.state === 'defeated') {
-          // Boss is defeated, do nothing
-        } else if (boss.state === 'hurt') {
-          // Hurt state - brief pause with knockback
-          boss.moveTimer -= dt;
-          boss.x += -boss.direction * 15 * dt; // Knockback
-          if (boss.moveTimer <= 0) {
-            boss.state = 'walking';
-            boss.moveTimer = 2 + Math.random() * 2;
-          }
-        } else if (boss.state === 'attacking') {
-          // Attack animation
-          boss.attackTimer -= dt;
-          if (boss.attackTimer <= 0) {
-            boss.state = 'walking';
-            boss.moveTimer = 1.5 + Math.random() * 1.5;
-          }
-        } else {
-          // Walking/Idle state
-          boss.moveTimer -= dt;
-          
-          // Move towards player with acceleration
-          const distToPlayer = player.x - boss.x;
-          if (Math.abs(distToPlayer) > 100) {
-            boss.direction = distToPlayer > 0 ? 1 : -1;
-            // Variable speed based on distance
-            const speed = Math.min(35, 20 + Math.abs(distToPlayer) * 0.05);
-            boss.x += boss.direction * speed * dt;
-            boss.state = 'walking';
-            
-            // Boss can jump over obstacles
-            if (bossOnGround && Math.random() < 0.02) {
-              (boss as any).velocityY = -200;
-            }
-          } else {
-            boss.state = 'idle';
-          }
-          
-          // Attack if close to player
-          if (Math.abs(distToPlayer) < 100 && boss.moveTimer <= 0) {
-            boss.state = 'attacking';
-            boss.attackTimer = 0.8;
-            boss.moveTimer = 2;
-            
-            // Create rock projectile attack with spread
-            const rockSpeed = 180;
-            const rockDir = boss.direction;
-            for (let i = 0; i < 5; i++) {
-              const spreadAngle = (i - 2) * 0.15;
-              const vx = Math.cos(spreadAngle) * rockSpeed * rockDir;
-              const vy = Math.sin(spreadAngle) * rockSpeed - 80;
-              state.particles.push({
-                x: boss.x + 24,
-                y: boss.y + 20,
-                vx: vx,
-                vy: vy,
-                life: 2.5,
-                maxLife: 2.5,
-                color: '#8B7355',
-              });
-            }
-            playSound('break');
-          }
-        }
-        
-        // Boss collision with player - STRICT HEAD HITBOX
-        const bossHeadX = boss.x + 16; // Center of head
-        const bossHeadY = boss.y;
-        const bossHeadWidth = 16; // Small precise hitbox
-        const bossHeadHeight = 12;
-        
-        // Check if player is in boss area
-        if (Math.abs(player.x - boss.x) < 48 && Math.abs(player.y - boss.y) < 52) {
-          // STRICT head hit detection - must hit center of head
-          if (player.velocityY > 50 && 
-              player.y + player.height >= bossHeadY && 
-              player.y + player.height <= bossHeadY + bossHeadHeight &&
-              player.x + player.width > bossHeadX && 
-              player.x < bossHeadX + bossHeadWidth &&
-              !boss.invulnerable) {
-            // Perfect head hit!
-            boss.health -= 1;
-            boss.invulnerable = true;
-            boss.invulnerableTimer = 1.5;
-            boss.state = 'hurt';
-            boss.moveTimer = 0.6;
-            
-            player.velocityY = -280; // Strong bounce
-            playSound('stomp');
-            state.screenShake = 0.3;
-            setScore(s => s + 500);
-            
-            // Hit particles
-            for (let i = 0; i < 25; i++) {
-              const angle = Math.random() * Math.PI * 2;
-              const speed = 70 + Math.random() * 90;
-              state.particles.push({
-                x: boss.x + 24,
-                y: boss.y + 8,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 100,
-                life: 1.0,
-                maxLife: 1.0,
-                color: ['#8B7355', '#A0826D', '#654321', '#FFD700'][i % 4],
-              });
-            }
-            
-            // Check if boss defeated
-            if (boss.health <= 0) {
-              boss.state = 'defeated';
-              playSound('celebration');
-              state.screenShake = 0.6;
-              setScore(s => s + 5000);
-              
-              // Massive explosion particles
-              for (let i = 0; i < 150; i++) {
-                const angle = (Math.PI * 2 * i) / 150;
-                const speed = 120 + Math.random() * 180;
-                state.particles.push({
-                  x: boss.x + 24,
-                  y: boss.y + 24,
-                  vx: Math.cos(angle) * speed,
-                  vy: Math.sin(angle) * speed - 120,
-                  life: 2.0,
-                  maxLife: 2.0,
-                  color: ['#8B7355', '#654321', '#A0826D', '#FFD700', '#FF4500'][i % 5],
-                });
-              }
-            }
-          } else if (player.y + player.height > boss.y + 12 && player.velocityY >= 0) {
-            // Missed the head - hit body instead - RESET PLAYER
-            if (!player.hasHelmet) {
-              player.x = 80;
-              player.y = 112;
-              player.velocityX = 0;
-              player.velocityY = 0;
-              player.onGround = true;
-              playSound('death');
-              state.screenShake = 0.4;
-              
-              // Show miss particles
-              for (let i = 0; i < 10; i++) {
-                state.particles.push({
-                  x: player.x + 8,
-                  y: player.y + 8,
-                  vx: (Math.random() - 0.5) * 100,
-                  vy: -50 - Math.random() * 50,
-                  life: 0.5,
-                  maxLife: 0.5,
-                  color: '#FF0000',
-                });
-              }
-            }
-          } else if (boss.state === 'attacking' && !player.hasHelmet) {
-            // Boss attack hits player
-            player.x = 80;
-            player.y = 112;
-            player.velocityX = 0;
-            player.velocityY = 0;
-            player.onGround = true;
-            playSound('death');
-            state.screenShake = 0.4;
-          }
-        }
-        
-        // Rock projectile collision with player
-        state.particles.forEach(p => {
-          if (p.color === '#8B7355' && p.life > 0) {
-            if (Math.abs(player.x - p.x) < 12 && Math.abs(player.y - p.y) < 12) {
-              if (!player.hasHelmet) {
-                player.x = 80;
-                player.y = 112;
-                player.velocityX = 0;
-                player.velocityY = 0;
-                player.onGround = true;
-                playSound('death');
-                state.screenShake = 0.3;
-                p.life = 0; // Remove projectile
-              }
-            }
-          }
-        });
-      }
+      // Boss update code will be added later with sprite-based system
       
       // Update screen shake
       if (state.screenShake > 0) {
@@ -2437,176 +2234,7 @@ export default function PixelGame() {
         }
       });
 
-      // Draw boss (Stage 10 rock monster)
-      if (state.boss && state.boss.health > 0) {
-        const boss = state.boss;
-        const bx = Math.floor(boss.x);
-        const by = Math.floor(boss.y);
-        const isHurt = boss.invulnerable;
-        const flash = isHurt && Math.floor(performance.now() / 100) % 2 === 0;
-        
-        // Walking animation bobbing
-        const walkBob = boss.state === 'walking' ? Math.sin(performance.now() / 150) * 2 : 0;
-        const byAnimated = by + walkBob;
-        
-        if (!flash) {
-          // Rock monster - large imposing boss (48x48 pixels)
-          
-          // Base body - dark gray rock with animation
-          ctx.fillStyle = '#4A4A4A';
-          ctx.fillRect(bx + 8, byAnimated + 12, 32, 36); // Main body
-          ctx.fillRect(bx + 4, byAnimated + 16, 40, 28); // Wider middle
-          
-          // Rock texture - lighter gray patches with more detail
-          ctx.fillStyle = '#6B6B6B';
-          ctx.fillRect(bx + 10, byAnimated + 14, 8, 8);
-          ctx.fillRect(bx + 28, byAnimated + 18, 10, 10);
-          ctx.fillRect(bx + 12, byAnimated + 32, 12, 8);
-          ctx.fillRect(bx + 32, byAnimated + 36, 8, 6);
-          ctx.fillRect(bx + 6, byAnimated + 22, 6, 6);
-          
-          // Additional rock highlights
-          ctx.fillStyle = '#8B8B8B';
-          ctx.fillRect(bx + 11, byAnimated + 15, 3, 3);
-          ctx.fillRect(bx + 29, byAnimated + 19, 4, 4);
-          
-          // Dark cracks and shadows - more pronounced
-          ctx.fillStyle = '#2A2A2A';
-          ctx.fillRect(bx + 16, byAnimated + 20, 2, 12);
-          ctx.fillRect(bx + 28, byAnimated + 24, 2, 10);
-          ctx.fillRect(bx + 20, byAnimated + 28, 8, 2);
-          ctx.fillRect(bx + 10, byAnimated + 40, 28, 4);
-          ctx.fillRect(bx + 24, byAnimated + 18, 1, 8);
-          
-          // Head - rounded top with better shaping
-          ctx.fillStyle = '#5A5A5A';
-          ctx.fillRect(bx + 12, byAnimated + 4, 24, 12);
-          ctx.fillRect(bx + 16, byAnimated, 16, 4);
-          ctx.fillRect(bx + 14, byAnimated + 2, 20, 2);
-          
-          // Head highlights - more prominent
-          ctx.fillStyle = '#7A7A7A';
-          ctx.fillRect(bx + 14, byAnimated + 6, 8, 4);
-          ctx.fillRect(bx + 18, byAnimated + 2, 6, 2);
-          ctx.fillRect(bx + 26, byAnimated + 8, 4, 3);
-          
-          // Glowing red eyes with intensity based on state
-          const eyeGlow = Math.sin(performance.now() / 200) * 0.3 + 0.7;
-          const eyeIntensity = boss.state === 'attacking' ? 1.0 : boss.state === 'hurt' ? 0.5 : 0.8;
-          ctx.fillStyle = boss.state === 'attacking' ? '#FF0000' : boss.state === 'hurt' ? '#FF8800' : '#FF4500';
-          ctx.globalAlpha = eyeGlow * eyeIntensity;
-          ctx.fillRect(bx + 16, byAnimated + 8, 4, 4);
-          ctx.fillRect(bx + 28, byAnimated + 8, 4, 4);
-          ctx.globalAlpha = 1.0;
-          
-          // Eye pupils - look at player
-          const lookDir = boss.direction > 0 ? 1 : 0;
-          ctx.fillStyle = '#FFFF00';
-          ctx.fillRect(bx + 17 + lookDir, byAnimated + 9, 2, 2);
-          ctx.fillRect(bx + 29 + lookDir, byAnimated + 9, 2, 2);
-          
-          // Angry mouth/crack - changes with state
-          ctx.fillStyle = '#000000';
-          if (boss.state === 'attacking') {
-            // Open mouth when attacking
-            ctx.fillRect(bx + 20, byAnimated + 14, 8, 3);
-            ctx.fillRect(bx + 18, byAnimated + 14, 2, 2);
-            ctx.fillRect(bx + 28, byAnimated + 14, 2, 2);
-            ctx.fillStyle = '#8B0000';
-            ctx.fillRect(bx + 21, byAnimated + 15, 6, 1);
-          } else {
-            ctx.fillRect(bx + 20, byAnimated + 14, 8, 2);
-            ctx.fillRect(bx + 18, byAnimated + 14, 2, 1);
-            ctx.fillRect(bx + 28, byAnimated + 14, 2, 1);
-          }
-          
-          // Arms - massive rocky limbs with animation
-          const armSwing = boss.state === 'walking' ? Math.sin(performance.now() / 150) * 2 : 0;
-          if (boss.state === 'attacking') {
-            // Arms raised for attack
-            ctx.fillStyle = '#4A4A4A';
-            // Left arm
-            ctx.fillRect(bx, byAnimated + 20, 8, 16);
-            ctx.fillRect(bx - 4, byAnimated + 16, 4, 8);
-            // Right arm
-            ctx.fillRect(bx + 40, byAnimated + 20, 8, 16);
-            ctx.fillRect(bx + 48, byAnimated + 16, 4, 8);
-            
-            // Arm highlights when attacking
-            ctx.fillStyle = '#6B6B6B';
-            ctx.fillRect(bx + 2, byAnimated + 22, 3, 4);
-            ctx.fillRect(bx + 42, byAnimated + 22, 3, 4);
-          } else {
-            // Arms down with swing animation
-            ctx.fillStyle = '#4A4A4A';
-            // Left arm
-            ctx.fillRect(bx, byAnimated + 24 + armSwing, 8, 20);
-            ctx.fillRect(bx - 2, byAnimated + 40 + armSwing, 4, 4);
-            // Right arm
-            ctx.fillRect(bx + 40, byAnimated + 24 - armSwing, 8, 20);
-            ctx.fillRect(bx + 46, byAnimated + 40 - armSwing, 4, 4);
-            
-            // Arm highlights
-            ctx.fillStyle = '#6B6B6B';
-            ctx.fillRect(bx + 2, byAnimated + 26 + armSwing, 3, 6);
-            ctx.fillRect(bx + 42, byAnimated + 26 - armSwing, 3, 6);
-          }
-          
-          // Legs - sturdy base
-          ctx.fillStyle = '#3A3A3A';
-          ctx.fillRect(bx + 8, byAnimated + 44, 12, 4);
-          ctx.fillRect(bx + 28, byAnimated + 44, 12, 4);
-          
-          // Leg highlights
-          ctx.fillStyle = '#4A4A4A';
-          ctx.fillRect(bx + 9, byAnimated + 44, 4, 2);
-          ctx.fillRect(bx + 29, byAnimated + 44, 4, 2);
-          
-          // Black outline for definition
-          ctx.fillStyle = '#000000';
-          // Head outline
-          ctx.fillRect(bx + 16, byAnimated - 1, 16, 1);
-          ctx.fillRect(bx + 11, byAnimated + 4, 1, 12);
-          ctx.fillRect(bx + 36, byAnimated + 4, 1, 12);
-          // Body outline
-          ctx.fillRect(bx + 3, byAnimated + 16, 1, 28);
-          ctx.fillRect(bx + 44, byAnimated + 16, 1, 28);
-          
-          // Visual indicator for head hitbox (subtle yellow outline)
-          if (!boss.invulnerable) {
-            ctx.strokeStyle = '#FFFF00';
-            ctx.globalAlpha = 0.3 + Math.sin(performance.now() / 300) * 0.2;
-            ctx.lineWidth = 1;
-            ctx.strokeRect(bx + 16, byAnimated, 16, 12);
-            ctx.globalAlpha = 1.0;
-          }
-          
-          // Boss health bar above head
-          const healthBarWidth = 48;
-          const healthBarHeight = 5;
-          const healthPercent = boss.health / boss.maxHealth;
-          
-          // Background
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(bx, byAnimated - 12, healthBarWidth, healthBarHeight);
-          
-          // Health (color gradient based on health)
-          const healthColor = healthPercent > 0.5 ? '#00FF00' : healthPercent > 0.25 ? '#FFFF00' : '#FF0000';
-          ctx.fillStyle = healthColor;
-          ctx.fillRect(bx + 1, byAnimated - 11, (healthBarWidth - 2) * healthPercent, healthBarHeight - 2);
-          
-          // Health bar segments
-          ctx.fillStyle = '#000000';
-          for (let i = 1; i < 10; i++) {
-            ctx.fillRect(bx + (i * 4.8), byAnimated - 11, 1, healthBarHeight - 2);
-          }
-          
-          // Health numbers
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = 'bold 8px monospace';
-          ctx.fillText(`${boss.health}/${boss.maxHealth}`, bx + 14, byAnimated - 14);
-        }
-      }
+      // Boss rendering will be added later with sprite-based system
 
       // Draw finish line flag at goal - enhanced
       const flagX = Math.floor(state.goalX);
@@ -3630,6 +3258,14 @@ export default function PixelGame() {
       gameStateRef.current.keys[e.key] = true;
       gameStateRef.current.keys[key] = true;
       
+      // Character switching with C key (hidden easter egg - only at stage start)
+      if (key === 'c') {
+        const player = gameStateRef.current.player;
+        if (player.x < 200) {
+          setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : 'guy1');
+          e.preventDefault();
+        }
+      }
       
       if (e.key === 'ArrowUp' || key === 'w' || e.key === ' ' || key === 'z') {
         gameStateRef.current.jumpBuffer = JUMP_BUFFER;
@@ -3658,61 +3294,7 @@ export default function PixelGame() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [spritesLoaded, currentStage]);
-
-  // Character selection modal - show BEFORE loading screen
-  if (showCharacterSelect && !selectedCharacter) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-green-100 to-green-200 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
-          <h1 className="text-4xl font-bold text-center mb-2 text-gray-800">Choose Your Character</h1>
-          <p className="text-center text-gray-600 mb-8">Select a character to start your adventure!</p>
-          
-          <div className="grid grid-cols-2 gap-6">
-            {/* Default Character */}
-            <button
-              onClick={() => {
-                setSelectedCharacter('default');
-                setShowCharacterSelect(false);
-              }}
-              className="group relative bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl p-6 transition-all transform hover:scale-105 active:scale-95 shadow-lg"
-            >
-              <div className="bg-white rounded-lg p-4 mb-4">
-                <img 
-                  src="/sprites/standing.png" 
-                  alt="Default Character" 
-                  className="w-full h-32 object-contain pixelated"
-                  style={{ imageRendering: 'pixelated' }}
-                />
-              </div>
-              <h3 className="text-2xl font-bold text-white text-center">Character 1</h3>
-              <p className="text-blue-100 text-center mt-2">Classic Hero</p>
-            </button>
-
-            {/* Guy2 Character */}
-            <button
-              onClick={() => {
-                setSelectedCharacter('guy2');
-                setShowCharacterSelect(false);
-              }}
-              className="group relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-xl p-6 transition-all transform hover:scale-105 active:scale-95 shadow-lg"
-            >
-              <div className="bg-white rounded-lg p-4 mb-4">
-                <img 
-                  src="/sprites/guy2/standing.png" 
-                  alt="Guy2 Character" 
-                  className="w-full h-32 object-contain pixelated"
-                  style={{ imageRendering: 'pixelated' }}
-                />
-              </div>
-              <h3 className="text-2xl font-bold text-white text-center">Character 2</h3>
-              <p className="text-green-100 text-center mt-2">New Hero</p>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  }, [spritesLoaded, currentStage, selectedCharacter]);
 
   if (!spritesLoaded) {
     return (
@@ -3776,7 +3358,18 @@ export default function PixelGame() {
           {/* Logo and Audio Button */}
           <div className="flex items-center justify-between mb-3">
             <div style={{ width: 'clamp(32px, 8vw, 40px)' }} />
-            <img src="/flip.png" alt="Flip Game" className="pixelated drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: 'clamp(60px, 15vw, 96px)' }} />
+            <img 
+              src="/flip.png" 
+              alt="Flip Game" 
+              className="pixelated drop-shadow-2xl cursor-pointer" 
+              style={{ imageRendering: 'pixelated', height: 'clamp(60px, 15vw, 96px)' }} 
+              onClick={() => {
+                const player = gameStateRef.current.player;
+                if (player.x < 200) {
+                  setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : 'guy1');
+                }
+              }}
+            />
             <button
               onClick={() => {
                 if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {

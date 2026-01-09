@@ -13,18 +13,18 @@ export function generateStage(stageNumber: number): StageData {
   const coins: Array<{ x: number; y: number; collected: boolean; floatOffset: number }> = [];
   const enemies: Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake'; waveOffset?: number }> = [];
   
-  // Stage widths increase dramatically with difficulty - each stage much longer
+  // Stage widths increase dramatically with difficulty - truly epic stages
   const stageWidths = [
-    1000,   // Stage 1 - Tutorial
-    1800,   // Stage 2
-    2600,   // Stage 3
-    3400,   // Stage 4
-    4200,   // Stage 5
-    5000,   // Stage 6
-    5800,   // Stage 7
-    6600,   // Stage 8
-    7400,   // Stage 9
-    8200    // Stage 10 - Final challenge
+    1600,   // Stage 1 - Tutorial (longer introduction)
+    3200,   // Stage 2 - 2x longer
+    4800,   // Stage 3 - 3x longer
+    6400,   // Stage 4 - 4x longer
+    8000,   // Stage 5 - 5x longer
+    9600,   // Stage 6 - 6x longer
+    11200,  // Stage 7 - 7x longer
+    12800,  // Stage 8 - 8x longer
+    14400,  // Stage 9 - 9x longer
+    16000   // Stage 10 - Epic 10x finale
   ];
   const width = stageWidths[stageNumber - 1] || 1000;
   
@@ -39,7 +39,11 @@ export function generateStage(stageNumber: number): StageData {
   for (let i = 0; i < gapCount; i++) {
     const minGapStart = 200 + (i * (width - 400) / (gapCount + 1));
     const gapStart = minGapStart + Math.random() * 100;
-    const gapWidth = 48 + (difficulty * 8) + Math.random() * 32; // Wider gaps in later stages
+    // Much wider cliff openings in higher difficulties - more ground blocks missing
+    const baseWidth = 64 + (difficulty * 16); // Base cliff width increases significantly
+    const difficultyMultiplier = difficulty >= 6 ? 2.0 : difficulty >= 4 ? 1.5 : 1.0; // Exponential scaling
+    const randomVariation = Math.random() * (difficulty * 12); // More variation in harder stages
+    const gapWidth = (baseWidth + randomVariation) * difficultyMultiplier;
     const gapEnd = gapStart + gapWidth;
     
     // Ensure gap doesn't overlap with other gaps
@@ -62,12 +66,12 @@ export function generateStage(stageNumber: number): StageData {
     }
   }
   
-  // Difficulty scaling with balanced progression
-  const platformDensity = 0.2 + (difficulty * 0.05);
-  const enemyCount = Math.min(6 + difficulty * 2, 35); // Balanced enemy count
-  const coinCount = Math.min(35 + difficulty * 7, 90); // Strategic coin placement
-  const questionBlockCount = Math.min(10 + difficulty * 2, 22);
-  const minGapBetweenPlatforms = Math.max(68, 100 - difficulty * 4); // Balanced jump difficulty
+  // Simple, clean difficulty scaling - Mario-style
+  const platformDensity = 0.15 + (difficulty * 0.03); // Much less dense
+  const enemyCount = Math.min(5 + difficulty * 2, 25); // Fewer enemies like Mario
+  const coinCount = Math.min(20 + difficulty * 5, 80); // Moderate coin count
+  const questionBlockCount = Math.min(5 + difficulty * 2, 15); // Fewer question blocks
+  const minGapBetweenPlatforms = Math.max(80, 120 - difficulty * 4); // More spacing between platforms
   
   // Generate structured platform formations with increasing difficulty
   let x = 96;
@@ -99,17 +103,17 @@ export function generateStage(stageNumber: number): StageData {
       const pattern = patternIndex % 5;
       
       if (pattern === 0) {
-        // Horizontal platform series - organized spacing
-        const platformLength = 3 + Math.floor(difficulty / 2);
-        const baseY = 94 - (difficulty * 2.5);
+        // Simple horizontal platform - classic Mario style
+        const platformLength = 2 + Math.floor(difficulty / 3); // Shorter platforms (2-5 blocks)
+        const baseY = 88;
         for (let i = 0; i < platformLength; i++) {
           platforms.push({ x: x + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
         }
         x += platformLength * 16 + minGapBetweenPlatforms;
       } else if (pattern === 1) {
-        // Pyramid formation - cleaner structure
-        const pyramidHeight = 3 + Math.floor(difficulty / 3);
-        const baseY = 106;
+        // Small pyramid - simple and clean
+        const pyramidHeight = 2 + Math.floor(difficulty / 4); // Smaller pyramids (2-4 blocks)
+        const baseY = 112;
         for (let row = 0; row < pyramidHeight; row++) {
           const blocksInRow = pyramidHeight - row;
           for (let col = 0; col < blocksInRow; col++) {
@@ -122,40 +126,28 @@ export function generateStage(stageNumber: number): StageData {
             });
           }
         }
-        x += pyramidHeight * 16 + minGapBetweenPlatforms + 24;
+        x += pyramidHeight * 16 + minGapBetweenPlatforms + 40;
       } else if (pattern === 2) {
-        // Floating island with multiple levels - better organized
-        const baseY = 90 - (difficulty * 2);
-        const bottomBlocks = difficulty < 5 ? 4 : 3;
-        const topBlocks = difficulty < 5 ? 3 : 2;
-        
-        // Bottom level
-        for (let i = 0; i < bottomBlocks; i++) {
-          platforms.push({ x: x + i * 16, y: baseY + 16, width: 16, height: 16, type: 'brick' });
+        // Simple floating platform - just 2-3 blocks
+        const blockCount = difficulty < 5 ? 3 : 2;
+        const baseY = 88;
+        for (let i = 0; i < blockCount; i++) {
+          platforms.push({ x: x + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
         }
-        // Top level - centered
-        const topOffset = Math.floor((bottomBlocks - topBlocks) * 8);
-        for (let i = 0; i < topBlocks; i++) {
-          platforms.push({ x: x + topOffset + i * 16, y: baseY, width: 16, height: 16, type: 'brick' });
-        }
-        x += bottomBlocks * 16 + minGapBetweenPlatforms;
+        x += blockCount * 16 + minGapBetweenPlatforms;
       } else if (pattern === 3) {
-        // Stepping stones - organized pattern
-        const stepCount = 3 + Math.floor(difficulty / 3);
-        const baseY = 84 - (difficulty * 2);
+        // Simple stepping stones - 2-3 platforms
+        const stepCount = 2 + Math.floor(difficulty / 4);
+        const baseY = 88;
         for (let i = 0; i < stepCount; i++) {
-          const stepY = baseY + (i % 2) * 12;
-          platforms.push({ x: x + i * 24, y: stepY, width: 16, height: 16, type: 'brick' });
+          const stepY = baseY + (i % 2) * 12; // Simple up-down pattern
+          platforms.push({ x: x + i * 32, y: stepY, width: 16, height: 16, type: 'brick' });
         }
-        x += stepCount * 24 + minGapBetweenPlatforms;
+        x += stepCount * 32 + minGapBetweenPlatforms;
       } else {
-        // Vertical column challenge - cleaner spacing
-        const columnHeight = 3 + Math.floor(difficulty / 4);
-        const baseY = 112;
-        for (let h = 0; h < columnHeight; h++) {
-          platforms.push({ x: x, y: baseY - h * 16, width: 16, height: 16, type: 'brick' });
-        }
-        x += 16 + minGapBetweenPlatforms + 44;
+        // Single block - minimalist challenge
+        platforms.push({ x: x, y: 88, width: 16, height: 16, type: 'brick' });
+        x += 16 + minGapBetweenPlatforms;
       }
     }
     
@@ -188,11 +180,11 @@ export function generateStage(stageNumber: number): StageData {
     }
   }
   
-  // Add challenging staircases - more complex in later stages
-  const staircaseCount = 3 + Math.floor(difficulty / 2);
+  // Add simple staircases - Mario-style
+  const staircaseCount = 2 + Math.floor(difficulty / 3); // Fewer stairs (2-5)
   for (let s = 0; s < staircaseCount; s++) {
-    const stairX = 250 + s * Math.floor((width - 500) / staircaseCount);
-    const stairLength = 5 + Math.floor(difficulty / 2);
+    const stairX = 300 + s * Math.floor((width - 600) / staircaseCount);
+    const stairLength = 3 + Math.floor(difficulty / 3); // Shorter stairs (3-6 blocks)
     const ascending = s % 2 === 0;
     
     // Check if staircase would be in a gap
@@ -203,6 +195,7 @@ export function generateStage(stageNumber: number): StageData {
     if (!inGap) {
       for (let i = 0; i < stairLength; i++) {
         const yOffset = ascending ? -i * 16 : i * 16;
+        // Simple single-block stairs
         platforms.push({ x: stairX + i * 16, y: 112 + yOffset, width: 16, height: 16, type: 'brick' });
       }
     }
@@ -226,13 +219,13 @@ export function generateStage(stageNumber: number): StageData {
     }
   }
   
-  // Add pipes with varied heights for visual interest
-  const pipeCount = 2 + Math.floor(difficulty / 3);
+  // Add pipes with varied heights - fewer pipes like Mario
+  const pipeCount = 2 + Math.floor(difficulty / 3); // Fewer pipes (2-5)
   for (let i = 0; i < pipeCount; i++) {
-    const px = 160 + (i * Math.floor((width - 320) / pipeCount));
-    const pipeHeight = 2 + (i % 2); // Alternate between 2 and 3 blocks high
+    const px = 200 + (i * Math.floor((width - 400) / pipeCount));
+    const pipeHeight = 2 + Math.floor(i % 3); // Vary between 2-4 blocks high
     
-    // Build pipe from bottom up
+    // Build pipe from bottom up (2 blocks wide)
     for (let h = 0; h < pipeHeight; h++) {
       for (let j = 0; j < 2; j++) {
         platforms.push({ 
@@ -243,6 +236,16 @@ export function generateStage(stageNumber: number): StageData {
           type: 'pipe' 
         });
       }
+    }
+    
+    // Add coins above taller pipes
+    if (pipeHeight >= 3) {
+      coins.push({ 
+        x: px + 4, 
+        y: 128 - (pipeHeight + 2) * 16, 
+        collected: false, 
+        floatOffset: Math.random() * Math.PI * 2 
+      });
     }
   }
   
@@ -258,16 +261,16 @@ export function generateStage(stageNumber: number): StageData {
   // Generate coins in organized patterns with collision detection
   let coinsPlaced = 0;
   
-  // Place coins above platforms in organized arcs and patterns
+  // Place coins above platforms in simple patterns - Mario-style
   for (const platform of platforms) {
     if (platform.type === 'brick' && coinsPlaced < coinCount) {
-      // Strategic coin placement above platforms
-      if (Math.random() < 0.45) {
-        // Create organized arc of 3-5 coins
-        const arcSize = Math.min(3 + Math.floor(Math.random() * 3), coinCount - coinsPlaced);
+      // Simple coin placement above platforms
+      if (Math.random() < 0.3) { // Less frequent
+        // Create simple line of 2-4 coins
+        const arcSize = Math.min(2 + Math.floor(Math.random() * 3), coinCount - coinsPlaced);
         for (let c = 0; c < arcSize; c++) {
-          const coinX = platform.x + c * 14; // Better spacing
-          const coinY = platform.y - 32 - Math.abs(c - arcSize / 2) * 5; // Cleaner arc
+          const coinX = platform.x + c * 16; // Aligned spacing
+          const coinY = platform.y - 28; // Simple straight line
           
           // Only place coin if it doesn't collide with any platform
           if (!coinCollidesWithPlatform(coinX, coinY)) {
