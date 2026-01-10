@@ -63,8 +63,8 @@ export default function PixelGame() {
     player: {
       x: 80,
       y: 112,
-      width: 16,
-      height: 16,
+      width: 12,  // Reduced from 16 to match actual sprite size (ignoring transparency)
+      height: 14, // Reduced from 16 to match actual sprite size (ignoring transparency)
       velocityX: 0,
       velocityY: 0,
       onGround: false,
@@ -477,9 +477,9 @@ export default function PixelGame() {
   // Draw player sprite using loaded images
   const drawPlayerSprite = (ctx: CanvasRenderingContext2D, x: number, y: number, frame: string, facingLeft: boolean) => {
     if (!spritesLoaded) {
-      // Fallback while loading
+      // Fallback while loading - draw at hitbox size
       ctx.fillStyle = '#FF6B6B';
-      ctx.fillRect(x, y, 16, 16);
+      ctx.fillRect(x, y, 12, 14);
       return;
     }
 
@@ -516,42 +516,46 @@ export default function PixelGame() {
       const spriteWidth = sprite.naturalWidth;
       const spriteHeight = sprite.naturalHeight;
       
-      // Calculate aspect ratio and scale to fit within 16x16 while maintaining proportions
+      // Render sprite at 16x16 size but offset to center over 12x14 hitbox
       const targetSize = 16;
       const aspectRatio = spriteWidth / spriteHeight;
       
-      let drawWidth, drawHeight, offsetX, offsetY;
+      // Offset to center 16x16 sprite over 12x14 hitbox
+      const hitboxOffsetX = -2; // (16-12)/2 = 2 pixels left
+      const hitboxOffsetY = -1; // (16-14)/2 = 1 pixel up
+      
+      let drawWidth, drawHeight, spriteOffsetX, spriteOffsetY;
       
       if (aspectRatio > 1) {
         // Wider than tall - fit to width
         drawWidth = targetSize;
         drawHeight = targetSize / aspectRatio;
-        offsetX = 0;
-        offsetY = (targetSize - drawHeight) / 2;
+        spriteOffsetX = 0;
+        spriteOffsetY = (targetSize - drawHeight) / 2;
       } else {
         // Taller than wide or square - fit to height
         drawHeight = targetSize;
         drawWidth = targetSize * aspectRatio;
-        offsetX = (targetSize - drawWidth) / 2;
-        offsetY = 0;
+        spriteOffsetX = (targetSize - drawWidth) / 2;
+        spriteOffsetY = 0;
       }
       
-      // Draw the sprite with proper aspect ratio and centering
+      // Draw the sprite with proper aspect ratio and centering over hitbox
       if (facingLeft) {
-        ctx.translate(x + 16, y);
+        ctx.translate(x + hitboxOffsetX + 16, y + hitboxOffsetY);
         ctx.scale(-1, 1);
-        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, offsetX, offsetY, drawWidth, drawHeight);
+        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, spriteOffsetX, spriteOffsetY, drawWidth, drawHeight);
       } else {
-        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, x + offsetX, y + offsetY, drawWidth, drawHeight);
+        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, x + hitboxOffsetX + spriteOffsetX, y + hitboxOffsetY + spriteOffsetY, drawWidth, drawHeight);
       }
     } else {
-      // Fallback: draw a simple colored rectangle
+      // Fallback: draw a simple colored rectangle at hitbox size
       ctx.fillStyle = '#FF6B6B';
-      ctx.fillRect(x, y, 16, 16);
+      ctx.fillRect(x, y, 12, 14);
       ctx.fillStyle = '#FFD4A3';
-      ctx.fillRect(x + 4, y + 2, 8, 6);
+      ctx.fillRect(x + 3, y + 2, 6, 5);
       ctx.fillStyle = '#2C3E50';
-      ctx.fillRect(x + 5, y + 12, 6, 4);
+      ctx.fillRect(x + 3, y + 10, 6, 4);
     }
 
     ctx.restore();
@@ -2394,9 +2398,9 @@ export default function PixelGame() {
           // Draw character sprite to temp canvas
           if (state.player.rotation !== 0) {
             tempCtx.save();
-            tempCtx.translate(8, 8);
+            tempCtx.translate(6, 7); // Center of 12x14 hitbox
             tempCtx.rotate((state.player.rotation * Math.PI) / 180);
-            drawPlayerSprite(tempCtx, -8, -8, frameName, state.player.facingLeft);
+            drawPlayerSprite(tempCtx, -6, -7, frameName, state.player.facingLeft);
             tempCtx.restore();
           } else {
             drawPlayerSprite(tempCtx, 0, 0, frameName, state.player.facingLeft);
@@ -2451,9 +2455,9 @@ export default function PixelGame() {
         // No helmet - draw player normally (with rotation if jumping)
         if (state.player.rotation !== 0) {
           ctx.save();
-          ctx.translate(Math.floor(state.player.x + 8), Math.floor(state.player.y + 8));
+          ctx.translate(Math.floor(state.player.x + 6), Math.floor(state.player.y + 7)); // Center of 12x14 hitbox
           ctx.rotate((state.player.rotation * Math.PI) / 180);
-          drawPlayerSprite(ctx, -8, -8, frameName, state.player.facingLeft);
+          drawPlayerSprite(ctx, -6, -7, frameName, state.player.facingLeft);
           ctx.restore();
         } else {
           drawPlayerSprite(ctx, Math.floor(state.player.x), Math.floor(state.player.y), frameName, state.player.facingLeft);
