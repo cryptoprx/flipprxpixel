@@ -3378,7 +3378,7 @@ export default function PixelGame() {
                 setAudioEnabled(!audioEnabled);
               }}
               className="bg-gradient-to-b from-gray-700 to-gray-800 rounded-full shadow-lg active:from-gray-800 active:to-gray-900 flex items-center justify-center text-white border-2 border-gray-600"
-              style={{ width: 'clamp(32px, 8vw, 40px)', height: 'clamp(32px, 8vw, 40px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+              style={{ width: 'clamp(32px, 8vw, 40px)', height: 'clamp(32px, 8vw, 40px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
             >
               {audioEnabled ? (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -3432,7 +3432,7 @@ export default function PixelGame() {
                       onMouseUp={() => handleMobileButton('left', false)}
                       onMouseLeave={() => handleMobileButton('left', false)}
                       className="bg-green-900 rounded-l-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
-                      style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                      style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
                     >
                       <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
@@ -3448,7 +3448,7 @@ export default function PixelGame() {
                       onMouseUp={() => handleMobileButton('right', false)}
                       onMouseLeave={() => handleMobileButton('right', false)}
                       className="bg-green-900 rounded-r-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
-                      style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                      style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
                     >
                       <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
@@ -3469,7 +3469,7 @@ export default function PixelGame() {
                 onMouseUp={() => handleMobileButton('shoot', false)}
                 onMouseLeave={() => handleMobileButton('shoot', false)}
                 className="bg-gradient-to-b from-red-600 to-red-800 rounded-full shadow-xl active:from-red-700 active:to-red-900 flex items-center justify-center text-white font-black border-4 border-red-900"
-                style={{ width: 'clamp(60px, 15vw, 72px)', height: 'clamp(60px, 15vw, 72px)', fontSize: 'clamp(1.5rem, 6vw, 1.75rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(20px, 5vw, 28px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                style={{ width: 'clamp(60px, 15vw, 72px)', height: 'clamp(60px, 15vw, 72px)', fontSize: 'clamp(1.5rem, 6vw, 1.75rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(20px, 5vw, 28px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
               >
                 B
               </button>
@@ -3481,7 +3481,7 @@ export default function PixelGame() {
                 onMouseUp={() => handleMobileButton('jump', false)}
                 onMouseLeave={() => handleMobileButton('jump', false)}
                 className="bg-gradient-to-b from-green-600 to-green-800 rounded-full shadow-xl active:from-green-700 active:to-green-900 flex items-center justify-center text-white font-black border-4 border-green-900"
-                style={{ width: 'clamp(96px, 24vw, 112px)', height: 'clamp(96px, 24vw, 112px)', fontSize: 'clamp(2rem, 8vw, 2.5rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(-32px, -8vw, -20px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                style={{ width: 'clamp(96px, 24vw, 112px)', height: 'clamp(96px, 24vw, 112px)', fontSize: 'clamp(2rem, 8vw, 2.5rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(-32px, -8vw, -20px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
               >
                 A
               </button>
