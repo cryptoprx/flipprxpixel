@@ -42,7 +42,7 @@ export default function PixelGame() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [selectedCharacter, setSelectedCharacter] = useState<'guy1' | 'guy2'>('guy1');
+  const [selectedCharacter, setSelectedCharacter] = useState<'guy1' | 'guy2' | 'guy3'>('guy1');
   
   // Detect mobile/tablet device - always show gameboy style on mobile/tablet
   useEffect(() => {
@@ -396,8 +396,21 @@ export default function PixelGame() {
       'jumpfall.png',
     ];
 
+    // Guy3 sprite files
+    const guy3SpriteFiles = [
+      'standing.png',
+      'step1.png',
+      'step2.png',
+      'step3.png',
+      'step4.png',
+      'jump1.png',
+      'jump2.png',
+      'jump3.png',
+      'jumpfall.png',
+    ];
+
     let loadedCount = 0;
-    const totalSprites = spriteFiles.length + guy2SpriteFiles.length;
+    const totalSprites = spriteFiles.length + guy2SpriteFiles.length + guy3SpriteFiles.length;
     const startTime = Date.now();
     const minLoadingTime = 1500; // Show loading screen for at least 1.5 seconds
 
@@ -462,6 +475,35 @@ export default function PixelGame() {
       img.src = path;
       spritesRef.current[`guy2_${file}`] = img;
     });
+    
+    // Load guy3 sprites
+    guy3SpriteFiles.forEach(file => {
+      const img = new Image();
+      img.onload = () => {
+        loadedCount++;
+        if (loadedCount === totalSprites) {
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          setTimeout(() => {
+            setSpritesLoaded(true);
+          }, remainingTime);
+        }
+      };
+      img.onerror = () => {
+        console.error('Failed to load guy3 sprite:', file);
+        loadedCount++;
+        if (loadedCount === totalSprites) {
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          setTimeout(() => {
+            setSpritesLoaded(true);
+          }, remainingTime);
+        }
+      };
+      const path = `/sprites/guy3/${file}`;
+      img.src = path;
+      spritesRef.current[`guy3_${file}`] = img;
+    });
 
     // Timeout fallback - only if sprites haven't loaded
     const timeout = setTimeout(() => {
@@ -488,27 +530,31 @@ export default function PixelGame() {
     // Determine which sprite to use based on frame
     let spriteKey = 'standing.png';
     if (frame === 'idle') {
-      spriteKey = 'standing.png';
+      // Alternate between standing and jumpfall for breathing effect
+      const idleCycle = Math.floor(performance.now() / 500) % 2;
+      spriteKey = idleCycle === 0 ? 'standing.png' : 'jumpfall.png';
     } else if (frame === 'walk1') {
-      spriteKey = selectedCharacter === 'guy2' ? 'step1.png' : 'step1.PNG';
+      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step1.png' : 'step1.PNG';
     } else if (frame === 'walk2') {
-      spriteKey = selectedCharacter === 'guy2' ? 'step2.png' : 'step2.PNG';
+      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step2.png' : 'step2.PNG';
     } else if (frame === 'walk3') {
-      spriteKey = selectedCharacter === 'guy2' ? 'step3.png' : 'step3.PNG';
+      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step3.png' : 'step3.PNG';
     } else if (frame === 'walk4') {
-      spriteKey = selectedCharacter === 'guy2' ? 'step4.png' : 'step4.PNG';
+      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step4.png' : 'step4.PNG';
     } else if (frame === 'jump1') {
-      spriteKey = selectedCharacter === 'guy2' ? 'jump1.png' : 'jump1.PNG';
+      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'jump1.png' : 'jump1.PNG';
     } else if (frame === 'jump2') {
-      spriteKey = selectedCharacter === 'guy2' ? 'jump2.png' : 'jump2.PNG';
+      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'jump2.png' : 'jump2.PNG';
     } else if (frame === 'jump3') {
-      spriteKey = selectedCharacter === 'guy2' ? 'jump3.png' : 'jump3.PNG';
+      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'jump3.png' : 'jump3.PNG';
     } else if (frame === 'crouch') {
       spriteKey = 'jumpfall.png';
     }
 
-    // Add character prefix for guy2 sprites
-    const finalSpriteKey = selectedCharacter === 'guy2' ? `guy2_${spriteKey}` : spriteKey;
+    // Add character prefix for guy2 and guy3 sprites
+    const finalSpriteKey = selectedCharacter === 'guy2' ? `guy2_${spriteKey}` : 
+                          selectedCharacter === 'guy3' ? `guy3_${spriteKey}` : 
+                          spriteKey;
     const sprite = spritesRef.current[finalSpriteKey];
     
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
@@ -3266,7 +3312,7 @@ export default function PixelGame() {
       if (key === 'c') {
         const player = gameStateRef.current.player;
         if (player.x < 200) {
-          setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : 'guy1');
+          setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
           e.preventDefault();
         }
       }
@@ -3370,7 +3416,7 @@ export default function PixelGame() {
               onClick={() => {
                 const player = gameStateRef.current.player;
                 if (player.x < 200) {
-                  setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : 'guy1');
+                  setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
                 }
               }}
             />
