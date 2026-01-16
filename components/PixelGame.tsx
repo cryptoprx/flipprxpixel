@@ -1813,8 +1813,8 @@ export default function PixelGame() {
         playSound('celebration');
         
         // Massive celebration particle explosion
-        for (let i = 0; i < 100; i++) {
-          const angle = (Math.PI * 2 * i) / 100;
+        for (let i = 0; i < 150; i++) {
+          const angle = (Math.PI * 2 * i) / 150;
           const speed = 100 + Math.random() * 150;
           state.particles.push({
             x: player.x + 6,
@@ -1827,23 +1827,19 @@ export default function PixelGame() {
           });
         }
         
-        // Firework bursts
-        for (let burst = 0; burst < 5; burst++) {
-          setTimeout(() => {
-            for (let i = 0; i < 30; i++) {
-              const angle = (Math.PI * 2 * i) / 30;
-              const speed = 80 + Math.random() * 100;
-              state.particles.push({
-                x: state.goalX - 20 + Math.random() * 40,
-                y: 60 + Math.random() * 40,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                life: 1.0,
-                maxLife: 1.0,
-                color: ['#FFD700', '#FF69B4', '#00FF00', '#00FFFF', '#FFFF00'][Math.floor(Math.random() * 5)],
-              });
-            }
-          }, burst * 300);
+        // Additional firework particles at goal position
+        for (let i = 0; i < 80; i++) {
+          const angle = (Math.PI * 2 * i) / 80;
+          const speed = 80 + Math.random() * 100;
+          state.particles.push({
+            x: state.goalX - 20 + Math.random() * 40,
+            y: 60 + Math.random() * 40,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1.5 + Math.random() * 0.5,
+            maxLife: 1.5 + Math.random() * 0.5,
+            color: ['#FFD700', '#FF69B4', '#00FF00', '#00FFFF', '#FFFF00'][i % 5],
+          });
         }
         
         // Screen shake
