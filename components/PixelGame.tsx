@@ -903,25 +903,18 @@ export default function PixelGame() {
         player.velocityY *= 0.5;
       }
       
-      // Guy2: Air slide mechanic (press B after jump)
+      // Guy2: Air slide mechanic (hold jump in air, release to slide)
       if (selectedCharacter === 'guy2') {
-        const bPressed = state.keys['b'] || state.keys['B'];
-        
-        // Reset air slide flag when landing
-        if (player.onGround) {
-          player.airSlideUsed = false;
+        // Track jump hold time while in air and moving horizontally
+        if (jumpKeyPressed && !player.onGround && Math.abs(player.velocityX) > 50) {
+          player.jumpHoldTime += dt;
+          player.slamCharging = true; // Reuse this flag for visual feedback
+        } else {
+          player.slamCharging = false;
         }
         
-        // Update air slide timer
-        if (player.isAirSliding) {
-          player.airSlideTimer -= dt;
-          if (player.airSlideTimer <= 0 || player.onGround) {
-            player.isAirSliding = false;
-          }
-        }
-        
-        // Activate air slide when B is pressed in air (only once per jump)
-        if (bPressed && !player.onGround && !player.isAirSliding && !player.airSlideUsed && player.velocityY > -100) {
+        // If jump released after holding while airborne, activate air slide
+        if (!jumpKeyPressed && player.jumpHoldTime > 0.3 && !player.onGround && !player.isAirSliding && !player.airSlideUsed) {
           player.isAirSliding = true;
           player.airSlideUsed = true; // Mark as used for this jump
           player.airSlideTimer = 0.25; // Air slide duration
@@ -940,6 +933,21 @@ export default function PixelGame() {
               maxLife: 0.4,
               color: '#4488FF',
             });
+          }
+        }
+        
+        // Reset air slide flag and jump hold time when landing
+        if (player.onGround) {
+          player.airSlideUsed = false;
+          player.jumpHoldTime = 0;
+          player.isAirSliding = false;
+        }
+        
+        // Update air slide timer
+        if (player.isAirSliding) {
+          player.airSlideTimer -= dt;
+          if (player.airSlideTimer <= 0 || player.onGround) {
+            player.isAirSliding = false;
           }
         }
         
@@ -1851,6 +1859,10 @@ export default function PixelGame() {
             const nextStage = state.currentStage + 1;
             setCurrentStage(nextStage);
             loadStage(nextStage);
+          } else {
+            // After completing stage 10, loop back to stage 1
+            setCurrentStage(1);
+            loadStage(1);
           }
         }
       }
