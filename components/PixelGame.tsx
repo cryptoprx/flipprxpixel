@@ -22,6 +22,12 @@ interface Sprite {
   hasWaterGun: boolean;
   waterGunTimer: number;
   shootCooldown: number;
+  isAirSliding: boolean;
+  airSlideTimer: number;
+  airSlideUsed: boolean;
+  isSlamming: boolean;
+  slamCharging: boolean;
+  jumpHoldTime: number;
 }
 
 interface Particle {
@@ -79,6 +85,12 @@ export default function PixelGame() {
       hasWaterGun: false,
       waterGunTimer: 0,
       shootCooldown: 0,
+      isAirSliding: false,
+      airSlideTimer: 0,
+      airSlideUsed: false,
+      isSlamming: false,
+      slamCharging: false,
+      jumpHoldTime: 0,
     } as Sprite,
     keys: {} as Record<string, boolean>,
     coyoteTime: 0,
@@ -95,6 +107,8 @@ export default function PixelGame() {
     totalCoinsThisStage: 0,
     celebrating: false,
     celebrationTimer: 0,
+    gameStarted: false,
+    gameStartTimer: 0,
     coins: [] as Array<{ x: number; y: number; collected: boolean; floatOffset: number }>,
     enemies: [] as Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake' | 'badguy'; waveOffset?: number; animFrame?: number }>,
     waterGun: null as { x: number; y: number; collected: boolean } | null,
@@ -622,6 +636,8 @@ export default function PixelGame() {
     state.totalCoinsThisStage = stageData.coins.length;
     state.celebrating = false;
     state.celebrationTimer = 0;
+    state.gameStarted = false;
+    state.gameStartTimer = 0;
     
     // Spawn portal randomly (100% chance for testing - change back to 0.3 later)
     if (Math.random() < 1.0) {
@@ -721,6 +737,49 @@ export default function PixelGame() {
         }
       }
 
+      // Handle game start countdown
+      if (!state.gameStarted) {
+        state.gameStartTimer += dt;
+        if (state.gameStartTimer >= 3.0) {
+          state.gameStarted = true;
+        }
+      }
+
+      // Freeze player controls when celebrating or before game starts
+      if (state.celebrating || !state.gameStarted) {
+        player.velocityX = 0;
+        player.velocityY = Math.min(player.velocityY, 0); // Allow falling but not jumping
+        
+        // Apply gravity only
+        if (!player.onGround) {
+          player.velocityY += GRAVITY * dt;
+          player.velocityY = Math.min(player.velocityY, MAX_FALL_SPEED);
+        }
+        
+        // Move player (for gravity)
+        const oldY = player.y;
+        player.y += player.velocityY * dt;
+        
+        // Simple ground collision during freeze
+        for (const platform of state.platforms) {
+          if (platform.broken) continue;
+          if (player.x + player.width > platform.x &&
+              player.x < platform.x + platform.width &&
+              player.y + player.height > platform.y &&
+              player.y < platform.y + platform.height) {
+            const wasAbove = oldY + player.height <= platform.y + 1;
+            if (player.velocityY >= 0 && wasAbove) {
+              player.y = platform.y - player.height;
+              player.velocityY = 0;
+              player.onGround = true;
+            }
+          }
+        }
+        
+        // Skip all other game logic when frozen
+        return;
+      }
+
       // Update coyote time
       if (player.onGround) {
         state.coyoteTime = COYOTE_TIME;
@@ -744,10 +803,18 @@ export default function PixelGame() {
         inputAxis = -1;
       }
       
+      // Character-specific speed multipliers
+      let speedMultiplier = 1.0;
+      let accelMultiplier = 1.0;
+      
+      if (selectedCharacter === 'guy2') {
+        speedMultiplier = 1.35; // guy2 is 35% faster
+        accelMultiplier = 1.25;
+      }
 
       if (inputAxis !== 0) {
-        const targetVelocity = inputAxis * PLAYER_SPEED;
-        const accelAmount = (player.onGround ? PLAYER_ACCEL : PLAYER_ACCEL * 0.65) * dt;
+        const targetVelocity = inputAxis * PLAYER_SPEED * speedMultiplier;
+        const accelAmount = (player.onGround ? PLAYER_ACCEL : PLAYER_ACCEL * 0.65) * accelMultiplier * dt;
         const velocityChange = Math.sign(targetVelocity - player.velocityX) * Math.min(Math.abs(targetVelocity - player.velocityX), accelAmount);
         player.velocityX += velocityChange;
         player.facingLeft = inputAxis < 0;
@@ -793,8 +860,94 @@ export default function PixelGame() {
       // Variable jump height - release jump key to stop rising
       const jumpKeyPressed = state.keys['ArrowUp'] || state.keys['w'] || state.keys['W'] || 
                             state.keys[' '] || state.keys['z'] || state.keys['Z'];
-      if (!jumpKeyPressed && player.velocityY < 0) {
+      
+      // Guy3: Track jump hold time for slam mechanic
+      if (selectedCharacter === 'guy3') {
+        if (jumpKeyPressed && !player.onGround && player.velocityY < 0) {
+          player.jumpHoldTime += dt;
+          player.slamCharging = true;
+        } else {
+          player.slamCharging = false;
+        }
+        
+        // If jump released after holding at peak, activate slam
+        if (!jumpKeyPressed && player.jumpHoldTime > 0.3 && !player.onGround && !player.isSlamming) {
+          player.isSlamming = true;
+          player.velocityY = 600; // Fast downward slam
+          playSound('jump');
+          
+          // Slam particles
+          for (let i = 0; i < 15; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 40 + Math.random() * 50;
+            state.particles.push({
+              x: player.x + 6,
+              y: player.y + 7,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              life: 0.5,
+              maxLife: 0.5,
+              color: '#FF4444',
+            });
+          }
+        }
+        
+        // Reset jump hold time when on ground
+        if (player.onGround) {
+          player.jumpHoldTime = 0;
+          player.isSlamming = false;
+        }
+      }
+      
+      if (!jumpKeyPressed && player.velocityY < 0 && !player.isSlamming) {
         player.velocityY *= 0.5;
+      }
+      
+      // Guy2: Air slide mechanic (press B after jump)
+      if (selectedCharacter === 'guy2') {
+        const bPressed = state.keys['b'] || state.keys['B'];
+        
+        // Reset air slide flag when landing
+        if (player.onGround) {
+          player.airSlideUsed = false;
+        }
+        
+        // Update air slide timer
+        if (player.isAirSliding) {
+          player.airSlideTimer -= dt;
+          if (player.airSlideTimer <= 0 || player.onGround) {
+            player.isAirSliding = false;
+          }
+        }
+        
+        // Activate air slide when B is pressed in air (only once per jump)
+        if (bPressed && !player.onGround && !player.isAirSliding && !player.airSlideUsed && player.velocityY > -100) {
+          player.isAirSliding = true;
+          player.airSlideUsed = true; // Mark as used for this jump
+          player.airSlideTimer = 0.25; // Air slide duration
+          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.2; // Fast horizontal boost
+          player.velocityY = 0; // Neutralize vertical velocity briefly
+          playSound('jump');
+          
+          // Air slide particles
+          for (let i = 0; i < 12; i++) {
+            state.particles.push({
+              x: player.x + 6,
+              y: player.y + 7,
+              vx: (player.facingLeft ? 40 : -40) + (Math.random() - 0.5) * 30,
+              vy: (Math.random() - 0.5) * 40,
+              life: 0.4,
+              maxLife: 0.4,
+              color: '#4488FF',
+            });
+          }
+        }
+        
+        // During air slide, maintain horizontal speed and slow fall
+        if (player.isAirSliding) {
+          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.2;
+          player.velocityY = Math.min(player.velocityY, 80); // Slow fall during slide
+        }
       }
 
       // Move player
@@ -858,6 +1011,38 @@ export default function PixelGame() {
             // Screen shake
             state.screenShake = 0.12;
             setScore(s => s + 50);
+            continue; // Skip normal collision for this brick
+          }
+        }
+        
+        // Guy3: Check if slamming onto brick - break it!
+        if (selectedCharacter === 'guy3' && player.isSlamming && platform.type === 'brick' && !platform.broken) {
+          if (player.x + player.width > platform.x &&
+              player.x < platform.x + platform.width &&
+              player.y + player.height > platform.y &&
+              player.y < platform.y + platform.height) {
+            // Break brick with slam!
+            platform.broken = true;
+            playSound('break');
+            
+            // Massive brick break particles
+            for (let i = 0; i < 30; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 60 + Math.random() * 80;
+              state.particles.push({
+                x: platform.x + 8,
+                y: platform.y + 8,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 60,
+                life: 0.8,
+                maxLife: 0.8,
+                color: i % 3 === 0 ? '#FF6347' : i % 3 === 1 ? '#FF4444' : '#FF7F50',
+              });
+            }
+            
+            // Big screen shake
+            state.screenShake = 0.2;
+            setScore(s => s + 100);
             continue; // Skip normal collision for this brick
           }
         }
@@ -1522,6 +1707,33 @@ export default function PixelGame() {
             return;
           }
           
+          // Guy3: If slamming, kill enemy from any angle when close
+          if (selectedCharacter === 'guy3' && player.isSlamming) {
+            enemy.alive = false;
+            playSound('stomp');
+            state.combo++;
+            state.comboTimer = 3.5;
+            state.screenShake = 0.25;
+            const comboBonus = state.combo > 1 ? state.combo * 150 : 0;
+            setScore(s => s + 300 + comboBonus);
+            
+            // Massive defeat particles for slam kill
+            for (let j = 0; j < 20; j++) {
+              const angle = (Math.PI * 2 * j) / 20;
+              const speed = 100 + Math.random() * 50;
+              state.particles.push({
+                x: enemy.x + 6,
+                y: enemy.y + 6,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 60,
+                life: 0.9,
+                maxLife: 0.9,
+                color: j % 2 === 0 ? '#FF4444' : (enemy.type === 'snake' ? '#00FF00' : '#8B4513'),
+              });
+            }
+            return;
+          }
+          
           if (player.velocityY > 0 && player.y < enemy.y - 4) {
             // Stomp enemy
             enemy.alive = false;
@@ -1589,23 +1801,45 @@ export default function PixelGame() {
       if (player.x >= state.goalX - 20 && player.onGround && !state.celebrating) {
         // Stage complete!
         state.celebrating = true;
-        state.celebrationTimer = 2.5; // 2.5 seconds celebration
+        state.celebrationTimer = 3.5; // 3.5 seconds celebration
         playSound('celebration');
         
-        // Spawn celebration particles
-        for (let i = 0; i < 50; i++) {
-          const angle = (Math.PI * 2 * i) / 50;
-          const speed = 80 + Math.random() * 100;
+        // Massive celebration particle explosion
+        for (let i = 0; i < 100; i++) {
+          const angle = (Math.PI * 2 * i) / 100;
+          const speed = 100 + Math.random() * 150;
           state.particles.push({
-            x: state.goalX,
-            y: 100,
+            x: player.x + 6,
+            y: player.y + 7,
             vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 100,
-            life: 1.5,
-            maxLife: 1.5,
-            color: ['#FFD700', '#FF69B4', '#00FF00', '#00FFFF', '#FF1493', '#FFA500'][i % 6],
+            vy: Math.sin(angle) * speed - 120,
+            life: 2.0 + Math.random() * 0.5,
+            maxLife: 2.0 + Math.random() * 0.5,
+            color: ['#FFD700', '#FF69B4', '#00FF00', '#00FFFF', '#FF1493', '#FFA500', '#FFFF00', '#FF0000'][i % 8],
           });
         }
+        
+        // Firework bursts
+        for (let burst = 0; burst < 5; burst++) {
+          setTimeout(() => {
+            for (let i = 0; i < 30; i++) {
+              const angle = (Math.PI * 2 * i) / 30;
+              const speed = 80 + Math.random() * 100;
+              state.particles.push({
+                x: state.goalX - 20 + Math.random() * 40,
+                y: 60 + Math.random() * 40,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1.0,
+                maxLife: 1.0,
+                color: ['#FFD700', '#FF69B4', '#00FF00', '#00FFFF', '#FFFF00'][Math.floor(Math.random() * 5)],
+              });
+            }
+          }, burst * 300);
+        }
+        
+        // Screen shake
+        state.screenShake = 0.3;
       }
       
       // Handle celebration timer
@@ -2586,27 +2820,46 @@ export default function PixelGame() {
       
       // Draw celebration screen with coin count
       if (state.celebrating) {
-        // Semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        // Animated overlay with pulsing effect
+        const pulseAlpha = 0.5 + Math.sin(state.celebrationTimer * 4) * 0.1;
+        ctx.fillStyle = `rgba(0, 0, 0, ${pulseAlpha})`;
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         
         // Celebration text
         const centerX = GAME_WIDTH / 2;
         const centerY = GAME_HEIGHT / 2;
+        const bounce = Math.abs(Math.sin(state.celebrationTimer * 6)) * 3;
         
-        // "STAGE CLEAR!" text
+        // "STAGE CLEAR!" text with bounce animation
+        const textY = centerY - 35 + bounce;
         ctx.fillStyle = '#FFD700';
-        ctx.fillRect(centerX - 40, centerY - 30, 80, 12);
+        ctx.fillRect(centerX - 45, textY, 90, 14);
         ctx.fillStyle = '#000000';
-        ctx.fillRect(centerX - 39, centerY - 29, 78, 10);
-        ctx.fillStyle = '#FFFFFF';
-        // Simple pixel text for "STAGE CLEAR"
-        for (let i = 0; i < 10; i++) {
-          ctx.fillRect(centerX - 35 + i * 7, centerY - 26, 5, 6);
+        ctx.fillRect(centerX - 44, textY + 1, 88, 12);
+        
+        // Rainbow gradient effect for text
+        const colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
+        const colorIndex = Math.floor((performance.now() / 100) % colors.length);
+        ctx.fillStyle = colors[colorIndex];
+        
+        // "STAGE CLEAR" letters
+        for (let i = 0; i < 11; i++) {
+          ctx.fillRect(centerX - 40 + i * 7, textY + 3, 5, 7);
         }
         
-        // Coin icon and count
-        const coinY = centerY - 5;
+        // Stage number
+        const stageY = centerY - 15;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`STAGE ${state.currentStage}`, centerX, stageY);
+        
+        // Coin icon and count with glow
+        const coinY = centerY;
+        // Glow effect
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+        ctx.fillRect(centerX - 25, coinY - 2, 16, 12);
+        
         // Draw coin
         ctx.fillStyle = '#FFD700';
         ctx.fillRect(centerX - 20, coinY, 8, 8);
@@ -2620,29 +2873,43 @@ export default function PixelGame() {
         ctx.fillRect(centerX - 23, coinY + 2, 1, 4);
         ctx.fillRect(centerX - 10, coinY + 2, 1, 4);
         
-        // Coin count text
+        // Coin count text with better styling
         const coinText = `${state.coinsCollectedThisStage}/${state.totalCoinsThisStage}`;
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(centerX - 5, coinY, 40, 8);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(centerX - 4, coinY + 1, 38, 6);
-        ctx.fillStyle = '#FFD700';
-        // Draw numbers
-        for (let i = 0; i < coinText.length; i++) {
-          ctx.fillRect(centerX - 2 + i * 5, coinY + 2, 3, 4);
-        }
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(coinText, centerX + 10, coinY + 6);
         
         // Bonus text if all coins collected
         if (state.coinsCollectedThisStage === state.totalCoinsThisStage) {
+          const perfectY = coinY + 18;
+          const perfectBounce = Math.abs(Math.sin(state.celebrationTimer * 8)) * 2;
           ctx.fillStyle = '#00FF00';
-          ctx.fillRect(centerX - 30, coinY + 15, 60, 8);
+          ctx.fillRect(centerX - 35, perfectY + perfectBounce, 70, 10);
           ctx.fillStyle = '#000000';
-          ctx.fillRect(centerX - 29, coinY + 16, 58, 6);
+          ctx.fillRect(centerX - 34, perfectY + 1 + perfectBounce, 68, 8);
           ctx.fillStyle = '#FFFF00';
-          // "PERFECT!" text
-          for (let i = 0; i < 7; i++) {
-            ctx.fillRect(centerX - 25 + i * 7, coinY + 18, 5, 2);
+          ctx.font = 'bold 8px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('PERFECT!', centerX, perfectY + 7 + perfectBounce);
+        }
+        
+        // "Next stage" indicator
+        if (state.currentStage < 10) {
+          const nextY = centerY + 35;
+          const flash = Math.floor(state.celebrationTimer * 3) % 2 === 0;
+          if (flash) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '6px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`NEXT: STAGE ${state.currentStage + 1}`, centerX, nextY);
           }
+        } else {
+          // Final stage complete
+          const finalY = centerY + 35;
+          ctx.fillStyle = '#FFD700';
+          ctx.font = 'bold 8px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('GAME COMPLETE!', centerX, finalY);
         }
       }
       
@@ -2806,6 +3073,253 @@ export default function PixelGame() {
       });
 
       ctx.restore();
+      
+      // Draw amazing game start countdown
+      if (!state.gameStarted) {
+        // Full screen overlay with fade-in
+        const fadeAlpha = Math.min(1, state.gameStartTimer / 0.5);
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * fadeAlpha})`;
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        
+        const centerX = GAME_WIDTH / 2;
+        const centerY = GAME_HEIGHT / 2;
+        const timeLeft = 3.0 - state.gameStartTimer;
+        
+        if (timeLeft > 2.0) {
+          // "3" countdown - pixel art number
+          const pulse = Math.floor(Math.sin(state.gameStartTimer * 10) * 2);
+          const numX = centerX - 10;
+          const numY = centerY - 15 + pulse;
+          
+          ctx.fillStyle = '#FF0000';
+          ctx.fillRect(numX - 2, numY - 2, 24, 34);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(numX, numY, 20, 30);
+          
+          // Draw pixel "3"
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(numX + 2, numY + 2, 16, 4);
+          ctx.fillRect(numX + 2, numY + 13, 16, 4);
+          ctx.fillRect(numX + 2, numY + 24, 16, 4);
+          ctx.fillRect(numX + 14, numY + 6, 4, 7);
+          ctx.fillRect(numX + 14, numY + 17, 4, 7);
+          
+          // Particle ring
+          for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 * i) / 12 + state.gameStartTimer * 3;
+            const radius = 40 + pulse * 2;
+            const px = centerX + Math.cos(angle) * radius;
+            const py = centerY + Math.sin(angle) * radius;
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(Math.floor(px) - 2, Math.floor(py) - 2, 4, 4);
+          }
+        } else if (timeLeft > 1.0) {
+          // "2" countdown - pixel art number
+          const pulse = Math.floor(Math.sin(state.gameStartTimer * 10) * 2);
+          const numX = centerX - 10;
+          const numY = centerY - 15 + pulse;
+          
+          ctx.fillStyle = '#FFFF00';
+          ctx.fillRect(numX - 2, numY - 2, 24, 34);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(numX, numY, 20, 30);
+          
+          // Draw pixel "2"
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(numX + 2, numY + 2, 16, 4);
+          ctx.fillRect(numX + 14, numY + 6, 4, 7);
+          ctx.fillRect(numX + 2, numY + 13, 16, 4);
+          ctx.fillRect(numX + 2, numY + 17, 4, 7);
+          ctx.fillRect(numX + 2, numY + 24, 16, 4);
+          
+          // Particle ring
+          for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 * i) / 12 + state.gameStartTimer * 3;
+            const radius = 40 + pulse * 2;
+            const px = centerX + Math.cos(angle) * radius;
+            const py = centerY + Math.sin(angle) * radius;
+            ctx.fillStyle = '#FFFF00';
+            ctx.fillRect(Math.floor(px) - 2, Math.floor(py) - 2, 4, 4);
+          }
+        } else if (timeLeft > 0.0) {
+          // "1" countdown - pixel art number
+          const pulse = Math.floor(Math.sin(state.gameStartTimer * 10) * 2);
+          const numX = centerX - 10;
+          const numY = centerY - 15 + pulse;
+          
+          ctx.fillStyle = '#00FF00';
+          ctx.fillRect(numX - 2, numY - 2, 24, 34);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(numX, numY, 20, 30);
+          
+          // Draw pixel "1"
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(numX + 8, numY + 2, 4, 26);
+          ctx.fillRect(numX + 4, numY + 6, 4, 4);
+          ctx.fillRect(numX + 2, numY + 24, 16, 4);
+          
+          // Particle ring
+          for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 * i) / 12 + state.gameStartTimer * 3;
+            const radius = 40 + pulse * 2;
+            const px = centerX + Math.cos(angle) * radius;
+            const py = centerY + Math.sin(angle) * radius;
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(Math.floor(px) - 2, Math.floor(py) - 2, 4, 4);
+          }
+        } else {
+          // "GO!" message - pixel art
+          const goX = centerX - 15;
+          const goY = centerY - 8;
+          
+          ctx.fillStyle = '#FFD700';
+          ctx.fillRect(goX - 2, goY - 2, 34, 20);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(goX, goY, 30, 16);
+          
+          // Draw pixel "GO!"
+          ctx.fillStyle = '#FFFFFF';
+          // G
+          ctx.fillRect(goX + 2, goY + 2, 10, 12);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(goX + 4, goY + 4, 6, 8);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(goX + 7, goY + 8, 5, 4);
+          // O
+          ctx.fillRect(goX + 14, goY + 2, 10, 12);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(goX + 16, goY + 4, 6, 8);
+          ctx.fillStyle = '#FFFFFF';
+          // !
+          ctx.fillRect(goX + 26, goY + 2, 2, 8);
+          ctx.fillRect(goX + 26, goY + 12, 2, 2);
+          
+          // Explosion particles
+          for (let i = 0; i < 20; i++) {
+            const angle = (Math.PI * 2 * i) / 20;
+            const radius = 50;
+            const px = centerX + Math.cos(angle) * radius;
+            const py = centerY + Math.sin(angle) * radius;
+            ctx.fillStyle = ['#FFD700', '#FF0000', '#00FF00', '#0000FF'][i % 4];
+            ctx.fillRect(Math.floor(px) - 3, Math.floor(py) - 3, 6, 6);
+          }
+        }
+        
+        // Stage title at top - pixel perfect text using fillRect
+        const stageText = `STAGE ${state.currentStage}`;
+        ctx.fillStyle = '#FFFFFF';
+        const textStartX = centerX - (stageText.length * 3);
+        for (let i = 0; i < stageText.length; i++) {
+          const char = stageText[i];
+          const baseX = textStartX + i * 6;
+          const baseY = 12;
+          
+          // Draw each character as pixel blocks (3x5 font)
+          if (char === 'S') {
+            ctx.fillRect(baseX, baseY, 5, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 1);
+            ctx.fillRect(baseX, baseY + 2, 5, 1);
+            ctx.fillRect(baseX + 4, baseY + 3, 1, 1);
+            ctx.fillRect(baseX, baseY + 4, 5, 1);
+          } else if (char === 'T') {
+            ctx.fillRect(baseX, baseY, 5, 1);
+            ctx.fillRect(baseX + 2, baseY + 1, 1, 4);
+          } else if (char === 'A') {
+            ctx.fillRect(baseX + 1, baseY, 3, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 4);
+            ctx.fillRect(baseX + 4, baseY + 1, 1, 4);
+            ctx.fillRect(baseX + 1, baseY + 2, 3, 1);
+          } else if (char === 'G') {
+            ctx.fillRect(baseX, baseY, 5, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 3);
+            ctx.fillRect(baseX + 2, baseY + 2, 3, 1);
+            ctx.fillRect(baseX + 4, baseY + 3, 1, 1);
+            ctx.fillRect(baseX, baseY + 4, 5, 1);
+          } else if (char === 'E') {
+            ctx.fillRect(baseX, baseY, 5, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 1);
+            ctx.fillRect(baseX, baseY + 2, 4, 1);
+            ctx.fillRect(baseX, baseY + 3, 1, 1);
+            ctx.fillRect(baseX, baseY + 4, 5, 1);
+          } else if (char >= '0' && char <= '9') {
+            const num = parseInt(char);
+            if (num === 1) {
+              ctx.fillRect(baseX + 2, baseY, 1, 5);
+              ctx.fillRect(baseX + 1, baseY + 1, 1, 1);
+            } else {
+              ctx.fillRect(baseX, baseY, 5, 5);
+              ctx.fillRect(baseX + 1, baseY + 1, 3, 3);
+            }
+          } else if (char === ' ') {
+            // Space - do nothing
+          }
+        }
+        
+        // Character name - pixel perfect text
+        const charName = selectedCharacter === 'guy1' ? 'CLASSIC' : selectedCharacter === 'guy2' ? 'SPEEDSTER' : 'SLAMMER';
+        ctx.fillStyle = '#AAAAAA';
+        const nameStartX = centerX - (charName.length * 2.5);
+        for (let i = 0; i < charName.length; i++) {
+          const char = charName[i];
+          const baseX = nameStartX + i * 5;
+          const baseY = 24;
+          
+          // Draw each character (4x5 smaller font)
+          if (char === 'C') {
+            ctx.fillRect(baseX, baseY, 4, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 3);
+            ctx.fillRect(baseX, baseY + 4, 4, 1);
+          } else if (char === 'L') {
+            ctx.fillRect(baseX, baseY, 1, 5);
+            ctx.fillRect(baseX, baseY + 4, 4, 1);
+          } else if (char === 'A') {
+            ctx.fillRect(baseX + 1, baseY, 2, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 4);
+            ctx.fillRect(baseX + 3, baseY + 1, 1, 4);
+            ctx.fillRect(baseX + 1, baseY + 2, 2, 1);
+          } else if (char === 'S') {
+            ctx.fillRect(baseX, baseY, 4, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 1);
+            ctx.fillRect(baseX, baseY + 2, 4, 1);
+            ctx.fillRect(baseX + 3, baseY + 3, 1, 1);
+            ctx.fillRect(baseX, baseY + 4, 4, 1);
+          } else if (char === 'I') {
+            ctx.fillRect(baseX, baseY, 4, 1);
+            ctx.fillRect(baseX + 1, baseY + 1, 2, 3);
+            ctx.fillRect(baseX, baseY + 4, 4, 1);
+          } else if (char === 'P') {
+            ctx.fillRect(baseX, baseY, 4, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 4);
+            ctx.fillRect(baseX + 3, baseY + 1, 1, 1);
+            ctx.fillRect(baseX, baseY + 2, 4, 1);
+          } else if (char === 'E') {
+            ctx.fillRect(baseX, baseY, 4, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 1);
+            ctx.fillRect(baseX, baseY + 2, 3, 1);
+            ctx.fillRect(baseX, baseY + 3, 1, 1);
+            ctx.fillRect(baseX, baseY + 4, 4, 1);
+          } else if (char === 'D') {
+            ctx.fillRect(baseX, baseY, 3, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 3);
+            ctx.fillRect(baseX + 3, baseY + 1, 1, 3);
+            ctx.fillRect(baseX, baseY + 4, 3, 1);
+          } else if (char === 'T') {
+            ctx.fillRect(baseX, baseY, 4, 1);
+            ctx.fillRect(baseX + 1, baseY + 1, 2, 4);
+          } else if (char === 'R') {
+            ctx.fillRect(baseX, baseY, 4, 1);
+            ctx.fillRect(baseX, baseY + 1, 1, 4);
+            ctx.fillRect(baseX + 3, baseY + 1, 1, 1);
+            ctx.fillRect(baseX, baseY + 2, 4, 1);
+            ctx.fillRect(baseX + 2, baseY + 3, 2, 2);
+          } else if (char === 'M') {
+            ctx.fillRect(baseX, baseY, 1, 5);
+            ctx.fillRect(baseX + 1, baseY + 1, 1, 1);
+            ctx.fillRect(baseX + 2, baseY + 1, 1, 1);
+            ctx.fillRect(baseX + 3, baseY, 1, 5);
+          }
+        }
+      }
       
       // Draw UI elements in fixed screen position (after ctx.restore)
       // Draw helmet timer indicator in top right corner

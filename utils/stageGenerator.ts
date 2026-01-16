@@ -68,7 +68,7 @@ export function generateStage(stageNumber: number): StageData {
   
   // Simple, clean difficulty scaling - Mario-style
   const platformDensity = 0.15 + (difficulty * 0.03); // Much less dense
-  const enemyCount = Math.min(5 + difficulty * 2, 25); // Fewer enemies like Mario
+  const enemyCount = Math.min(10 + difficulty * 4, 60); // Scale enemies with stage length
   const coinCount = Math.min(20 + difficulty * 5, 80); // Moderate coin count
   const questionBlockCount = Math.min(5 + difficulty * 2, 15); // Fewer question blocks
   const minGapBetweenPlatforms = Math.max(80, 120 - difficulty * 4); // More spacing between platforms
@@ -301,37 +301,50 @@ export function generateStage(stageNumber: number): StageData {
     attempts++;
   }
   
-  // Generate enemies - organized spawn locations with variety
+  // Generate enemies - distributed throughout the entire stage
   // Spawn on ground and platforms to avoid getting stuck
   let enemiesPlaced = 0;
-  const enemySpacing = (width - 240) / (enemyCount + 1);
+  const safeStartZone = 200; // Don't spawn enemies too close to start
+  const safeEndZone = 150; // Leave some space before goal
+  const spawnableWidth = width - safeStartZone - safeEndZone;
+  const enemySpacing = spawnableWidth / enemyCount;
   
-  for (let i = 0; i < enemyCount && enemiesPlaced < enemyCount; i++) {
-    const ex = 140 + (i * enemySpacing) + Math.random() * 30;
-    const ey = 116; // Spawn on ground level
-    const direction = Math.random() > 0.5 ? 1 : -1;
+  for (let i = 0; i < enemyCount; i++) {
+    let attempts = 0;
+    let spawned = false;
     
-    // Check if spawn position collides with any platform
-    const collidesWithPlatform = platforms.some(p => {
-      return ex + 12 > p.x && ex < p.x + p.width && 
-             ey + 12 > p.y && ey < p.y + p.height;
-    });
-    
-    // Check if too close to player start
-    const tooCloseToStart = ex < 200;
-    
-    // Only spawn if not colliding and not too close to start
-    if (!collidesWithPlatform && !tooCloseToStart) {
-      // 35% chance for snake, increases with stage difficulty
-      const snakeChance = 0.35 + (difficulty * 0.04);
-      const isSnake = Math.random() < snakeChance;
+    // Try to spawn enemy at calculated position with some randomness
+    while (!spawned && attempts < 5) {
+      const baseX = safeStartZone + (i * enemySpacing);
+      const ex = baseX + (Math.random() - 0.5) * (enemySpacing * 0.5); // Random offset within section
+      const ey = 116; // Spawn on ground level
+      const direction = Math.random() > 0.5 ? 1 : -1;
       
-      if (isSnake) {
-        enemies.push({ x: ex, y: ey, direction, alive: true, type: 'snake', waveOffset: Math.random() * Math.PI * 2 });
-      } else {
-        enemies.push({ x: ex, y: ey, direction, alive: true, type: 'goomba' });
+      // Check if spawn position collides with any platform
+      const collidesWithPlatform = platforms.some(p => {
+        return ex + 12 > p.x && ex < p.x + p.width && 
+               ey + 12 > p.y && ey < p.y + p.height;
+      });
+      
+      // Check if in a gap
+      const inGap = gapPositions.some(gap => ex >= gap.start && ex <= gap.end);
+      
+      // Only spawn if not colliding and not in a gap
+      if (!collidesWithPlatform && !inGap && ex >= safeStartZone && ex <= width - safeEndZone) {
+        // 35% chance for snake, increases with stage difficulty
+        const snakeChance = 0.35 + (difficulty * 0.04);
+        const isSnake = Math.random() < snakeChance;
+        
+        if (isSnake) {
+          enemies.push({ x: ex, y: ey, direction, alive: true, type: 'snake', waveOffset: Math.random() * Math.PI * 2 });
+        } else {
+          enemies.push({ x: ex, y: ey, direction, alive: true, type: 'goomba' });
+        }
+        enemiesPlaced++;
+        spawned = true;
       }
-      enemiesPlaced++;
+      
+      attempts++;
     }
   }
   
