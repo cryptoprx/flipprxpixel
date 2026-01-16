@@ -1,7 +1,32 @@
 {
-  "name": "pixel-game",
-  "version": "0.1.0",
-  "private": true,
+  "name": "flipprx-pixel-game",
+  "version": "1.0.0",
+  "description": "FLIPPRX Pixel Game - An addictive retro platformer featuring 3 unique characters with special abilities. Classic speedster, air-sliding racer, and ground-slamming powerhouse. 10 challenging stages, power-ups, enemies, and pixel-perfect gameplay in authentic Game Boy style.",
+  "keywords": [
+    "pixel game",
+    "retro platformer",
+    "gameboy",
+    "browser game",
+    "html5 game",
+    "pixel art",
+    "retro gaming",
+    "platformer",
+    "flipprx",
+    "nextjs game",
+    "canvas game",
+    "mobile game",
+    "touch controls",
+    "8-bit",
+    "nostalgic game"
+  ],
+  "author": "FLIPPRX",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cryptoprx/flipprxpixel.git"
+  },
+  "homepage": "https://flipprxpixel.vercel.app",
+  "private": false,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,7 +36,8 @@
   "dependencies": {
     "next": "16.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
