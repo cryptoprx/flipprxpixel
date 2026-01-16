@@ -2713,13 +2713,17 @@ export default function PixelGame() {
         const helmetSprite = spritesRef.current['helmet.png'];
         
         if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
-          // Draw helmet.png sprite overlapping player (both 16x16)
+          // Draw helmet.png sprite overlapping player
+          // Player hitbox is 12x14, sprites are 16x16, so offset by -2 on x and -1 on y to center
           ctx.save();
           ctx.imageSmoothingEnabled = false;
           
+          const helmetOffsetX = -2;
+          const helmetOffsetY = -1;
+          
           // Apply same rotation as character if jumping
           if (state.player.rotation !== 0) {
-            ctx.translate(px + 8, py + 8);
+            ctx.translate(px + 6, py + 7); // Center of 12x14 hitbox
             ctx.rotate((state.player.rotation * Math.PI) / 180);
             
             // Flip helmet horizontally if character is facing left
@@ -2727,15 +2731,15 @@ export default function PixelGame() {
               ctx.scale(-1, 1);
             }
             
-            ctx.drawImage(helmetSprite, -8, -8, 16, 16);
+            ctx.drawImage(helmetSprite, -8 + helmetOffsetX, -8 + helmetOffsetY, 16, 16);
           } else {
             // No rotation - just flip if facing left
             if (state.player.facingLeft) {
-              ctx.translate(px + 16, py);
+              ctx.translate(px + 12 + helmetOffsetX, py + helmetOffsetY);
               ctx.scale(-1, 1);
-              ctx.drawImage(helmetSprite, 0, 0, 16, 16);
+              ctx.drawImage(helmetSprite, -12, 0, 16, 16);
             } else {
-              ctx.drawImage(helmetSprite, px, py, 16, 16);
+              ctx.drawImage(helmetSprite, px + helmetOffsetX, py + helmetOffsetY, 16, 16);
             }
           }
           
