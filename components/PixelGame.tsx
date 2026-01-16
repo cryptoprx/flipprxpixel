@@ -745,6 +745,24 @@ export default function PixelGame() {
         }
       }
 
+      // Handle celebration timer (MUST be before freeze check)
+      if (state.celebrating) {
+        state.celebrationTimer -= dt;
+        if (state.celebrationTimer <= 0) {
+          state.celebrating = false;
+          if (state.currentStage < 10) {
+            const nextStage = state.currentStage + 1;
+            setCurrentStage(nextStage);
+            loadStage(nextStage);
+          } else {
+            // After completing stage 10, loop back to stage 1
+            setCurrentStage(1);
+            loadStage(1);
+          }
+          return; // Exit after loading new stage
+        }
+      }
+
       // Freeze player controls when celebrating or before game starts
       if (state.celebrating || !state.gameStarted) {
         player.velocityX = 0;
@@ -1846,22 +1864,6 @@ export default function PixelGame() {
         state.screenShake = 0.3;
       }
       
-      // Handle celebration timer
-      if (state.celebrating) {
-        state.celebrationTimer -= dt;
-        if (state.celebrationTimer <= 0) {
-          state.celebrating = false;
-          if (state.currentStage < 10) {
-            const nextStage = state.currentStage + 1;
-            setCurrentStage(nextStage);
-            loadStage(nextStage);
-          } else {
-            // After completing stage 10, loop back to stage 1
-            setCurrentStage(1);
-            loadStage(1);
-          }
-        }
-      }
       
       // Speech bubble system - character randomly yells 'we flip' phrases
       if (state.speechCooldown > 0) {
