@@ -190,6 +190,14 @@ export default function PixelGame() {
       return;
     }
     
+    // Play huh.mp3 for cliff deaths
+    if (type === 'huh') {
+      const audio = new Audio('/huh.mp3');
+      audio.volume = 0.7;
+      audio.play().catch(() => {});
+      return;
+    }
+    
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
@@ -2071,8 +2079,8 @@ export default function PixelGame() {
 
       // Death check (fell off stage into pit/gap)
       if (player.y > 200) {
-        // Play death sound
-        playSound('death');
+        // Play cliff death sound (huh.mp3)
+        playSound('huh');
         
         // Create death particles
         for (let i = 0; i < 30; i++) {
