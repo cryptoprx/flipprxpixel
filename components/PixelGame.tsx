@@ -1698,10 +1698,27 @@ export default function PixelGame() {
                 enemy.mimicJumpVelocity += GRAVITY * dt * 0.5;
               }
             } else {
-              // Float up and down
+              // Float above ground level, not at fixed height
+              // Find the ground level below the ghost
+              let groundY = GAME_HEIGHT - 20; // Default to near bottom
+              
+              for (const platform of state.platforms) {
+                if (platform.type === 'ground' && 
+                    enemy.x + 12 > platform.x && 
+                    enemy.x < platform.x + platform.width) {
+                  groundY = platform.y;
+                  break;
+                }
+              }
+              
+              // Float 40-60 pixels above ground with wave motion
               enemy.floatOffset += dt * 2;
-              const floatY = Math.sin(enemy.floatOffset) * 20;
-              enemy.y = 100 + floatY;
+              const floatWave = Math.sin(enemy.floatOffset) * 10;
+              const targetY = groundY - 50 + floatWave;
+              
+              // Smoothly move toward target height
+              const heightDiff = targetY - enemy.y;
+              enemy.y += heightDiff * dt * 2;
             }
             
             // Detect player jump to mimic
@@ -1711,7 +1728,7 @@ export default function PixelGame() {
             }
           }
           
-          // Badguy phases through platforms - skip gravity and collision
+          // Badguy phases through platforms (except ground) - skip gravity
           (enemy as any).velocityY = 0;
           
         } else {
