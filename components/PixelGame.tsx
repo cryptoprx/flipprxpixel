@@ -186,7 +186,9 @@ export default function PixelGame() {
     if (type === 'fart') {
       const audio = new Audio('/fart.mp3');
       audio.volume = 0.6;
-      audio.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.log('Fart sound failed to play:', err);
+      });
       return;
     }
     
@@ -194,7 +196,9 @@ export default function PixelGame() {
     if (type === 'huh') {
       const audio = new Audio('/huh.mp3');
       audio.volume = 0.7;
-      audio.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.log('Huh sound failed to play:', err);
+      });
       return;
     }
     
