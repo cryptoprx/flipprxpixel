@@ -110,7 +110,23 @@ export default function PixelGame() {
     gameStarted: false,
     gameStartTimer: 0,
     coins: [] as Array<{ x: number; y: number; collected: boolean; floatOffset: number }>,
-    enemies: [] as Array<{ x: number; y: number; direction: number; alive: boolean; type: 'goomba' | 'snake' | 'badguy'; waveOffset?: number; animFrame?: number }>,
+    enemies: [] as Array<{ 
+      x: number; 
+      y: number; 
+      direction: number; 
+      alive: boolean; 
+      type: 'goomba' | 'snake' | 'badguy'; 
+      waveOffset?: number; 
+      animFrame?: number;
+      // Badguy (ghost) specific properties
+      frozen?: boolean;
+      mimicJumpTimer?: number;
+      mimicJumpVelocity?: number;
+      disappearTimer?: number;
+      isDisappearing?: boolean;
+      opacity?: number;
+      floatOffset?: number;
+    }>,
     waterGun: null as { x: number; y: number; collected: boolean } | null,
     waterProjectiles: [] as Array<{ x: number; y: number; vx: number; vy: number; life: number }>,
     particles: [] as Particle[],
@@ -1582,7 +1598,7 @@ export default function PixelGame() {
         (enemy as any).velocityY = Math.min((enemy as any).velocityY, MAX_FALL_SPEED);
         enemy.y += (enemy as any).velocityY * dt;
         
-        // Different movement for snake vs others
+        // Different movement for snake vs badguy (ghost) vs goomba
         if (enemy.type === 'snake') {
           // Enhanced snake slithering on ground with occasional hops
           enemy.waveOffset = (enemy.waveOffset || 0) + dt * 6;
@@ -1605,8 +1621,101 @@ export default function PixelGame() {
             (enemy as any).velocityY = -120;
             (enemy as any).hopTimer = 2 + Math.random() * 2; // Hop every 2-4 seconds
           }
+        } else if (enemy.type === 'badguy') {
+          // 👻 BADGUY = GHOST with psychological horror mechanics
+          // Initialize ghost properties
+          if (enemy.opacity === undefined) enemy.opacity = 0.8;
+          if (enemy.frozen === undefined) enemy.frozen = false;
+          if (enemy.disappearTimer === undefined) enemy.disappearTimer = 5 + Math.random() * 5;
+          if (enemy.mimicJumpTimer === undefined) enemy.mimicJumpTimer = 0;
+          if (enemy.floatOffset === undefined) enemy.floatOffset = Math.random() * Math.PI * 2;
+          
+          // Check if player is moving (FREEZE mechanic)
+          const playerIsMoving = Math.abs(player.velocityX) > 10 || Math.abs(player.velocityY) > 10;
+          
+          if (!playerIsMoving && !enemy.isDisappearing) {
+            enemy.frozen = true;
+            enemy.opacity = Math.max(0.3, enemy.opacity - dt * 0.5);
+          } else if (!enemy.isDisappearing) {
+            enemy.frozen = false;
+            enemy.opacity = Math.min(0.8, enemy.opacity + dt * 2);
+          }
+          
+          // Handle disappear/reappear mechanic
+          if (!enemy.isDisappearing) {
+            enemy.disappearTimer -= dt;
+            if (enemy.disappearTimer <= 0) {
+              enemy.isDisappearing = true;
+              enemy.disappearTimer = 1.0;
+              playSound('jump');
+            }
+          } else {
+            enemy.disappearTimer -= dt;
+            enemy.opacity = Math.max(0, enemy.disappearTimer);
+            
+            if (enemy.disappearTimer <= 0) {
+              // Reappear behind player
+              const behindPlayer = player.facingLeft ? player.x + 40 : player.x - 40;
+              enemy.x = Math.max(0, Math.min(state.stageWidth - 12, behindPlayer));
+              enemy.y = player.y;
+              enemy.isDisappearing = false;
+              enemy.disappearTimer = 5 + Math.random() * 5;
+              enemy.opacity = 0;
+              
+              // Purple particles
+              for (let i = 0; i < 20; i++) {
+                const angle = (Math.PI * 2 * i) / 20;
+                state.particles.push({
+                  x: enemy.x + 6,
+                  y: enemy.y + 6,
+                  vx: Math.cos(angle) * 60,
+                  vy: Math.sin(angle) * 60,
+                  life: 0.5,
+                  maxLife: 0.5,
+                  color: '#9370DB',
+                });
+              }
+            }
+          }
+          
+          // Movement when not frozen
+          if (!enemy.frozen && !enemy.isDisappearing) {
+            // Float toward player
+            const toPlayerX = player.x - enemy.x;
+            const distToPlayer = Math.abs(toPlayerX);
+            
+            if (distToPlayer > 20) {
+              const ghostSpeed = 35;
+              enemy.x += Math.sign(toPlayerX) * ghostSpeed * dt;
+              enemy.direction = Math.sign(toPlayerX);
+            }
+            
+            // Mimic player's jump
+            if (enemy.mimicJumpTimer > 0) {
+              enemy.mimicJumpTimer -= dt;
+              if (enemy.mimicJumpVelocity !== undefined) {
+                enemy.y += enemy.mimicJumpVelocity * dt;
+                enemy.mimicJumpVelocity += GRAVITY * dt * 0.5;
+              }
+            } else {
+              // Float up and down
+              enemy.floatOffset += dt * 2;
+              const floatY = Math.sin(enemy.floatOffset) * 20;
+              enemy.y = 100 + floatY;
+            }
+            
+            // Detect player jump to mimic
+            if (!player.onGround && player.velocityY < -100 && enemy.mimicJumpTimer <= 0) {
+              enemy.mimicJumpTimer = 1.5;
+              enemy.mimicJumpVelocity = player.velocityY * 0.7;
+            }
+          }
+          
+          // Badguy phases through platforms - skip gravity and collision
+          (enemy as any).velocityY = 0;
+          
         } else {
-          // Goomba and badguy move normally
+          // Goomba moves normally
           let moveSpeed = 30;
           
           // Apply initial horizontal push if spawned from question block
@@ -1625,39 +1734,42 @@ export default function PixelGame() {
         }
         
         // Check for ground collision (enemies land on platforms)
+        // Badguy (ghost) phases through all platforms
         let onPlatform = false;
-        for (const platform of state.platforms) {
-          if (enemy.x + 12 > platform.x && enemy.x < platform.x + platform.width) {
-            // Check if enemy is falling onto platform from above
-            if ((enemy as any).velocityY >= 0 && oldEnemyY + 12 <= platform.y + 1 && enemy.y + 12 >= platform.y) {
-              enemy.y = platform.y - 12;
-              (enemy as any).velocityY = 0;
-              onPlatform = true;
-              
-              // Add slight horizontal wave motion for snakes on ground
-              if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
-                const groundWave = Math.sin(enemy.waveOffset) * 0.5;
-                enemy.x += groundWave;
+        if (enemy.type !== 'badguy') {
+          for (const platform of state.platforms) {
+            if (enemy.x + 12 > platform.x && enemy.x < platform.x + platform.width) {
+              // Check if enemy is falling onto platform from above
+              if ((enemy as any).velocityY >= 0 && oldEnemyY + 12 <= platform.y + 1 && enemy.y + 12 >= platform.y) {
+                enemy.y = platform.y - 12;
+                (enemy as any).velocityY = 0;
+                onPlatform = true;
+                
+                // Add slight horizontal wave motion for snakes on ground
+                if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
+                  const groundWave = Math.sin(enemy.waveOffset) * 0.5;
+                  enemy.x += groundWave;
+                }
+                break;
               }
-              break;
-            }
-            // Check if already on platform (strict tolerance)
-            if (Math.abs(enemy.y + 12 - platform.y) < 0.5) {
-              onPlatform = true;
-              enemy.y = platform.y - 12; // Snap to exact position
-              
-              // Add slight horizontal wave motion for snakes on ground
-              if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
-                const groundWave = Math.sin(enemy.waveOffset) * 0.5;
-                enemy.x += groundWave;
+              // Check if already on platform (strict tolerance)
+              if (Math.abs(enemy.y + 12 - platform.y) < 0.5) {
+                onPlatform = true;
+                enemy.y = platform.y - 12; // Snap to exact position
+                
+                // Add slight horizontal wave motion for snakes on ground
+                if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
+                  const groundWave = Math.sin(enemy.waveOffset) * 0.5;
+                  enemy.x += groundWave;
+                }
+                break;
               }
-              break;
             }
           }
         }
         
-        // Check for walls/obstacles ahead
-        const hitWall = state.platforms.some(p => {
+        // Check for walls/obstacles ahead (badguy phases through)
+        const hitWall = enemy.type !== 'badguy' && state.platforms.some(p => {
           if (p.type === 'ground') return false; // Don't check ground
           const enemyRight = enemy.x + 12;
           const enemyLeft = enemy.x;
@@ -2497,12 +2609,12 @@ export default function PixelGame() {
               ctx.fillRect(Math.floor(headX) + (tongueDir > 0 ? 5 : -2), Math.floor(headY) + 4, 1, 1);
             }
           } else {
-            // Badguy enemy - animated walking sprite
+            // Badguy enemy - ghost with animated sprite
             // Use enemy's own animation frame counter for smooth animation
             if (!enemy.animFrame) enemy.animFrame = 0;
             
-            // Calculate animation frame (8 frames, much slower speed to prevent flickering)
-            const animSpeed = 4; // frames per second
+            // Calculate animation frame (8 frames, slower when frozen)
+            const animSpeed = enemy.frozen ? 1 : 4; // Slow down when frozen
             const frameIndex = Math.floor((Date.now() / 1000) * animSpeed) % 8;
             const frameName = `${frameIndex + 1}.png`;
             const badguySprite = spritesRef.current[frameName];
@@ -2511,15 +2623,34 @@ export default function PixelGame() {
               ctx.save();
               ctx.imageSmoothingEnabled = false;
               
+              // Apply opacity for ghost effect
+              ctx.globalAlpha = enemy.opacity !== undefined ? enemy.opacity : 0.8;
+              
+              // Add floating wave animation
+              const floatWave = Math.sin((performance.now() / 200) + (enemy.x / 50)) * 2;
+              const ghostY = ey + floatWave;
+              
               // Flip sprite based on enemy direction
               if (enemy.direction === -1) {
                 // Moving left - flip horizontally
-                ctx.translate(ex + 16, ey);
+                ctx.translate(ex + 16, Math.floor(ghostY));
                 ctx.scale(-1, 1);
                 ctx.drawImage(badguySprite, 0, 0, 16, 16);
               } else {
                 // Moving right - normal
-                ctx.drawImage(badguySprite, ex, ey, 16, 16);
+                ctx.drawImage(badguySprite, ex, Math.floor(ghostY), 16, 16);
+              }
+              
+              // Draw aura particles when not frozen
+              if (!enemy.frozen && !enemy.isDisappearing) {
+                for (let i = 0; i < 3; i++) {
+                  const particleAngle = (performance.now() / 500 + i * 2) % (Math.PI * 2);
+                  const particleRadius = 8 + Math.sin(performance.now() / 300 + i) * 2;
+                  const px = ex + 8 + Math.cos(particleAngle) * particleRadius;
+                  const py = Math.floor(ghostY) + 8 + Math.sin(particleAngle) * particleRadius;
+                  ctx.fillStyle = 'rgba(147, 112, 219, 0.4)';
+                  ctx.fillRect(Math.floor(px), Math.floor(py), 1, 1);
+                }
               }
               
               ctx.restore();
