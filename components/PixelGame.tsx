@@ -2866,9 +2866,9 @@ export default function PixelGame() {
           } else {
             // No rotation - just flip if facing left
             if (state.player.facingLeft) {
-              ctx.translate(px + 12 + helmetOffsetX, py + helmetOffsetY);
+              ctx.translate(px + 12, py + helmetOffsetY);
               ctx.scale(-1, 1);
-              ctx.drawImage(helmetSprite, -12, 0, 16, 16);
+              ctx.drawImage(helmetSprite, -12 - helmetOffsetX, 0, 16, 16);
             } else {
               ctx.drawImage(helmetSprite, px + helmetOffsetX, py + helmetOffsetY, 16, 16);
             }
