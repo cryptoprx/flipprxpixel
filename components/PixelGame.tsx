@@ -182,6 +182,14 @@ export default function PixelGame() {
       return;
     }
     
+    // Play fart.mp3 for air slide
+    if (type === 'fart') {
+      const audio = new Audio('/fart.mp3');
+      audio.volume = 0.6;
+      audio.play().catch(() => {});
+      return;
+    }
+    
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
@@ -954,9 +962,9 @@ export default function PixelGame() {
           player.airSlideTimer = 0.25; // Air slide duration
           player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.2; // Fast horizontal boost
           player.velocityY = 0; // Neutralize vertical velocity briefly
-          playSound('jump');
+          playSound('fart');
           
-          // Air slide particles
+          // Air slide fart particles (green)
           for (let i = 0; i < 12; i++) {
             state.particles.push({
               x: player.x + 6,
@@ -965,7 +973,7 @@ export default function PixelGame() {
               vy: (Math.random() - 0.5) * 40,
               life: 0.4,
               maxLife: 0.4,
-              color: '#4488FF',
+              color: '#44FF44',
             });
           }
         }
@@ -989,6 +997,19 @@ export default function PixelGame() {
         if (player.isAirSliding) {
           player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.2;
           player.velocityY = Math.min(player.velocityY, 80); // Slow fall during slide
+          
+          // Continuous green fart trail during air slide
+          for (let i = 0; i < 2; i++) {
+            state.particles.push({
+              x: player.x + 6,
+              y: player.y + 7,
+              vx: (player.facingLeft ? 30 : -30) + (Math.random() - 0.5) * 20,
+              vy: (Math.random() - 0.5) * 30,
+              life: 0.3,
+              maxLife: 0.3,
+              color: '#44FF44',
+            });
+          }
         }
       }
 
