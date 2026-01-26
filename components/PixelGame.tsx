@@ -28,6 +28,18 @@ interface Sprite {
   isSlamming: boolean;
   slamCharging: boolean;
   jumpHoldTime: number;
+  // Guy1 enhanced abilities
+  doubleJumpAvailable: boolean;
+  dashAvailable: boolean;
+  dashTimer: number;
+  isDashing: boolean;
+  dashCooldown: number;
+  // Guy2 enhanced abilities
+  speedBoostTimer: number;
+  airDashCount: number;
+  // Guy3 enhanced abilities
+  groundPoundRadius: number;
+  chargeLevel: number;
 }
 
 interface Particle {
@@ -91,6 +103,15 @@ export default function PixelGame() {
       isSlamming: false,
       slamCharging: false,
       jumpHoldTime: 0,
+      doubleJumpAvailable: false,
+      dashAvailable: true,
+      dashTimer: 0,
+      isDashing: false,
+      dashCooldown: 0,
+      speedBoostTimer: 0,
+      airDashCount: 0,
+      groundPoundRadius: 0,
+      chargeLevel: 0,
     } as Sprite,
     keys: {} as Record<string, boolean>,
     coyoteTime: 0,
@@ -166,6 +187,10 @@ export default function PixelGame() {
   const PLAYER_FRICTION = 1700; // Precise stopping
   const AIR_FRICTION = 300; // Enhanced air control
   const JUMP_VELOCITY = -325; // Perfect jump height
+  const DOUBLE_JUMP_VELOCITY = -280; // Slightly weaker double jump
+  const DASH_SPEED = 280; // Fast dash speed
+  const DASH_DURATION = 0.18; // Quick dash
+  const DASH_COOLDOWN = 0.8; // Dash cooldown
   const COYOTE_TIME = 0.2; // Forgiving edge jumps
   const JUMP_BUFFER = 0.25; // Forgiving jump timing
   const MAX_FALL_SPEED = 480; // Controlled falling
@@ -864,21 +889,27 @@ export default function PixelGame() {
       if (selectedCharacter === 'guy2') {
         speedMultiplier = 1.35; // guy2 is 35% faster
         accelMultiplier = 1.25;
+      } else if (selectedCharacter === 'guy3') {
+        speedMultiplier = 0.9; // guy3 is slightly slower but more powerful
+        accelMultiplier = 0.95;
       }
 
-      if (inputAxis !== 0) {
-        const targetVelocity = inputAxis * PLAYER_SPEED * speedMultiplier;
-        const accelAmount = (player.onGround ? PLAYER_ACCEL : PLAYER_ACCEL * 0.65) * accelMultiplier * dt;
-        const velocityChange = Math.sign(targetVelocity - player.velocityX) * Math.min(Math.abs(targetVelocity - player.velocityX), accelAmount);
-        player.velocityX += velocityChange;
-        player.facingLeft = inputAxis < 0;
-        
-      } else {
-        // Apply friction (stronger on ground, lighter in air)
-        const frictionAmount = (player.onGround ? PLAYER_FRICTION : AIR_FRICTION) * dt;
-        player.velocityX -= Math.sign(player.velocityX) * Math.min(Math.abs(player.velocityX), frictionAmount);
-        // Stop at same threshold as idle animation detection
-        if (Math.abs(player.velocityX) < 0.5) player.velocityX = 0;
+      // Skip normal movement during dash
+      if (!player.isDashing) {
+        if (inputAxis !== 0) {
+          const targetVelocity = inputAxis * PLAYER_SPEED * speedMultiplier;
+          const accelAmount = (player.onGround ? PLAYER_ACCEL : PLAYER_ACCEL * 0.65) * accelMultiplier * dt;
+          const velocityChange = Math.sign(targetVelocity - player.velocityX) * Math.min(Math.abs(targetVelocity - player.velocityX), accelAmount);
+          player.velocityX += velocityChange;
+          player.facingLeft = inputAxis < 0;
+          
+        } else {
+          // Apply friction (stronger on ground, lighter in air)
+          const frictionAmount = (player.onGround ? PLAYER_FRICTION : AIR_FRICTION) * dt;
+          player.velocityX -= Math.sign(player.velocityX) * Math.min(Math.abs(player.velocityX), frictionAmount);
+          // Stop at same threshold as idle animation detection
+          if (Math.abs(player.velocityX) < 0.5) player.velocityX = 0;
+        }
       }
 
       // Apply gravity with terminal velocity
@@ -893,6 +924,12 @@ export default function PixelGame() {
         state.jumpBuffer = 0;
         state.coyoteTime = 0;
         player.landingTimer = 0;
+        
+        // Guy1: Enable double jump after first jump
+        if (selectedCharacter === 'guy1') {
+          player.doubleJumpAvailable = true;
+        }
+        
         playSound('jump');
         
         // Spawn jump particles - enhanced burst effect with better colors
@@ -910,16 +947,126 @@ export default function PixelGame() {
           });
         }
       }
+      
+      // Guy1: Double jump mechanic
+      if (selectedCharacter === 'guy1') {
+        if (player.doubleJumpAvailable && !player.onGround && state.jumpBuffer > 0) {
+          player.velocityY = DOUBLE_JUMP_VELOCITY;
+          player.doubleJumpAvailable = false;
+          state.jumpBuffer = 0;
+          playSound('jump');
+          
+          // Double jump particles - cyan/blue colors
+          for (let i = 0; i < 25; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 60 + Math.random() * 80;
+            state.particles.push({
+              x: player.x + 6,
+              y: player.y + 7,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              life: 0.6,
+              maxLife: 0.6,
+              color: i % 3 === 0 ? '#00FFFF' : i % 3 === 1 ? '#00BFFF' : '#1E90FF',
+            });
+          }
+        }
+        
+        // Reset double jump when landing
+        if (player.onGround) {
+          player.doubleJumpAvailable = false;
+        }
+      }
+      
+      // Guy1: Dash mechanic (Shift key)
+      if (selectedCharacter === 'guy1') {
+        const dashKey = state.keys['Shift'];
+        
+        // Update dash cooldown
+        if (player.dashCooldown > 0) {
+          player.dashCooldown -= dt;
+        }
+        
+        // Activate dash
+        if (dashKey && player.dashAvailable && player.dashCooldown <= 0 && !player.isDashing) {
+          player.isDashing = true;
+          player.dashTimer = DASH_DURATION;
+          player.dashCooldown = DASH_COOLDOWN;
+          player.dashAvailable = false;
+          playSound('flip');
+          
+          // Dash particles - orange/yellow trail
+          for (let i = 0; i < 15; i++) {
+            state.particles.push({
+              x: player.x + 6,
+              y: player.y + 7,
+              vx: (player.facingLeft ? 40 : -40) + (Math.random() - 0.5) * 30,
+              vy: (Math.random() - 0.5) * 40,
+              life: 0.5,
+              maxLife: 0.5,
+              color: i % 2 === 0 ? '#FFA500' : '#FFD700',
+            });
+          }
+        }
+        
+        // Update dash
+        if (player.isDashing) {
+          player.dashTimer -= dt;
+          player.velocityX = (player.facingLeft ? -1 : 1) * DASH_SPEED;
+          player.velocityY *= 0.5; // Reduce vertical velocity during dash
+          
+          // Continuous dash trail
+          for (let i = 0; i < 2; i++) {
+            state.particles.push({
+              x: player.x + 6,
+              y: player.y + 7,
+              vx: (player.facingLeft ? 30 : -30) + (Math.random() - 0.5) * 20,
+              vy: (Math.random() - 0.5) * 30,
+              life: 0.3,
+              maxLife: 0.3,
+              color: Math.random() > 0.5 ? '#FFA500' : '#FFD700',
+            });
+          }
+          
+          if (player.dashTimer <= 0) {
+            player.isDashing = false;
+          }
+        }
+        
+        // Reset dash availability when landing
+        if (player.onGround) {
+          player.dashAvailable = true;
+        }
+      }
 
       // Variable jump height - release jump key to stop rising
       const jumpKeyPressed = state.keys['ArrowUp'] || state.keys['w'] || state.keys['W'] || 
                             state.keys[' '] || state.keys['z'] || state.keys['Z'];
       
-      // Guy3: Track jump hold time for slam mechanic
+      // Guy3: Enhanced slam attack with charge levels and ground pound
       if (selectedCharacter === 'guy3') {
         if (jumpKeyPressed && !player.onGround && player.velocityY < 0) {
           player.jumpHoldTime += dt;
           player.slamCharging = true;
+          
+          // Calculate charge level (0-3)
+          player.chargeLevel = Math.min(3, Math.floor(player.jumpHoldTime / 0.3));
+          
+          // Charging particles - intensity increases with charge
+          if (player.chargeLevel > 0 && Math.random() > 0.8) {
+            const particleCount = player.chargeLevel;
+            for (let i = 0; i < particleCount; i++) {
+              state.particles.push({
+                x: player.x + 6 + (Math.random() - 0.5) * 10,
+                y: player.y + 12,
+                vx: (Math.random() - 0.5) * 20,
+                vy: Math.random() * 30,
+                life: 0.3,
+                maxLife: 0.3,
+                color: player.chargeLevel === 3 ? '#FF0000' : player.chargeLevel === 2 ? '#FF4444' : '#FF8888',
+              });
+            }
+          }
         } else {
           player.slamCharging = false;
         }
@@ -927,29 +1074,121 @@ export default function PixelGame() {
         // If jump released after holding at peak, activate slam
         if (!jumpKeyPressed && player.jumpHoldTime > 0.3 && !player.onGround && !player.isSlamming) {
           player.isSlamming = true;
-          player.velocityY = 600; // Fast downward slam
+          const slamSpeed = 600 + (player.chargeLevel * 150); // Faster with charge
+          player.velocityY = slamSpeed;
+          player.groundPoundRadius = 20 + (player.chargeLevel * 15); // Larger radius with charge
           playSound('jump');
           
-          // Slam particles
-          for (let i = 0; i < 15; i++) {
+          // Slam activation particles - more with higher charge
+          const particleCount = 15 + (player.chargeLevel * 10);
+          for (let i = 0; i < particleCount; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 40 + Math.random() * 50;
+            const speed = 50 + Math.random() * 60;
             state.particles.push({
               x: player.x + 6,
               y: player.y + 7,
               vx: Math.cos(angle) * speed,
               vy: Math.sin(angle) * speed,
-              life: 0.5,
-              maxLife: 0.5,
-              color: '#FF4444',
+              life: 0.6,
+              maxLife: 0.6,
+              color: player.chargeLevel === 3 ? '#FF0000' : player.chargeLevel === 2 ? '#FF4444' : '#FF6666',
             });
           }
         }
         
-        // Reset jump hold time when on ground
-        if (player.onGround) {
-          player.jumpHoldTime = 0;
+        // Ground pound impact when landing from slam
+        if (player.isSlamming && player.onGround) {
           player.isSlamming = false;
+          const impactRadius = player.groundPoundRadius;
+          
+          // Massive screen shake based on charge
+          state.screenShake = 0.15 + (player.chargeLevel * 0.1);
+          playSound('stomp');
+          
+          // Ground pound impact particles - shockwave effect
+          const impactParticles = 40 + (player.chargeLevel * 20);
+          for (let i = 0; i < impactParticles; i++) {
+            const angle = (Math.PI * 2 * i) / impactParticles;
+            const speed = 80 + Math.random() * 100;
+            state.particles.push({
+              x: player.x + 6,
+              y: player.y + 14,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed * 0.3 - 30,
+              life: 0.8,
+              maxLife: 0.8,
+              color: i % 5 === 0 ? '#FF0000' : i % 5 === 1 ? '#FF4444' : i % 5 === 2 ? '#FF6666' : i % 5 === 3 ? '#FFA500' : '#FFD700',
+            });
+          }
+          
+          // Damage enemies in radius
+          state.enemies.forEach(enemy => {
+            if (enemy.alive) {
+              const dx = enemy.x - player.x;
+              const dy = enemy.y - player.y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              
+              if (distance < impactRadius) {
+                enemy.alive = false;
+                playSound('stomp');
+                state.combo++;
+                state.comboTimer = 3.5;
+                const comboBonus = state.combo > 1 ? state.combo * 150 : 0;
+                setScore(s => s + 300 + comboBonus);
+                
+                // Enemy death particles
+                for (let j = 0; j < 12; j++) {
+                  const angle = (Math.PI * 2 * j) / 12;
+                  state.particles.push({
+                    x: enemy.x + 6,
+                    y: enemy.y + 6,
+                    vx: Math.cos(angle) * 100,
+                    vy: Math.sin(angle) * 100 - 50,
+                    life: 0.6,
+                    maxLife: 0.6,
+                    color: '#FF0000',
+                  });
+                }
+              }
+            }
+          });
+          
+          // Break nearby bricks
+          state.platforms.forEach(platform => {
+            if (platform.type === 'brick' && !platform.broken) {
+              const dx = platform.x - player.x;
+              const dy = platform.y - player.y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              
+              if (distance < impactRadius * 1.5) {
+                platform.broken = true;
+                playSound('break');
+                setScore(s => s + 50);
+                
+                // Brick break particles
+                for (let j = 0; j < 15; j++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const speed = 50 + Math.random() * 70;
+                  state.particles.push({
+                    x: platform.x + 8,
+                    y: platform.y + 8,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 40,
+                    life: 0.7,
+                    maxLife: 0.7,
+                    color: '#FF6347',
+                  });
+                }
+              }
+            }
+          });
+        }
+        
+        // Reset jump hold time and charge when on ground
+        if (player.onGround && !player.isSlamming) {
+          player.jumpHoldTime = 0;
+          player.chargeLevel = 0;
+          player.groundPoundRadius = 0;
         }
       }
       
@@ -957,7 +1196,7 @@ export default function PixelGame() {
         player.velocityY *= 0.5;
       }
       
-      // Guy2: Air slide mechanic (hold jump in air, release to slide)
+      // Guy2: Enhanced air slide mechanic with multiple air dashes
       if (selectedCharacter === 'guy2') {
         // Track jump hold time while in air and moving horizontally
         if (jumpKeyPressed && !player.onGround && Math.abs(player.velocityX) > 50) {
@@ -968,33 +1207,39 @@ export default function PixelGame() {
         }
         
         // If jump released after holding while airborne, activate air slide
-        if (!jumpKeyPressed && player.jumpHoldTime > 0.3 && !player.onGround && !player.isAirSliding && !player.airSlideUsed) {
+        if (!jumpKeyPressed && player.jumpHoldTime > 0.25 && !player.onGround && !player.isAirSliding && player.airDashCount < 2) {
           player.isAirSliding = true;
-          player.airSlideUsed = true; // Mark as used for this jump
-          player.airSlideTimer = 0.25; // Air slide duration
-          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.2; // Fast horizontal boost
+          player.airDashCount++; // Guy2 can air dash twice per jump
+          player.airSlideTimer = 0.3; // Longer air slide duration
+          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.5; // Faster horizontal boost
           player.velocityY = 0; // Neutralize vertical velocity briefly
+          player.jumpHoldTime = 0; // Reset for next dash
           playSound('fart');
           
-          // Air slide fart particles (green)
-          for (let i = 0; i < 12; i++) {
+          // Enhanced air slide fart particles (green with sparkles)
+          for (let i = 0; i < 18; i++) {
             state.particles.push({
               x: player.x + 6,
               y: player.y + 7,
-              vx: (player.facingLeft ? 40 : -40) + (Math.random() - 0.5) * 30,
-              vy: (Math.random() - 0.5) * 40,
-              life: 0.4,
-              maxLife: 0.4,
-              color: '#44FF44',
+              vx: (player.facingLeft ? 50 : -50) + (Math.random() - 0.5) * 40,
+              vy: (Math.random() - 0.5) * 50,
+              life: 0.5,
+              maxLife: 0.5,
+              color: i % 4 === 0 ? '#44FF44' : i % 4 === 1 ? '#66FF66' : i % 4 === 2 ? '#88FF88' : '#AAFFAA',
             });
           }
         }
         
-        // Reset air slide flag and jump hold time when landing
+        // Reset air dash count and jump hold time when landing
         if (player.onGround) {
-          player.airSlideUsed = false;
+          player.airDashCount = 0;
           player.jumpHoldTime = 0;
           player.isAirSliding = false;
+          
+          // Speed boost on landing after air dash
+          if (player.speedBoostTimer > 0) {
+            player.speedBoostTimer -= dt;
+          }
         }
         
         // Update air slide timer
@@ -1002,24 +1247,44 @@ export default function PixelGame() {
           player.airSlideTimer -= dt;
           if (player.airSlideTimer <= 0 || player.onGround) {
             player.isAirSliding = false;
+            // Grant speed boost on landing
+            if (player.onGround) {
+              player.speedBoostTimer = 2.0; // 2 seconds of speed boost
+            }
           }
         }
         
         // During air slide, maintain horizontal speed and slow fall
         if (player.isAirSliding) {
-          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.2;
-          player.velocityY = Math.min(player.velocityY, 80); // Slow fall during slide
+          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.5;
+          player.velocityY = Math.min(player.velocityY, 60); // Even slower fall during slide
           
-          // Continuous green fart trail during air slide
-          for (let i = 0; i < 2; i++) {
+          // Continuous green fart trail during air slide with speed lines
+          for (let i = 0; i < 3; i++) {
+            state.particles.push({
+              x: player.x + 6 + (Math.random() - 0.5) * 8,
+              y: player.y + 7 + (Math.random() - 0.5) * 8,
+              vx: (player.facingLeft ? 40 : -40) + (Math.random() - 0.5) * 25,
+              vy: (Math.random() - 0.5) * 35,
+              life: 0.35,
+              maxLife: 0.35,
+              color: Math.random() > 0.5 ? '#44FF44' : '#66FF66',
+            });
+          }
+        }
+        
+        // Speed boost visual effect
+        if (player.speedBoostTimer > 0 && player.onGround && Math.abs(player.velocityX) > 50) {
+          // Speed trail particles
+          if (Math.random() > 0.7) {
             state.particles.push({
               x: player.x + 6,
-              y: player.y + 7,
-              vx: (player.facingLeft ? 30 : -30) + (Math.random() - 0.5) * 20,
-              vy: (Math.random() - 0.5) * 30,
-              life: 0.3,
-              maxLife: 0.3,
-              color: '#44FF44',
+              y: player.y + 10,
+              vx: (player.facingLeft ? 20 : -20),
+              vy: (Math.random() - 0.5) * 10,
+              life: 0.2,
+              maxLife: 0.2,
+              color: '#00FFFF',
             });
           }
         }
@@ -1633,79 +1898,199 @@ export default function PixelGame() {
         
         // Different movement for snake vs badguy (ghost) vs goomba
         if (enemy.type === 'snake') {
-          // Enhanced snake slithering on ground with occasional hops
+          // Enhanced snake slithering with lunging attack pattern
           enemy.waveOffset = (enemy.waveOffset || 0) + dt * 6;
           
-          // Variable speed based on wave motion (faster at wave peaks)
-          const waveMotion = Math.sin(enemy.waveOffset);
-          const speedMultiplier = 1 + Math.abs(waveMotion) * 0.3;
-          const speed = 45 * speedMultiplier;
-          enemy.x += enemy.direction * speed * dt;
+          // Initialize attack properties
+          if (!('attackCooldown' in enemy)) {
+            (enemy as any).attackCooldown = 2 + Math.random() * 2;
+            (enemy as any).isLunging = false;
+            (enemy as any).lungeTimer = 0;
+          }
+          
+          // Check distance to player for lunge attack
+          const distToPlayer = Math.abs(player.x - enemy.x);
+          const playerInRange = distToPlayer < 60 && Math.abs(player.y - enemy.y) < 30;
+          
+          // Lunge attack logic
+          if (playerInRange && (enemy as any).attackCooldown <= 0 && !(enemy as any).isLunging) {
+            (enemy as any).isLunging = true;
+            (enemy as any).lungeTimer = 0.4; // Lunge duration
+            (enemy as any).attackCooldown = 3 + Math.random() * 2;
+            enemy.direction = player.x > enemy.x ? 1 : -1;
+            (enemy as any).velocityY = -150; // Jump during lunge
+            playSound('jump');
+            
+            // Lunge warning particles
+            for (let i = 0; i < 8; i++) {
+              state.particles.push({
+                x: enemy.x + 6,
+                y: enemy.y + 6,
+                vx: (Math.random() - 0.5) * 30,
+                vy: (Math.random() - 0.5) * 30,
+                life: 0.3,
+                maxLife: 0.3,
+                color: '#FF0000',
+              });
+            }
+          }
+          
+          // Update lunge
+          if ((enemy as any).isLunging) {
+            (enemy as any).lungeTimer -= dt;
+            const lungeSpeed = 120; // Fast lunge speed
+            enemy.x += enemy.direction * lungeSpeed * dt;
+            
+            // Lunge trail particles
+            if (Math.random() > 0.6) {
+              state.particles.push({
+                x: enemy.x + 6,
+                y: enemy.y + 6,
+                vx: -enemy.direction * 40,
+                vy: (Math.random() - 0.5) * 20,
+                life: 0.2,
+                maxLife: 0.2,
+                color: '#00FF00',
+              });
+            }
+            
+            if ((enemy as any).lungeTimer <= 0) {
+              (enemy as any).isLunging = false;
+            }
+          } else {
+            // Normal slithering movement
+            const waveMotion = Math.sin(enemy.waveOffset);
+            const speedMultiplier = 1 + Math.abs(waveMotion) * 0.3;
+            const speed = 50 * speedMultiplier;
+            enemy.x += enemy.direction * speed * dt;
+          }
+          
+          // Update attack cooldown
+          if ((enemy as any).attackCooldown > 0) {
+            (enemy as any).attackCooldown -= dt;
+          }
           
           // Initialize hop timer if not present
           if (!('hopTimer' in enemy)) {
             (enemy as any).hopTimer = Math.random() * 3;
           }
           
-          // Occasional small hops while slithering
-          (enemy as any).hopTimer -= dt;
-          if ((enemy as any).hopTimer <= 0 && Math.abs((enemy as any).velocityY) < 10) {
-            // Small hop
-            (enemy as any).velocityY = -120;
-            (enemy as any).hopTimer = 2 + Math.random() * 2; // Hop every 2-4 seconds
+          // Occasional small hops while slithering (not during lunge)
+          if (!(enemy as any).isLunging) {
+            (enemy as any).hopTimer -= dt;
+            if ((enemy as any).hopTimer <= 0 && Math.abs((enemy as any).velocityY) < 10) {
+              (enemy as any).velocityY = -140;
+              (enemy as any).hopTimer = 2 + Math.random() * 2;
+            }
           }
         } else if (enemy.type === 'badguy') {
-          // 👻 BADGUY = GHOST with psychological horror mechanics
+          // 👻 BADGUY = GHOST with enhanced psychological horror mechanics
           // Initialize ghost properties
           if (enemy.opacity === undefined) enemy.opacity = 0.8;
           if (enemy.frozen === undefined) enemy.frozen = false;
-          if (enemy.disappearTimer === undefined) enemy.disappearTimer = 5 + Math.random() * 5;
+          if (enemy.disappearTimer === undefined) enemy.disappearTimer = 4 + Math.random() * 4;
           if (enemy.mimicJumpTimer === undefined) enemy.mimicJumpTimer = 0;
           if (enemy.floatOffset === undefined) enemy.floatOffset = Math.random() * Math.PI * 2;
+          if (!('stalkerMode' in enemy)) (enemy as any).stalkerMode = false;
+          if (!('rushTimer' in enemy)) (enemy as any).rushTimer = 0;
           
-          // Check if player is moving (FREEZE mechanic)
-          const playerIsMoving = Math.abs(player.velocityX) > 10 || Math.abs(player.velocityY) > 10;
+          // Check if player is moving (FREEZE mechanic - enhanced)
+          const playerIsMoving = Math.abs(player.velocityX) > 5 || Math.abs(player.velocityY) > 5;
+          const distToPlayer = Math.sqrt(Math.pow(player.x - enemy.x, 2) + Math.pow(player.y - enemy.y, 2));
           
+          // Enhanced freeze mechanic - ghost becomes more aggressive when player stops
           if (!playerIsMoving && !enemy.isDisappearing) {
             enemy.frozen = true;
-            enemy.opacity = Math.max(0.3, enemy.opacity - dt * 0.5);
+            enemy.opacity = Math.max(0.2, enemy.opacity - dt * 0.6);
+            
+            // Stalker mode - slowly creep toward player when frozen
+            if (distToPlayer > 15) {
+              (enemy as any).stalkerMode = true;
+              const creepSpeed = 8; // Very slow creep
+              const toPlayerX = player.x - enemy.x;
+              enemy.x += Math.sign(toPlayerX) * creepSpeed * dt;
+              
+              // Creepy particles
+              if (Math.random() > 0.95) {
+                state.particles.push({
+                  x: enemy.x + 6,
+                  y: enemy.y + 6,
+                  vx: (Math.random() - 0.5) * 10,
+                  vy: (Math.random() - 0.5) * 10,
+                  life: 0.4,
+                  maxLife: 0.4,
+                  color: '#9370DB',
+                });
+              }
+            }
           } else if (!enemy.isDisappearing) {
             enemy.frozen = false;
-            enemy.opacity = Math.min(0.8, enemy.opacity + dt * 2);
+            enemy.opacity = Math.min(0.85, enemy.opacity + dt * 2.5);
+            (enemy as any).stalkerMode = false;
           }
           
-          // Handle disappear/reappear mechanic
+          // Handle disappear/reappear mechanic with unpredictability
           if (!enemy.isDisappearing) {
             enemy.disappearTimer -= dt;
             if (enemy.disappearTimer <= 0) {
               enemy.isDisappearing = true;
-              enemy.disappearTimer = 1.0;
+              enemy.disappearTimer = 1.2;
               playSound('jump');
-            }
-          } else {
-            enemy.disappearTimer -= dt;
-            enemy.opacity = Math.max(0, enemy.disappearTimer);
-            
-            if (enemy.disappearTimer <= 0) {
-              // Reappear behind player
-              const behindPlayer = player.facingLeft ? player.x + 40 : player.x - 40;
-              enemy.x = Math.max(0, Math.min(state.stageWidth - 12, behindPlayer));
-              enemy.y = player.y;
-              enemy.isDisappearing = false;
-              enemy.disappearTimer = 5 + Math.random() * 5;
-              enemy.opacity = 0;
               
-              // Purple particles
-              for (let i = 0; i < 20; i++) {
-                const angle = (Math.PI * 2 * i) / 20;
+              // Disappear particles
+              for (let i = 0; i < 15; i++) {
+                const angle = (Math.PI * 2 * i) / 15;
                 state.particles.push({
                   x: enemy.x + 6,
                   y: enemy.y + 6,
-                  vx: Math.cos(angle) * 60,
-                  vy: Math.sin(angle) * 60,
-                  life: 0.5,
-                  maxLife: 0.5,
-                  color: '#9370DB',
+                  vx: Math.cos(angle) * 50,
+                  vy: Math.sin(angle) * 50,
+                  life: 0.4,
+                  maxLife: 0.4,
+                  color: '#4B0082',
+                });
+              }
+            }
+          } else {
+            enemy.disappearTimer -= dt;
+            enemy.opacity = Math.max(0, enemy.disappearTimer / 1.2);
+            
+            if (enemy.disappearTimer <= 0) {
+              // Reappear with multiple strategies
+              const strategy = Math.random();
+              
+              if (strategy < 0.4) {
+                // Behind player (classic)
+                const behindPlayer = player.facingLeft ? player.x + 50 : player.x - 50;
+                enemy.x = Math.max(0, Math.min(state.stageWidth - 12, behindPlayer));
+                enemy.y = player.y;
+              } else if (strategy < 0.7) {
+                // Above player (drop attack)
+                enemy.x = player.x + (Math.random() - 0.5) * 30;
+                enemy.y = player.y - 60;
+                (enemy as any).rushTimer = 0.8; // Rush down
+              } else {
+                // Ahead of player (ambush)
+                const aheadPlayer = player.facingLeft ? player.x - 60 : player.x + 60;
+                enemy.x = Math.max(0, Math.min(state.stageWidth - 12, aheadPlayer));
+                enemy.y = player.y;
+              }
+              
+              enemy.isDisappearing = false;
+              enemy.disappearTimer = 4 + Math.random() * 4;
+              enemy.opacity = 0;
+              
+              // Reappear particles - more dramatic
+              for (let i = 0; i < 25; i++) {
+                const angle = (Math.PI * 2 * i) / 25;
+                state.particles.push({
+                  x: enemy.x + 6,
+                  y: enemy.y + 6,
+                  vx: Math.cos(angle) * 80,
+                  vy: Math.sin(angle) * 80,
+                  life: 0.6,
+                  maxLife: 0.6,
+                  color: i % 2 === 0 ? '#9370DB' : '#8B008B',
                 });
               }
             }
@@ -1713,73 +2098,151 @@ export default function PixelGame() {
           
           // Movement when not frozen
           if (!enemy.frozen && !enemy.isDisappearing) {
-            // Float toward player
             const toPlayerX = player.x - enemy.x;
-            const distToPlayer = Math.abs(toPlayerX);
+            const toPlayerY = player.y - enemy.y;
             
-            if (distToPlayer > 20) {
-              const ghostSpeed = 35;
-              enemy.x += Math.sign(toPlayerX) * ghostSpeed * dt;
-              enemy.direction = Math.sign(toPlayerX);
-            }
-            
-            // Mimic player's jump
-            if (enemy.mimicJumpTimer > 0) {
-              enemy.mimicJumpTimer -= dt;
-              if (enemy.mimicJumpVelocity !== undefined) {
-                enemy.y += enemy.mimicJumpVelocity * dt;
-                enemy.mimicJumpVelocity += GRAVITY * dt * 0.5;
+            // Rush attack after reappearing above
+            if ((enemy as any).rushTimer > 0) {
+              (enemy as any).rushTimer -= dt;
+              const rushSpeed = 150;
+              enemy.y += rushSpeed * dt;
+              
+              // Rush particles
+              if (Math.random() > 0.7) {
+                state.particles.push({
+                  x: enemy.x + 6,
+                  y: enemy.y,
+                  vx: (Math.random() - 0.5) * 30,
+                  vy: -40,
+                  life: 0.3,
+                  maxLife: 0.3,
+                  color: '#FF0000',
+                });
               }
             } else {
-              // Float above ground level, not at fixed height
-              // Find the ground level below the ghost
-              let groundY = GAME_HEIGHT - 20; // Default to near bottom
+              // Normal pursuit with varying speed based on distance
+              const distToPlayer = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
               
-              for (const platform of state.platforms) {
-                if (platform.type === 'ground' && 
-                    enemy.x + 12 > platform.x && 
-                    enemy.x < platform.x + platform.width) {
-                  groundY = platform.y;
-                  break;
+              if (distToPlayer > 20) {
+                // Speed increases when closer to player (more threatening)
+                const baseSpeed = 40;
+                const speedBoost = Math.max(0, (100 - distToPlayer) / 100) * 30;
+                const ghostSpeed = baseSpeed + speedBoost;
+                
+                enemy.x += Math.sign(toPlayerX) * ghostSpeed * dt;
+                enemy.direction = Math.sign(toPlayerX);
+                
+                // Threat particles when close
+                if (distToPlayer < 50 && Math.random() > 0.85) {
+                  state.particles.push({
+                    x: enemy.x + 6,
+                    y: enemy.y + 6,
+                    vx: (Math.random() - 0.5) * 20,
+                    vy: (Math.random() - 0.5) * 20,
+                    life: 0.3,
+                    maxLife: 0.3,
+                    color: '#FF00FF',
+                  });
                 }
               }
               
-              // Float 40-60 pixels above ground with wave motion
-              enemy.floatOffset += dt * 2;
-              const floatWave = Math.sin(enemy.floatOffset) * 10;
-              const targetY = groundY - 50 + floatWave;
+              // Mimic player's jump with better timing
+              if (enemy.mimicJumpTimer > 0) {
+                enemy.mimicJumpTimer -= dt;
+                if (enemy.mimicJumpVelocity !== undefined) {
+                  enemy.y += enemy.mimicJumpVelocity * dt;
+                  enemy.mimicJumpVelocity += GRAVITY * dt * 0.5;
+                }
+              } else {
+                // Float above ground with eerie wave motion
+                let groundY = GAME_HEIGHT - 20;
+                
+                for (const platform of state.platforms) {
+                  if (platform.type === 'ground' && 
+                      enemy.x + 12 > platform.x && 
+                      enemy.x < platform.x + platform.width) {
+                    groundY = platform.y;
+                    break;
+                  }
+                }
+                
+                // Enhanced floating with more dramatic wave
+                enemy.floatOffset += dt * 2.5;
+                const floatWave = Math.sin(enemy.floatOffset) * 15;
+                const targetY = groundY - 45 + floatWave;
+                
+                const heightDiff = targetY - enemy.y;
+                enemy.y += heightDiff * dt * 2.5;
+              }
               
-              // Smoothly move toward target height
-              const heightDiff = targetY - enemy.y;
-              enemy.y += heightDiff * dt * 2;
-            }
-            
-            // Detect player jump to mimic
-            if (!player.onGround && player.velocityY < -100 && enemy.mimicJumpTimer <= 0) {
-              enemy.mimicJumpTimer = 1.5;
-              enemy.mimicJumpVelocity = player.velocityY * 0.7;
+              // Detect player jump to mimic
+              if (!player.onGround && player.velocityY < -100 && enemy.mimicJumpTimer <= 0) {
+                enemy.mimicJumpTimer = 1.5;
+                enemy.mimicJumpVelocity = player.velocityY * 0.7;
+              }
             }
           }
           
-          // Badguy phases through platforms (except ground) - skip gravity
+          // Badguy phases through platforms - skip gravity
           (enemy as any).velocityY = 0;
           
         } else {
-          // Goomba moves normally
-          let moveSpeed = 30;
+          // Enhanced Goomba with patrol and chase behavior
+          // Initialize goomba AI properties
+          if (!('patrolTimer' in enemy)) {
+            (enemy as any).patrolTimer = 2 + Math.random() * 2;
+            (enemy as any).isChasing = false;
+            (enemy as any).chaseSpeed = 55;
+          }
           
-          // Apply initial horizontal push if spawned from question block
-          if ('initialPushX' in enemy) {
-            enemy.x += (enemy as any).initialPushX * dt;
-            // Decay the push over time
-            (enemy as any).initialPushX *= 0.92;
-            // Remove push when it's weak enough
-            if (Math.abs((enemy as any).initialPushX) < 5) {
-              delete (enemy as any).initialPushX;
+          // Check distance to player
+          const distToPlayer = Math.abs(player.x - enemy.x);
+          const playerNearby = distToPlayer < 80 && Math.abs(player.y - enemy.y) < 40;
+          
+          // Chase behavior when player is nearby
+          if (playerNearby && !('initialPushX' in enemy)) {
+            (enemy as any).isChasing = true;
+            enemy.direction = player.x > enemy.x ? 1 : -1;
+            const chaseSpeed = (enemy as any).chaseSpeed;
+            enemy.x += enemy.direction * chaseSpeed * dt;
+            
+            // Chase particles (angry)
+            if (Math.random() > 0.9) {
+              state.particles.push({
+                x: enemy.x + 6,
+                y: enemy.y + 2,
+                vx: (Math.random() - 0.5) * 20,
+                vy: -Math.random() * 20,
+                life: 0.2,
+                maxLife: 0.2,
+                color: '#FF4444',
+              });
             }
           } else {
-            // Normal movement
-            enemy.x += enemy.direction * moveSpeed * dt;
+            // Normal patrol behavior
+            (enemy as any).isChasing = false;
+            let moveSpeed = 35;
+            
+            // Apply initial horizontal push if spawned from question block
+            if ('initialPushX' in enemy) {
+              enemy.x += (enemy as any).initialPushX * dt;
+              (enemy as any).initialPushX *= 0.92;
+              if (Math.abs((enemy as any).initialPushX) < 5) {
+                delete (enemy as any).initialPushX;
+              }
+            } else {
+              // Patrol with occasional direction changes
+              (enemy as any).patrolTimer -= dt;
+              if ((enemy as any).patrolTimer <= 0) {
+                // Random chance to turn around
+                if (Math.random() > 0.7) {
+                  enemy.direction *= -1;
+                }
+                (enemy as any).patrolTimer = 2 + Math.random() * 3;
+              }
+              
+              enemy.x += enemy.direction * moveSpeed * dt;
+            }
           }
         }
         
