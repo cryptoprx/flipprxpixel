@@ -22,6 +22,7 @@ interface Sprite {
   hasWaterGun: boolean;
   waterGunTimer: number;
   shootCooldown: number;
+  invincibilityTimer: number;
   isAirSliding: boolean;
   airSlideTimer: number;
   airSlideUsed: boolean;
@@ -97,6 +98,7 @@ export default function PixelGame() {
       hasWaterGun: false,
       waterGunTimer: 0,
       shootCooldown: 0,
+      invincibilityTimer: 0,
       isAirSliding: false,
       airSlideTimer: 0,
       airSlideUsed: false,
@@ -194,6 +196,7 @@ export default function PixelGame() {
   const COYOTE_TIME = 0.2; // Forgiving edge jumps
   const JUMP_BUFFER = 0.25; // Forgiving jump timing
   const MAX_FALL_SPEED = 480; // Controlled falling
+  const MAX_PARTICLES = 300; // Particle count limit to prevent memory leaks
 
   // Audio system - procedural sound generation
   const playSound = (type: string) => {
@@ -956,8 +959,8 @@ export default function PixelGame() {
           state.jumpBuffer = 0;
           playSound('jump');
           
-          // Double jump particles - cyan/blue colors
-          for (let i = 0; i < 25; i++) {
+          // Double jump particles - cyan/blue colors (optimized: 25 -> 15)
+          for (let i = 0; i < 15; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 60 + Math.random() * 80;
             state.particles.push({
@@ -993,6 +996,7 @@ export default function PixelGame() {
           player.dashTimer = DASH_DURATION;
           player.dashCooldown = DASH_COOLDOWN;
           player.dashAvailable = false;
+          player.invincibilityTimer = DASH_DURATION; // Invincible during dash
           playSound('flip');
           
           // Dash particles - orange/yellow trail
@@ -1031,6 +1035,11 @@ export default function PixelGame() {
           if (player.dashTimer <= 0) {
             player.isDashing = false;
           }
+        }
+        
+        // Update invincibility timer
+        if (player.invincibilityTimer > 0) {
+          player.invincibilityTimer -= dt;
         }
         
         // Reset dash availability when landing
@@ -1105,8 +1114,8 @@ export default function PixelGame() {
           state.screenShake = 0.15 + (player.chargeLevel * 0.1);
           playSound('stomp');
           
-          // Ground pound impact particles - shockwave effect
-          const impactParticles = 40 + (player.chargeLevel * 20);
+          // Ground pound impact particles - shockwave effect (optimized)
+          const impactParticles = 25 + (player.chargeLevel * 10);
           for (let i = 0; i < impactParticles; i++) {
             const angle = (Math.PI * 2 * i) / impactParticles;
             const speed = 80 + Math.random() * 100;
@@ -1235,11 +1244,11 @@ export default function PixelGame() {
           player.airDashCount = 0;
           player.jumpHoldTime = 0;
           player.isAirSliding = false;
-          
-          // Speed boost on landing after air dash
-          if (player.speedBoostTimer > 0) {
-            player.speedBoostTimer -= dt;
-          }
+        }
+        
+        // Update speed boost timer (fixed: was only updating when on ground)
+        if (player.speedBoostTimer > 0) {
+          player.speedBoostTimer -= dt;
         }
         
         // Update air slide timer
@@ -1474,124 +1483,85 @@ export default function PixelGame() {
               platform.bounceOffset = 8;
               playSound('powerup');
               
-              // Random reward
+              // Random reward (consolidated logic)
               const reward = Math.random();
+              
               if (reward < 0.4) {
-                // Coin
-                state.coins.push({
-                  x: platform.x + 4,
-                  y: platform.y - 16,
-                  collected: false,
-                  floatOffset: 0
-                });
-              } else if (reward < 0.7) {
-                // Points
-                setScore(s => s + 500);
-              } else {
-                // War Helmet powerup!
-                player.hasHelmet = true;
-                player.helmetTimer = 10;
-                
-                // Spawn helmet particles
-                for (let j = 0; j < 20; j++) {
-                  const angle = (Math.PI * 2 * j) / 20;
-                  state.particles.push({
-                    x: platform.x + 8,
-                    y: platform.y - 8,
-                    vx: Math.cos(angle) * 60,
-                    vy: Math.sin(angle) * 60,
-                    life: 0.8,
-                    maxLife: 0.8,
-                    color: '#C0C0C0',
+                // Spawn 3 coins
+                for (let i = 0; i < 3; i++) {
+                  state.coins.push({
+                    x: platform.x + 4,
+                    y: platform.y - 20 - i * 8,
+                    collected: false,
+                    floatOffset: Math.random() * Math.PI * 2
                   });
                 }
-              }
-            }
-          }
-          
-          // Check if hitting question block from below
-          if (platform.type === 'question' && !platform.used) {
-            platform.used = true;
-            playSound('powerup');
-            const reward = Math.random();
-            
-            if (reward < 0.4) {
-              // Spawn 3 coins
-              for (let i = 0; i < 3; i++) {
+                // Particle effect
+                for (let i = 0; i < 15; i++) {
+                  const angle = (Math.PI * 2 * i) / 15;
+                  state.particles.push({
+                    x: platform.x + 8,
+                    y: platform.y,
+                    vx: Math.cos(angle) * 60,
+                    vy: Math.sin(angle) * 60 - 40,
+                    life: 0.5,
+                    maxLife: 0.5,
+                    color: '#FFD700',
+                  });
+                }
+              } else if (reward < 0.7) {
+                // Spawn 1 coin
                 state.coins.push({
                   x: platform.x + 4,
-                  y: platform.y - 20 - i * 8,
+                  y: platform.y - 20,
                   collected: false,
                   floatOffset: Math.random() * Math.PI * 2
                 });
+                // Particle effect
+                for (let i = 0; i < 8; i++) {
+                  const angle = (Math.PI * 2 * i) / 8;
+                  state.particles.push({
+                    x: platform.x + 8,
+                    y: platform.y,
+                    vx: Math.cos(angle) * 50,
+                    vy: Math.sin(angle) * 50 - 30,
+                    life: 0.4,
+                    maxLife: 0.4,
+                    color: '#FFA500',
+                  });
+                }
+              } else {
+                // Spawn enemy (badguy) with upward velocity to pop out
+                const spawnDirection = Math.random() > 0.5 ? 1 : -1;
+                const newEnemy = {
+                  x: platform.x + 4,
+                  y: platform.y - 12,
+                  direction: spawnDirection,
+                  alive: true,
+                  type: 'badguy' as const,
+                  animFrame: 0
+                };
+                state.enemies.push(newEnemy);
+                (newEnemy as any).velocityY = -180;
+                (newEnemy as any).initialPushX = spawnDirection * 60;
+                // Particle effect (red for danger)
+                for (let i = 0; i < 12; i++) {
+                  const angle = (Math.PI * 2 * i) / 12;
+                  state.particles.push({
+                    x: platform.x + 8,
+                    y: platform.y,
+                    vx: Math.cos(angle) * 70,
+                    vy: Math.sin(angle) * 70 - 50,
+                    life: 0.6,
+                    maxLife: 0.6,
+                    color: '#FF0000',
+                  });
+                }
               }
-              // Particle effect
-              for (let i = 0; i < 15; i++) {
-                const angle = (Math.PI * 2 * i) / 15;
-                state.particles.push({
-                  x: platform.x + 8,
-                  y: platform.y,
-                  vx: Math.cos(angle) * 60,
-                  vy: Math.sin(angle) * 60 - 40,
-                  life: 0.5,
-                  maxLife: 0.5,
-                  color: '#FFD700',
-                });
-              }
-            } else if (reward < 0.7) {
-              // Spawn 1 coin
-              state.coins.push({
-                x: platform.x + 4,
-                y: platform.y - 20,
-                collected: false,
-                floatOffset: Math.random() * Math.PI * 2
-              });
-              // Particle effect
-              for (let i = 0; i < 8; i++) {
-                const angle = (Math.PI * 2 * i) / 8;
-                state.particles.push({
-                  x: platform.x + 8,
-                  y: platform.y,
-                  vx: Math.cos(angle) * 50,
-                  vy: Math.sin(angle) * 50 - 30,
-                  life: 0.4,
-                  maxLife: 0.4,
-                  color: '#FFA500',
-                });
-              }
-            } else {
-              // Spawn enemy (badguy) with upward velocity to pop out
-              const spawnDirection = Math.random() > 0.5 ? 1 : -1;
-              const newEnemy = {
-                x: platform.x + 4,
-                y: platform.y - 12, // Start slightly lower
-                direction: spawnDirection,
-                alive: true,
-                type: 'badguy' as const,
-                animFrame: 0
-              };
-              state.enemies.push(newEnemy);
-              // Add upward velocity to pop out of block and horizontal velocity to move away
-              (newEnemy as any).velocityY = -180;
-              // Give it a strong initial horizontal push to clear the spawn area
-              (newEnemy as any).initialPushX = spawnDirection * 60; // Horizontal push
-              // Particle effect (red for danger)
-              for (let i = 0; i < 12; i++) {
-                const angle = (Math.PI * 2 * i) / 12;
-                state.particles.push({
-                  x: platform.x + 8,
-                  y: platform.y,
-                  vx: Math.cos(angle) * 70,
-                  vy: Math.sin(angle) * 70 - 50,
-                  life: 0.6,
-                  maxLife: 0.6,
-                  color: '#FF0000',
-                });
-              }
+              
+              // Screen shake on hit
+              state.screenShake = 0.1;
             }
-            
-            // Screen shake on hit
-            state.screenShake = 0.1;
           }
           
           // Horizontal collision (hitting sides) with 1-pixel spacing
@@ -1801,7 +1771,7 @@ export default function PixelGame() {
             setScore(s => s + 100 + comboBonus);
             
             // Spawn enhanced coin particles with combo effect and sparkles
-            const particleCount = 15 + (state.combo > 1 ? state.combo * 2 : 0);
+            const particleCount = Math.min(25, 15 + (state.combo > 1 ? state.combo * 2 : 0));
             for (let j = 0; j < particleCount; j++) {
               const angle = (Math.PI * 2 * j) / particleCount;
               const speed = 85 + (state.combo > 1 ? state.combo * 12 : 0);
@@ -1887,14 +1857,15 @@ export default function PixelGame() {
         const oldEnemyX = enemy.x;
         const oldEnemyY = enemy.y;
         
-        // Apply gravity to all enemies including snakes
-        if (!('velocityY' in enemy)) {
-          (enemy as any).velocityY = 0;
+        // Apply gravity to non-flying enemies (badguy/ghost floats)
+        if (enemy.type !== 'badguy') {
+          if (!('velocityY' in enemy)) {
+            (enemy as any).velocityY = 0;
+          }
+          (enemy as any).velocityY += GRAVITY * dt;
+          (enemy as any).velocityY = Math.min((enemy as any).velocityY, MAX_FALL_SPEED);
+          enemy.y += (enemy as any).velocityY * dt;
         }
-        // Apply gravity
-        (enemy as any).velocityY += GRAVITY * dt;
-        (enemy as any).velocityY = Math.min((enemy as any).velocityY, MAX_FALL_SPEED);
-        enemy.y += (enemy as any).velocityY * dt;
         
         // Different movement for snake vs badguy (ghost) vs goomba
         if (enemy.type === 'snake') {
@@ -2183,9 +2154,6 @@ export default function PixelGame() {
             }
           }
           
-          // Badguy phases through platforms - skip gravity
-          (enemy as any).velocityY = 0;
-          
         } else {
           // Enhanced Goomba with patrol and chase behavior
           // Initialize goomba AI properties
@@ -2332,6 +2300,32 @@ export default function PixelGame() {
         
         // Check collision with player
         if (Math.abs(player.x - enemy.x) < 14 && Math.abs(player.y - enemy.y) < 14) {
+          // Skip collision if player is invincible (dashing)
+          if (player.invincibilityTimer > 0) {
+            // Kill enemy during invincibility (dash through)
+            enemy.alive = false;
+            playSound('stomp');
+            state.combo++;
+            state.comboTimer = 3.5;
+            state.screenShake = 0.15;
+            const comboBonus = state.combo > 1 ? state.combo * 100 : 0;
+            setScore(s => s + 200 + comboBonus);
+            
+            for (let j = 0; j < 10; j++) {
+              const angle = (Math.PI * 2 * j) / 10;
+              state.particles.push({
+                x: enemy.x + 6,
+                y: enemy.y + 6,
+                vx: Math.cos(angle) * 80,
+                vy: Math.sin(angle) * 80 - 30,
+                life: 0.5,
+                maxLife: 0.5,
+                color: '#FFA500',
+              });
+            }
+            return;
+          }
+          
           // If player has helmet, kill enemy from any angle
           if (player.hasHelmet) {
             enemy.alive = false;
@@ -2417,6 +2411,26 @@ export default function PixelGame() {
             player.velocityX = 0;
             player.velocityY = 0;
             player.onGround = true;
+            player.rotation = 0;
+            player.hasHelmet = false;
+            player.helmetTimer = 0;
+            player.hasWaterGun = false;
+            player.waterGunTimer = 0;
+            player.isDashing = false;
+            player.dashTimer = 0;
+            player.dashCooldown = 0;
+            player.dashAvailable = true;
+            player.isAirSliding = false;
+            player.airSlideTimer = 0;
+            player.speedBoostTimer = 0;
+            player.isSlamming = false;
+            player.slamCharging = false;
+            player.chargeLevel = 0;
+            player.groundPoundRadius = 0;
+            player.invincibilityTimer = 0;
+            player.doubleJumpAvailable = false;
+            player.airDashCount = 0;
+            player.jumpHoldTime = 0;
             state.combo = 0;
             state.comboTimer = 0;
             setScore(0);
@@ -2439,7 +2453,12 @@ export default function PixelGame() {
         state.screenShake = Math.max(0, state.screenShake - dt);
       }
 
-      // Update particles
+      // Update particles with count limit
+      if (state.particles.length > MAX_PARTICLES) {
+        // Remove oldest particles when limit exceeded
+        state.particles = state.particles.slice(-MAX_PARTICLES);
+      }
+      
       state.particles = state.particles.filter(p => {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
@@ -2455,9 +2474,9 @@ export default function PixelGame() {
         state.celebrationTimer = 3.5; // 3.5 seconds celebration
         playSound('celebration');
         
-        // Massive celebration particle explosion
-        for (let i = 0; i < 150; i++) {
-          const angle = (Math.PI * 2 * i) / 150;
+        // Massive celebration particle explosion (optimized: 150 -> 80)
+        for (let i = 0; i < 80; i++) {
+          const angle = (Math.PI * 2 * i) / 80;
           const speed = 100 + Math.random() * 150;
           state.particles.push({
             x: player.x + 6,
@@ -2470,9 +2489,9 @@ export default function PixelGame() {
           });
         }
         
-        // Additional firework particles at goal position
-        for (let i = 0; i < 80; i++) {
-          const angle = (Math.PI * 2 * i) / 80;
+        // Additional firework particles at goal position (optimized: 80 -> 40)
+        for (let i = 0; i < 40; i++) {
+          const angle = (Math.PI * 2 * i) / 40;
           const speed = 80 + Math.random() * 100;
           state.particles.push({
             x: state.goalX - 20 + Math.random() * 40,
@@ -2564,7 +2583,7 @@ export default function PixelGame() {
           });
         }
         
-        // Reset player position
+        // Reset player position and all ability states
         player.x = 80;
         player.y = 112;
         player.velocityX = 0;
@@ -2573,6 +2592,23 @@ export default function PixelGame() {
         player.rotation = 0;
         player.hasHelmet = false;
         player.helmetTimer = 0;
+        player.hasWaterGun = false;
+        player.waterGunTimer = 0;
+        player.isDashing = false;
+        player.dashTimer = 0;
+        player.dashCooldown = 0;
+        player.dashAvailable = true;
+        player.isAirSliding = false;
+        player.airSlideTimer = 0;
+        player.speedBoostTimer = 0;
+        player.isSlamming = false;
+        player.slamCharging = false;
+        player.chargeLevel = 0;
+        player.groundPoundRadius = 0;
+        player.invincibilityTimer = 0;
+        player.doubleJumpAvailable = false;
+        player.airDashCount = 0;
+        player.jumpHoldTime = 0;
         state.combo = 0;
         state.comboTimer = 0;
         
