@@ -1,4 +1,5 @@
-const CACHE_NAME = 'flipprx-v1';
+const CACHE_VERSION = '2';
+const CACHE_NAME = `flipprx-v${CACHE_VERSION}`;
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [

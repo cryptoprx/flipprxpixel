@@ -458,10 +458,15 @@ export default function PixelGame() {
     }
   }, [audioEnabled]);
 
-  // Load high score from localStorage
+  // Load high score from localStorage (with validation)
   useEffect(() => {
-    const saved = localStorage.getItem('flipprx_highscore');
-    if (saved) setHighScore(parseInt(saved, 10));
+    try {
+      const saved = localStorage.getItem('flipprx_highscore');
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 0 && val <= 999999) setHighScore(val);
+      }
+    } catch { /* localStorage unavailable */ }
   }, []);
 
   // Load character sprites
