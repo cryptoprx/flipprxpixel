@@ -179,9 +179,35 @@ export default function PixelGame() {
   });
 
   // Game constants
-  const GAME_WIDTH = 160;
+  const GAME_WIDTH_BASE = 160;
   const GAME_HEIGHT = 144;
   const SCALE = 4;
+  const gameWidthRef = useRef(GAME_WIDTH_BASE);
+
+  // Dynamically adjust game width based on screen aspect ratio (landscape = wider view)
+  useEffect(() => {
+    const updateGameWidth = () => {
+      const aspectRatio = window.innerWidth / window.innerHeight;
+      // In landscape, widen the viewport to match screen ratio. In portrait, keep base width.
+      const dynamicWidth = Math.max(GAME_WIDTH_BASE, Math.round(GAME_HEIGHT * aspectRatio));
+      gameWidthRef.current = dynamicWidth;
+      if (canvasRef.current) {
+        canvasRef.current.width = dynamicWidth;
+        canvasRef.current.height = GAME_HEIGHT;
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) ctx.imageSmoothingEnabled = false;
+      }
+      // Reset cached sky gradient since canvas size changed
+      skyGradientRef.current = null;
+    };
+    updateGameWidth();
+    window.addEventListener('resize', updateGameWidth);
+    window.addEventListener('orientationchange', updateGameWidth);
+    return () => {
+      window.removeEventListener('resize', updateGameWidth);
+      window.removeEventListener('orientationchange', updateGameWidth);
+    };
+  }, []);
   
   const GRAVITY = 850; // Optimized for responsive feel
   const PLAYER_SPEED = 145; // Smooth movement speed
@@ -1877,7 +1903,7 @@ export default function PixelGame() {
       
       // Update enemies (skip expensive AI for far off-screen enemies)
       const activeCamLeft = state.camera.x - 200;
-      const activeCamRight = state.camera.x + GAME_WIDTH + 200;
+      const activeCamRight = state.camera.x + gameWidthRef.current + 200;
       state.enemies.forEach(enemy => {
         if (!enemy.alive) return;
         
@@ -2579,7 +2605,7 @@ export default function PixelGame() {
 
       // Smooth camera follow with lookahead and screen shake - optimized and pixel perfect
       const lookahead = player.velocityX * 0.18; // Enhanced camera lookahead
-      state.camera.targetX = Math.max(0, Math.min(player.x + lookahead - GAME_WIDTH / 2, state.stageWidth - GAME_WIDTH));
+      state.camera.targetX = Math.max(0, Math.min(player.x + lookahead - gameWidthRef.current / 2, state.stageWidth - gameWidthRef.current));
       // Adaptive camera speed based on distance and player state
       const distance = Math.abs(state.camera.targetX - state.camera.x);
       const baseSpeed = player.onGround ? 13 : 10; // Smoother camera tracking
@@ -2664,7 +2690,7 @@ export default function PixelGame() {
         skyGradientRef.current.addColorStop(1, '#D6EAF8');
       }
       ctx.fillStyle = skyGradientRef.current;
-      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
 
       ctx.save();
       // Apply camera transform with shake - pixel perfect
@@ -2805,7 +2831,7 @@ export default function PixelGame() {
 
       // Draw platforms (skip broken bricks and off-screen platforms)
       const camLeft = state.camera.x - 20;
-      const camRight = state.camera.x + GAME_WIDTH + 20;
+      const camRight = state.camera.x + gameWidthRef.current + 20;
       state.platforms.forEach(platform => {
         if (platform.broken) return; // Don't draw broken bricks
         if (platform.x + platform.width < camLeft || platform.x > camRight) return; // Off-screen cull
@@ -3564,10 +3590,10 @@ export default function PixelGame() {
         // Animated overlay with pulsing effect
         const pulseAlpha = 0.5 + Math.sin(state.celebrationTimer * 4) * 0.1;
         ctx.fillStyle = `rgba(0, 0, 0, ${pulseAlpha})`;
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
         
         // Celebration text
-        const centerX = GAME_WIDTH / 2;
+        const centerX = gameWidthRef.current / 2;
         const centerY = GAME_HEIGHT / 2;
         const bounce = Math.abs(Math.sin(state.celebrationTimer * 6)) * 3;
         
@@ -3821,9 +3847,9 @@ export default function PixelGame() {
         // Full screen overlay with fade-in
         const fadeAlpha = Math.min(1, state.gameStartTimer / 0.5);
         ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * fadeAlpha})`;
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
         
-        const centerX = GAME_WIDTH / 2;
+        const centerX = gameWidthRef.current / 2;
         const centerY = GAME_HEIGHT / 2;
         const timeLeft = 3.0 - state.gameStartTimer;
         
@@ -4066,7 +4092,7 @@ export default function PixelGame() {
       // Draw UI elements in fixed screen position (after ctx.restore)
       // Draw helmet timer indicator in top right corner
       if (state.player.hasHelmet && state.player.helmetTimer > 0 && !state.inBlackhole) {
-        const timerX = GAME_WIDTH - 30;
+        const timerX = gameWidthRef.current - 30;
         const timerY = 5;
         const timerBarWidth = 24;
         const timerWidth = Math.floor((state.player.helmetTimer / 10) * timerBarWidth);
@@ -4094,7 +4120,7 @@ export default function PixelGame() {
 
       // Draw combo indicator in top right corner below helmet timer
       if (state.combo > 1 && !state.celebrating && !state.inBlackhole) {
-        const comboX = GAME_WIDTH - 20;
+        const comboX = gameWidthRef.current - 20;
         const comboY = 14;
         const comboAlpha = Math.min(1, state.comboTimer / 1.5);
         
@@ -4124,11 +4150,11 @@ export default function PixelGame() {
         
         // Dark space background with gradient
         ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
         
         // Add space nebula clouds (solid colors, no alpha)
         for (let nebula = 0; nebula < 5; nebula++) {
-          const nebulaX = Math.floor((nebula * 40 + state.blackholeTimer * 2) % GAME_WIDTH);
+          const nebulaX = Math.floor((nebula * 40 + state.blackholeTimer * 2) % gameWidthRef.current);
           const nebulaY = Math.floor((nebula * 30) % GAME_HEIGHT);
           const nebulaColor = nebula % 2 === 0 ? '#1a0033' : '#2d0052';
           ctx.fillStyle = nebulaColor;
@@ -4140,7 +4166,7 @@ export default function PixelGame() {
         
         // Draw stars with clean pixel art (no twinkling alpha)
         for (let i = 0; i < 50; i++) {
-          const starX = Math.floor((i * 37 + state.blackholeTimer * 10) % GAME_WIDTH);
+          const starX = Math.floor((i * 37 + state.blackholeTimer * 10) % gameWidthRef.current);
           const starY = Math.floor((i * 23) % GAME_HEIGHT);
           const twinkleFrame = Math.floor(state.blackholeTimer + i) % 3;
           const starVisible = twinkleFrame < 2;
@@ -4152,7 +4178,7 @@ export default function PixelGame() {
         }
         
         // Draw blackhole with spiral effect
-        const centerX = GAME_WIDTH / 2;
+        const centerX = gameWidthRef.current / 2;
         const centerY = 40;
         const time = state.blackholeTimer;
         
@@ -4303,14 +4329,14 @@ export default function PixelGame() {
         
         // Chart background panel - more compact
         ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(15, chartY - 30, GAME_WIDTH - 30, 75);
+        ctx.fillRect(15, chartY - 30, gameWidthRef.current - 30, 75);
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(17, chartY - 28, GAME_WIDTH - 34, 71);
+        ctx.fillRect(17, chartY - 28, gameWidthRef.current - 34, 71);
         
         // Chart title with pixel art text - centered
         const titleText = 'MARKET CHART';
         const titleWidth = titleText.length * 6;
-        const titleX = (GAME_WIDTH - titleWidth) / 2;
+        const titleX = (gameWidthRef.current - titleWidth) / 2;
         const titleY = chartY - 23;
         
         // Pixel letters for title (reuse from speech bubble)
@@ -4694,7 +4720,7 @@ export default function PixelGame() {
         {/* Fullscreen Canvas — cover in landscape fills screen, contain in portrait keeps it clean */}
         <canvas
           ref={canvasRef}
-          width={GAME_WIDTH}
+          width={gameWidthRef.current}
           height={GAME_HEIGHT}
           style={{
             position: 'absolute',
@@ -4703,7 +4729,7 @@ export default function PixelGame() {
             transform: 'translate(-50%, -50%)',
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            objectFit: 'contain',
             imageRendering: 'pixelated',
           }}
         />
