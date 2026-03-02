@@ -4686,8 +4686,12 @@ export default function PixelGame() {
 
   if (isMobile) {
     return (
-      <div className="fixed inset-0 overflow-hidden" style={{ touchAction: 'none', background: '#000' }}>
-        {/* Fullscreen Canvas */}
+      <div
+        className="fixed inset-0 overflow-hidden"
+        style={{ touchAction: 'none', background: '#000', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {/* Fullscreen Canvas — cover in landscape fills screen, contain in portrait keeps it clean */}
         <canvas
           ref={canvasRef}
           width={GAME_WIDTH}
@@ -4699,7 +4703,7 @@ export default function PixelGame() {
             transform: 'translate(-50%, -50%)',
             width: '100%',
             height: '100%',
-            objectFit: 'contain',
+            objectFit: 'cover',
             imageRendering: 'pixelated',
           }}
         />
@@ -4868,7 +4872,7 @@ export default function PixelGame() {
 
         {/* === PIXEL D-PAD (left/right only) === */}
         {gameScreen === 'playing' && !isPaused && (
-          <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', left: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', left: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onContextMenu={(e) => e.preventDefault()}>
             <div className="flex" style={{ gap: '4px' }}>
               {/* Left */}
               <button
@@ -4900,7 +4904,7 @@ export default function PixelGame() {
 
         {/* === PIXEL A/B BUTTONS === */}
         {gameScreen === 'playing' && !isPaused && (
-          <div className="absolute z-10 flex gap-3 items-end" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <div className="absolute z-10 flex gap-3 items-end" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onContextMenu={(e) => e.preventDefault()}>
             {/* B (shoot) */}
             <button
               onTouchStart={() => handleMobileButton('shoot', true)}
