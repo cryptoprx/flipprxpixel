@@ -63,6 +63,11 @@ export default function PixelGame() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<'guy1' | 'guy2' | 'guy3'>('guy1');
   
+  // Keep selectedCharRef in sync with state (avoids useEffect restart on char switch)
+  useEffect(() => {
+    selectedCharRef.current = selectedCharacter;
+  }, [selectedCharacter]);
+
   // Detect mobile/tablet device - always show gameboy style on mobile/tablet
   useEffect(() => {
     const checkMobile = () => {
@@ -78,6 +83,9 @@ export default function PixelGame() {
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   const musicStartedRef = useRef(false);
   const spritesRef = useRef<Record<string, HTMLImageElement>>({});
+  const helmetCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const skyGradientRef = useRef<CanvasGradient | null>(null);
+  const selectedCharRef = useRef<'guy1' | 'guy2' | 'guy3'>('guy1');
   const gameStateRef = useRef({
     player: {
       x: 80,
@@ -170,19 +178,6 @@ export default function PixelGame() {
   const GAME_HEIGHT = 144;
   const SCALE = 4;
   
-  // Stage widths (in pixels) - each stage gets progressively longer and harder
-  const STAGE_WIDTHS = [
-    1000,   // Stage 1 - Tutorial
-    1800,   // Stage 2
-    2600,   // Stage 3
-    3400,   // Stage 4
-    4200,   // Stage 5
-    5000,   // Stage 6
-    5800,   // Stage 7
-    6600,   // Stage 8
-    7400,   // Stage 9
-    8200,   // Stage 10 - Final challenge
-  ];
   const GRAVITY = 850; // Optimized for responsive feel
   const PLAYER_SPEED = 145; // Smooth movement speed
   const PLAYER_ACCEL = 1500; // Quick acceleration
@@ -198,35 +193,37 @@ export default function PixelGame() {
   const MAX_FALL_SPEED = 480; // Controlled falling
   const MAX_PARTICLES = 300; // Particle count limit to prevent memory leaks
 
+  // Pooled audio elements for mp3 sounds (prevent creating new Audio() each call)
+  const audioPoolRef = useRef<Record<string, HTMLAudioElement>>({});
+  const getPooledAudio = (src: string, volume: number): HTMLAudioElement => {
+    if (!audioPoolRef.current[src]) {
+      audioPoolRef.current[src] = new Audio(src);
+    }
+    const audio = audioPoolRef.current[src];
+    audio.volume = volume;
+    audio.currentTime = 0;
+    return audio;
+  };
+
   // Audio system - procedural sound generation
   const playSound = (type: string) => {
     if (!audioEnabled) return;
     
     // Play bro.mp3 for death sound
     if (type === 'death') {
-      const audio = new Audio('/bro.mp3');
-      audio.volume = 0.5;
-      audio.play().catch(() => {});
+      getPooledAudio('/bro.mp3', 0.5).play().catch(() => {});
       return;
     }
     
     // Play fart.mp3 for air slide
     if (type === 'fart') {
-      const audio = new Audio('/fart.mp3');
-      audio.volume = 0.6;
-      audio.play().catch((err) => {
-        console.log('Fart sound failed to play:', err);
-      });
+      getPooledAudio('/fart.mp3', 0.6).play().catch(() => {});
       return;
     }
     
     // Play huh.mp3 for cliff deaths
     if (type === 'huh') {
-      const audio = new Audio('/huh.mp3');
-      audio.volume = 0.7;
-      audio.play().catch((err) => {
-        console.log('Huh sound failed to play:', err);
-      });
+      getPooledAudio('/huh.mp3', 0.7).play().catch(() => {});
       return;
     }
     
@@ -585,7 +582,7 @@ export default function PixelGame() {
 
     // Timeout fallback - only if sprites haven't loaded
     const timeout = setTimeout(() => {
-      if (loadedCount < spriteFiles.length) {
+      if (loadedCount < totalSprites) {
         console.warn('Sprite loading timeout, proceeding anyway');
         setSpritesLoaded(true);
       }
@@ -612,26 +609,26 @@ export default function PixelGame() {
       const idleCycle = Math.floor(performance.now() / 500) % 2;
       spriteKey = idleCycle === 0 ? 'standing.png' : 'jumpfall.png';
     } else if (frame === 'walk1') {
-      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step1.png' : 'step1.PNG';
+      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step1.png' : 'step1.PNG';
     } else if (frame === 'walk2') {
-      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step2.png' : 'step2.PNG';
+      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step2.png' : 'step2.PNG';
     } else if (frame === 'walk3') {
-      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step3.png' : 'step3.PNG';
+      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step3.png' : 'step3.PNG';
     } else if (frame === 'walk4') {
-      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'step4.png' : 'step4.PNG';
+      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step4.png' : 'step4.PNG';
     } else if (frame === 'jump1') {
-      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'jump1.png' : 'jump1.PNG';
+      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'jump1.png' : 'jump1.PNG';
     } else if (frame === 'jump2') {
-      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'jump2.png' : 'jump2.PNG';
+      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'jump2.png' : 'jump2.PNG';
     } else if (frame === 'jump3') {
-      spriteKey = (selectedCharacter === 'guy2' || selectedCharacter === 'guy3') ? 'jump3.png' : 'jump3.PNG';
+      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'jump3.png' : 'jump3.PNG';
     } else if (frame === 'crouch') {
       spriteKey = 'jumpfall.png';
     }
 
     // Add character prefix for guy2 and guy3 sprites
-    const finalSpriteKey = selectedCharacter === 'guy2' ? `guy2_${spriteKey}` : 
-                          selectedCharacter === 'guy3' ? `guy3_${spriteKey}` : 
+    const finalSpriteKey = selectedCharRef.current === 'guy2' ? `guy2_${spriteKey}` : 
+                          selectedCharRef.current === 'guy3' ? `guy3_${spriteKey}` : 
                           spriteKey;
     const sprite = spritesRef.current[finalSpriteKey];
     
@@ -703,8 +700,8 @@ export default function PixelGame() {
     state.gameStarted = false;
     state.gameStartTimer = 0;
     
-    // Spawn portal randomly (100% chance for testing - change back to 0.3 later)
-    if (Math.random() < 1.0) {
+    // Spawn portal randomly (30% chance per stage)
+    if (Math.random() < 0.3) {
       const portalX = 200 + Math.random() * (stageData.width - 400);
       const portalY = 90; // Above ground level
       state.portal = { x: portalX, y: portalY, animationFrame: 0, active: true };
@@ -746,7 +743,7 @@ export default function PixelGame() {
     state.chartComplete = false;
     state.chartResult = '';
     
-    // Reset player position and animation state
+    // Reset player position, animation, and all ability states
     state.player.x = 80;
     state.player.y = 112;
     state.player.velocityX = 0;
@@ -756,6 +753,28 @@ export default function PixelGame() {
     state.player.currentAnimation = 'idle';
     state.player.animationFrame = 0;
     state.player.animationTimer = 0;
+    state.player.hasHelmet = false;
+    state.player.helmetTimer = 0;
+    state.player.hasWaterGun = false;
+    state.player.waterGunTimer = 0;
+    state.player.shootCooldown = 0;
+    state.player.isDashing = false;
+    state.player.dashTimer = 0;
+    state.player.dashCooldown = 0;
+    state.player.dashAvailable = true;
+    state.player.isAirSliding = false;
+    state.player.airSlideTimer = 0;
+    state.player.airSlideUsed = false;
+    state.player.speedBoostTimer = 0;
+    state.player.isSlamming = false;
+    state.player.slamCharging = false;
+    state.player.chargeLevel = 0;
+    state.player.groundPoundRadius = 0;
+    state.player.invincibilityTimer = 0;
+    state.player.doubleJumpAvailable = false;
+    state.player.airDashCount = 0;
+    state.player.jumpHoldTime = 0;
+    state.player.landingTimer = 0;
     state.combo = 0;
     state.comboTimer = 0;
     state.camera.x = 0;
@@ -889,10 +908,10 @@ export default function PixelGame() {
       let speedMultiplier = 1.0;
       let accelMultiplier = 1.0;
       
-      if (selectedCharacter === 'guy2') {
+      if (selectedCharRef.current === 'guy2') {
         speedMultiplier = 1.35; // guy2 is 35% faster
         accelMultiplier = 1.25;
-      } else if (selectedCharacter === 'guy3') {
+      } else if (selectedCharRef.current === 'guy3') {
         speedMultiplier = 0.9; // guy3 is slightly slower but more powerful
         accelMultiplier = 0.95;
       }
@@ -929,7 +948,7 @@ export default function PixelGame() {
         player.landingTimer = 0;
         
         // Guy1: Enable double jump after first jump
-        if (selectedCharacter === 'guy1') {
+        if (selectedCharRef.current === 'guy1') {
           player.doubleJumpAvailable = true;
         }
         
@@ -952,7 +971,7 @@ export default function PixelGame() {
       }
       
       // Guy1: Double jump mechanic
-      if (selectedCharacter === 'guy1') {
+      if (selectedCharRef.current === 'guy1') {
         if (player.doubleJumpAvailable && !player.onGround && state.jumpBuffer > 0) {
           player.velocityY = DOUBLE_JUMP_VELOCITY;
           player.doubleJumpAvailable = false;
@@ -982,7 +1001,7 @@ export default function PixelGame() {
       }
       
       // Guy1: Dash mechanic (Shift key)
-      if (selectedCharacter === 'guy1') {
+      if (selectedCharRef.current === 'guy1') {
         const dashKey = state.keys['Shift'];
         
         // Update dash cooldown
@@ -1053,7 +1072,7 @@ export default function PixelGame() {
                             state.keys[' '] || state.keys['z'] || state.keys['Z'];
       
       // Guy3: Enhanced slam attack with charge levels and ground pound
-      if (selectedCharacter === 'guy3') {
+      if (selectedCharRef.current === 'guy3') {
         if (jumpKeyPressed && !player.onGround && player.velocityY < 0) {
           player.jumpHoldTime += dt;
           player.slamCharging = true;
@@ -1206,7 +1225,7 @@ export default function PixelGame() {
       }
       
       // Guy2: Enhanced air slide mechanic with multiple air dashes
-      if (selectedCharacter === 'guy2') {
+      if (selectedCharRef.current === 'guy2') {
         // Track jump hold time while in air and moving horizontally
         if (jumpKeyPressed && !player.onGround && Math.abs(player.velocityX) > 50) {
           player.jumpHoldTime += dt;
@@ -1365,7 +1384,7 @@ export default function PixelGame() {
         }
         
         // Guy3: Check if slamming onto brick - break it!
-        if (selectedCharacter === 'guy3' && player.isSlamming && platform.type === 'brick' && !platform.broken) {
+        if (selectedCharRef.current === 'guy3' && player.isSlamming && platform.type === 'brick' && !platform.broken) {
           if (player.x + player.width > platform.x &&
               player.x < platform.x + platform.width &&
               player.y + player.height > platform.y &&
@@ -1531,14 +1550,14 @@ export default function PixelGame() {
                   });
                 }
               } else {
-                // Spawn enemy (badguy) with upward velocity to pop out
+                // Spawn enemy (goomba) with upward velocity to pop out
                 const spawnDirection = Math.random() > 0.5 ? 1 : -1;
                 const newEnemy = {
                   x: platform.x + 4,
                   y: platform.y - 12,
                   direction: spawnDirection,
                   alive: true,
-                  type: 'badguy' as const,
+                  type: 'goomba' as const,
                   animFrame: 0
                 };
                 state.enemies.push(newEnemy);
@@ -1850,9 +1869,14 @@ export default function PixelGame() {
         return proj.life > 0;
       });
       
-      // Update enemies
+      // Update enemies (skip expensive AI for far off-screen enemies)
+      const activeCamLeft = state.camera.x - 200;
+      const activeCamRight = state.camera.x + GAME_WIDTH + 200;
       state.enemies.forEach(enemy => {
         if (!enemy.alive) return;
+        
+        // Skip full AI for enemies far off-screen (basic movement only)
+        const isNearViewport = enemy.x > activeCamLeft && enemy.x < activeCamRight;
         
         const oldEnemyX = enemy.x;
         const oldEnemyY = enemy.y;
@@ -1893,7 +1917,7 @@ export default function PixelGame() {
             playSound('jump');
             
             // Lunge warning particles
-            for (let i = 0; i < 8; i++) {
+            if (isNearViewport) for (let i = 0; i < 8; i++) {
               state.particles.push({
                 x: enemy.x + 6,
                 y: enemy.y + 6,
@@ -1913,7 +1937,7 @@ export default function PixelGame() {
             enemy.x += enemy.direction * lungeSpeed * dt;
             
             // Lunge trail particles
-            if (Math.random() > 0.6) {
+            if (isNearViewport && Math.random() > 0.6) {
               state.particles.push({
                 x: enemy.x + 6,
                 y: enemy.y + 6,
@@ -1982,7 +2006,7 @@ export default function PixelGame() {
               enemy.x += Math.sign(toPlayerX) * creepSpeed * dt;
               
               // Creepy particles
-              if (Math.random() > 0.95) {
+              if (isNearViewport && Math.random() > 0.95) {
                 state.particles.push({
                   x: enemy.x + 6,
                   y: enemy.y + 6,
@@ -2009,7 +2033,7 @@ export default function PixelGame() {
               playSound('jump');
               
               // Disappear particles
-              for (let i = 0; i < 15; i++) {
+              if (isNearViewport) for (let i = 0; i < 15; i++) {
                 const angle = (Math.PI * 2 * i) / 15;
                 state.particles.push({
                   x: enemy.x + 6,
@@ -2031,20 +2055,22 @@ export default function PixelGame() {
               const strategy = Math.random();
               
               if (strategy < 0.4) {
-                // Behind player (classic)
-                const behindPlayer = player.facingLeft ? player.x + 50 : player.x - 50;
+                // Behind player (classic) - minimum 40px away
+                const offset = 40 + Math.random() * 30;
+                const behindPlayer = player.facingLeft ? player.x + offset : player.x - offset;
                 enemy.x = Math.max(0, Math.min(state.stageWidth - 12, behindPlayer));
-                enemy.y = player.y;
+                enemy.y = player.y - 10;
               } else if (strategy < 0.7) {
-                // Above player (drop attack)
-                enemy.x = player.x + (Math.random() - 0.5) * 30;
-                enemy.y = player.y - 60;
+                // Above player (drop attack) - offset horizontally to give reaction time
+                enemy.x = player.x + (player.facingLeft ? 30 : -30) + (Math.random() - 0.5) * 20;
+                enemy.y = player.y - 70;
                 (enemy as any).rushTimer = 0.8; // Rush down
               } else {
-                // Ahead of player (ambush)
-                const aheadPlayer = player.facingLeft ? player.x - 60 : player.x + 60;
+                // Ahead of player (ambush) - minimum 50px away
+                const offset = 50 + Math.random() * 30;
+                const aheadPlayer = player.facingLeft ? player.x - offset : player.x + offset;
                 enemy.x = Math.max(0, Math.min(state.stageWidth - 12, aheadPlayer));
-                enemy.y = player.y;
+                enemy.y = player.y - 10;
               }
               
               enemy.isDisappearing = false;
@@ -2052,7 +2078,7 @@ export default function PixelGame() {
               enemy.opacity = 0;
               
               // Reappear particles - more dramatic
-              for (let i = 0; i < 25; i++) {
+              if (isNearViewport) for (let i = 0; i < 25; i++) {
                 const angle = (Math.PI * 2 * i) / 25;
                 state.particles.push({
                   x: enemy.x + 6,
@@ -2079,7 +2105,7 @@ export default function PixelGame() {
               enemy.y += rushSpeed * dt;
               
               // Rush particles
-              if (Math.random() > 0.7) {
+              if (isNearViewport && Math.random() > 0.7) {
                 state.particles.push({
                   x: enemy.x + 6,
                   y: enemy.y,
@@ -2104,7 +2130,7 @@ export default function PixelGame() {
                 enemy.direction = Math.sign(toPlayerX);
                 
                 // Threat particles when close
-                if (distToPlayer < 50 && Math.random() > 0.85) {
+                if (isNearViewport && distToPlayer < 50 && Math.random() > 0.85) {
                   state.particles.push({
                     x: enemy.x + 6,
                     y: enemy.y + 6,
@@ -2175,7 +2201,7 @@ export default function PixelGame() {
             enemy.x += enemy.direction * chaseSpeed * dt;
             
             // Chase particles (angry)
-            if (Math.random() > 0.9) {
+            if (isNearViewport && Math.random() > 0.9) {
               state.particles.push({
                 x: enemy.x + 6,
                 y: enemy.y + 2,
@@ -2298,8 +2324,8 @@ export default function PixelGame() {
           }
         }
         
-        // Check collision with player
-        if (Math.abs(player.x - enemy.x) < 14 && Math.abs(player.y - enemy.y) < 14) {
+        // Check collision with player (tighter hitbox for fairer gameplay)
+        if (Math.abs(player.x - enemy.x) < 11 && Math.abs(player.y - enemy.y) < 12) {
           // Skip collision if player is invincible (dashing)
           if (player.invincibilityTimer > 0) {
             // Kill enemy during invincibility (dash through)
@@ -2353,7 +2379,7 @@ export default function PixelGame() {
           }
           
           // Guy3: If slamming, kill enemy from any angle when close
-          if (selectedCharacter === 'guy3' && player.isSlamming) {
+          if (selectedCharRef.current === 'guy3' && player.isSlamming) {
             enemy.alive = false;
             playSound('stomp');
             state.combo++;
@@ -2427,7 +2453,7 @@ export default function PixelGame() {
             player.slamCharging = false;
             player.chargeLevel = 0;
             player.groundPoundRadius = 0;
-            player.invincibilityTimer = 0;
+            player.invincibilityTimer = 2.0; // 2 seconds spawn protection
             player.doubleJumpAvailable = false;
             player.airDashCount = 0;
             player.jumpHoldTime = 0;
@@ -2605,7 +2631,7 @@ export default function PixelGame() {
         player.slamCharging = false;
         player.chargeLevel = 0;
         player.groundPoundRadius = 0;
-        player.invincibilityTimer = 0;
+        player.invincibilityTimer = 2.0; // 2 seconds spawn protection
         player.doubleJumpAvailable = false;
         player.airDashCount = 0;
         player.jumpHoldTime = 0;
@@ -2619,14 +2645,17 @@ export default function PixelGame() {
 
     const render = (ctx: CanvasRenderingContext2D) => {
       const state = gameStateRef.current;
+      const now = performance.now(); // Cache once per frame
       
-      // Clear canvas with beautiful gradient sky
-      const skyGradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-      skyGradient.addColorStop(0, '#5DADE2');
-      skyGradient.addColorStop(0.4, '#85C1E9');
-      skyGradient.addColorStop(0.7, '#AED6F1');
-      skyGradient.addColorStop(1, '#D6EAF8');
-      ctx.fillStyle = skyGradient;
+      // Clear canvas with cached sky gradient
+      if (!skyGradientRef.current) {
+        skyGradientRef.current = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+        skyGradientRef.current.addColorStop(0, '#5DADE2');
+        skyGradientRef.current.addColorStop(0.4, '#85C1E9');
+        skyGradientRef.current.addColorStop(0.7, '#AED6F1');
+        skyGradientRef.current.addColorStop(1, '#D6EAF8');
+      }
+      ctx.fillStyle = skyGradientRef.current;
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
       ctx.save();
@@ -2766,9 +2795,12 @@ export default function PixelGame() {
         }
       }
 
-      // Draw platforms (skip broken bricks)
+      // Draw platforms (skip broken bricks and off-screen platforms)
+      const camLeft = state.camera.x - 20;
+      const camRight = state.camera.x + GAME_WIDTH + 20;
       state.platforms.forEach(platform => {
         if (platform.broken) return; // Don't draw broken bricks
+        if (platform.x + platform.width < camLeft || platform.x > camRight) return; // Off-screen cull
         
         if (platform.type === 'ground') {
           // Enhanced ground tile with rich texture and depth
@@ -2871,7 +2903,7 @@ export default function PixelGame() {
             ctx.fillRect(platform.x + 3, platform.y + platform.height - 4, platform.width - 6, 1);
           } else {
             // Active question block - gold with enhanced shimmer animation
-            const shimmer = Math.floor(performance.now() / 150) % 3;
+            const shimmer = Math.floor(now / 150) % 3;
             const baseColor = shimmer === 0 ? '#FFD700' : shimmer === 1 ? '#FFDF00' : '#FFC700';
             ctx.fillStyle = baseColor;
             ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
@@ -3012,16 +3044,17 @@ export default function PixelGame() {
         }
       }
 
-      // Draw enemies with enhanced visuals - pixel perfect
+      // Draw enemies with enhanced visuals - pixel perfect (viewport culled)
       state.enemies.forEach(enemy => {
         if (enemy.alive) {
+          if (enemy.x + 16 < camLeft || enemy.x > camRight) return; // Off-screen cull
           const ex = Math.floor(enemy.x);
           const ey = Math.floor(enemy.y);
           
           if (enemy.type === 'goomba') {
             // Optimized and enhanced goomba with smooth walking animation
-            const walkCycle = Math.floor((performance.now() / 150) % 2);
-            const bounce = Math.abs(Math.sin(performance.now() / 150)) * 0.5; // Subtle bounce
+            const walkCycle = Math.floor((now / 150) % 2);
+            const bounce = Math.abs(Math.sin(now / 150)) * 0.5; // Subtle bounce
             const eyOffset = Math.floor(ey - bounce);
             
             // Main body outline (mushroom shape with rounded top)
@@ -3176,7 +3209,7 @@ export default function PixelGame() {
               ctx.globalAlpha = enemy.opacity !== undefined ? enemy.opacity : 0.8;
               
               // Add floating wave animation
-              const floatWave = Math.sin((performance.now() / 200) + (enemy.x / 50)) * 2;
+              const floatWave = Math.sin((now / 200) + (enemy.x / 50)) * 2;
               const ghostY = ey + floatWave;
               
               // Flip sprite based on enemy direction
@@ -3193,8 +3226,8 @@ export default function PixelGame() {
               // Draw aura particles when not frozen
               if (!enemy.frozen && !enemy.isDisappearing) {
                 for (let i = 0; i < 3; i++) {
-                  const particleAngle = (performance.now() / 500 + i * 2) % (Math.PI * 2);
-                  const particleRadius = 8 + Math.sin(performance.now() / 300 + i) * 2;
+                  const particleAngle = (now / 500 + i * 2) % (Math.PI * 2);
+                  const particleRadius = 8 + Math.sin(now / 300 + i) * 2;
                   const px = ex + 8 + Math.cos(particleAngle) * particleRadius;
                   const py = Math.floor(ghostY) + 8 + Math.sin(particleAngle) * particleRadius;
                   ctx.fillStyle = 'rgba(147, 112, 219, 0.4)';
@@ -3213,7 +3246,7 @@ export default function PixelGame() {
       // Draw finish line flag at goal - enhanced
       const flagX = Math.floor(state.goalX);
       const flagY = 96;
-      const flagWave = Math.sin(performance.now() / 200) * 2;
+      const flagWave = Math.sin(now / 200) * 2;
       
       // Pole wood texture (no outline)
       ctx.fillStyle = '#8B4513';
@@ -3355,16 +3388,22 @@ export default function PixelGame() {
         const py = Math.floor(state.player.y);
         
         // Rainbow color cycling animation
-        const time = performance.now() / 80;
+        const time = now / 80;
         const hue = Math.floor(time % 360);
         
-        // Create an offscreen canvas to apply rainbow effect to character only
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = 16;
-        tempCanvas.height = 16;
+        // Use cached offscreen canvas for rainbow effect (avoid creating new one every frame)
+        if (!helmetCanvasRef.current) {
+          helmetCanvasRef.current = document.createElement('canvas');
+          helmetCanvasRef.current.width = 16;
+          helmetCanvasRef.current.height = 16;
+        }
+        const tempCanvas = helmetCanvasRef.current;
         const tempCtx = tempCanvas.getContext('2d');
         
         if (tempCtx) {
+          // Clear cached canvas before reuse
+          tempCtx.clearRect(0, 0, 16, 16);
+          tempCtx.globalCompositeOperation = 'source-over';
           // Draw character sprite to temp canvas
           if (state.player.rotation !== 0) {
             tempCtx.save();
@@ -3533,7 +3572,7 @@ export default function PixelGame() {
         
         // Rainbow gradient effect for text
         const colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
-        const colorIndex = Math.floor((performance.now() / 100) % colors.length);
+        const colorIndex = Math.floor((now / 100) % colors.length);
         ctx.fillStyle = colors[colorIndex];
         
         // "STAGE CLEAR" letters
@@ -3612,9 +3651,10 @@ export default function PixelGame() {
       if (!state.inBlackhole) {
         state.coins.forEach(coin => {
           if (!coin.collected) {
+            if (coin.x + 8 < camLeft || coin.x > camRight) return; // Off-screen cull
             const y = Math.floor(coin.y + Math.sin(coin.floatOffset) * 4);
             const x = Math.floor(coin.x);
-            const spinFrame = Math.floor((performance.now() / 100) % 8);
+            const spinFrame = Math.floor((now / 100) % 8);
             
             // Optimized coin with pixel-perfect 3D spinning effect
             // Black outline - cleaner and more precise
@@ -3720,7 +3760,7 @@ export default function PixelGame() {
       // Draw water gun power-up
       if (state.waterGun && !state.waterGun.collected) {
         const wgx = Math.floor(state.waterGun.x);
-        const wgy = Math.floor(state.waterGun.y + Math.sin(performance.now() / 200) * 2);
+        const wgy = Math.floor(state.waterGun.y + Math.sin(now / 200) * 2);
         
         // Water gun pixel art (8x12)
         // Black outline
@@ -3745,7 +3785,7 @@ export default function PixelGame() {
         ctx.fillRect(wgx + 3, wgy + 7, 2, 2);
         
         // Water droplet effect
-        const droplet = Math.floor(performance.now() / 300) % 3;
+        const droplet = Math.floor(now / 300) % 3;
         if (droplet === 0) {
           ctx.fillStyle = '#00BFFF';
           ctx.fillRect(wgx + 4, wgy - 2, 1, 1);
@@ -3950,7 +3990,7 @@ export default function PixelGame() {
         }
         
         // Character name - pixel perfect text
-        const charName = selectedCharacter === 'guy1' ? 'CLASSIC' : selectedCharacter === 'guy2' ? 'SPEEDSTER' : 'SLAMMER';
+        const charName = selectedCharRef.current === 'guy1' ? 'CLASSIC' : selectedCharRef.current === 'guy2' ? 'SPEEDSTER' : 'SLAMMER';
         ctx.fillStyle = '#AAAAAA';
         const nameStartX = centerX - (charName.length * 2.5);
         for (let i = 0; i < charName.length; i++) {
@@ -4520,6 +4560,22 @@ export default function PixelGame() {
       if (key === 'c') {
         const player = gameStateRef.current.player;
         if (player.x < 200) {
+          // Reset all ability states before switching
+          player.isDashing = false;
+          player.dashTimer = 0;
+          player.dashCooldown = 0;
+          player.dashAvailable = true;
+          player.isAirSliding = false;
+          player.airSlideTimer = 0;
+          player.speedBoostTimer = 0;
+          player.isSlamming = false;
+          player.slamCharging = false;
+          player.chargeLevel = 0;
+          player.groundPoundRadius = 0;
+          player.invincibilityTimer = 0;
+          player.doubleJumpAvailable = false;
+          player.airDashCount = 0;
+          player.jumpHoldTime = 0;
           setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
           e.preventDefault();
         }
@@ -4552,7 +4608,7 @@ export default function PixelGame() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [spritesLoaded, currentStage, selectedCharacter]);
+  }, [spritesLoaded, currentStage]);
 
   if (!spritesLoaded) {
     return (
@@ -4609,224 +4665,202 @@ export default function PixelGame() {
   };
 
   if (isMobile) {
-    // Gameboy-style mobile UI
+    // Fullscreen mobile UI - no Game Boy frame, transparent overlay controls
+    const noSelectStyle = { userSelect: 'none' as const, WebkitUserSelect: 'none' as const, WebkitTouchCallout: 'none' as const, touchAction: 'manipulation' as const, MozUserSelect: 'none' as const, msUserSelect: 'none' as const };
+    
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-green-100 to-green-200 p-2 overflow-hidden">
-        <div className="relative rounded-3xl shadow-2xl w-full max-w-md mx-auto" style={{ background: 'linear-gradient(135deg, rgba(55, 65, 81, 0.95) 0%, rgba(75, 85, 99, 0.9) 50%, rgba(55, 65, 81, 0.95) 100%)', padding: 'clamp(1rem, 4vw, 1.5rem)' }}>
-          {/* Logo and Audio Button */}
-          <div className="flex items-center justify-between mb-3">
-            <div style={{ width: 'clamp(32px, 8vw, 40px)' }} />
-            <img 
-              src="/flip.png" 
-              alt="Flip Game" 
-              className="pixelated drop-shadow-2xl cursor-pointer" 
-              style={{ imageRendering: 'pixelated', height: 'clamp(60px, 15vw, 96px)' }} 
-              onClick={() => {
-                const player = gameStateRef.current.player;
-                if (player.x < 200) {
-                  setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
-                }
-              }}
-            />
-            <button
-              onClick={() => {
-                if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
-                  bgMusicRef.current.play().catch(() => {});
-                }
-                setAudioEnabled(!audioEnabled);
-              }}
-              className="bg-gradient-to-b from-gray-700 to-gray-800 rounded-full shadow-lg active:from-gray-800 active:to-gray-900 flex items-center justify-center text-white border-2 border-gray-600"
-              style={{ width: 'clamp(32px, 8vw, 40px)', height: 'clamp(32px, 8vw, 40px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
-            >
-              {audioEnabled ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-                </svg>
-              )}
-            </button>
+      <div className="fixed inset-0 bg-black overflow-hidden" style={{ touchAction: 'none' }}>
+        {/* Fullscreen Canvas */}
+        <canvas
+          ref={canvasRef}
+          width={GAME_WIDTH}
+          height={GAME_HEIGHT}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            imageRendering: 'pixelated',
+          }}
+          className="bg-black"
+        />
+
+        {/* Top Overlay - Score, Stage, Audio, Character Select */}
+        <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-3 pt-2" style={{ paddingTop: 'env(safe-area-inset-top, 8px)' }}>
+          {/* Character Select */}
+          <button
+            onClick={() => {
+              const player = gameStateRef.current.player;
+              if (player.x < 200) {
+                player.isDashing = false;
+                player.dashTimer = 0;
+                player.dashCooldown = 0;
+                player.dashAvailable = true;
+                player.isAirSliding = false;
+                player.airSlideTimer = 0;
+                player.speedBoostTimer = 0;
+                player.isSlamming = false;
+                player.slamCharging = false;
+                player.chargeLevel = 0;
+                player.groundPoundRadius = 0;
+                player.invincibilityTimer = 0;
+                player.doubleJumpAvailable = false;
+                player.airDashCount = 0;
+                player.jumpHoldTime = 0;
+                setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
+              }
+            }}
+            className="flex items-center gap-1 rounded-lg px-2"
+            style={{ ...noSelectStyle, height: '32px', backgroundColor: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <span className="font-mono font-bold" style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.85)', textShadow: '1px 1px 2px rgba(0,0,0,0.9)' }}>
+              {selectedCharacter === 'guy1' ? 'GUY1' : selectedCharacter === 'guy2' ? 'GUY2' : 'GUY3'}
+            </span>
+          </button>
+
+          {/* Score & Stage */}
+          <div className="flex gap-3 font-mono font-bold" style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)' }}>
+            <span style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>SCORE: {score}</span>
+            <span style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>STAGE: {currentStage}/10</span>
           </div>
-          
-          {/* Screen */}
-          <div className="bg-gray-900 rounded-xl shadow-inner" style={{ boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.5)', padding: 'clamp(0.75rem, 3vw, 1rem)', marginBottom: 'clamp(1rem, 4vw, 1.25rem)' }}>
-            <div className="bg-gradient-to-b from-green-800 to-green-900 rounded-lg p-2 mb-2 border-2 border-green-700">
-              <div className="flex justify-between font-mono font-bold" style={{ fontSize: 'clamp(0.625rem, 2.5vw, 0.75rem)' }}>
-                <span className="text-yellow-200">SCORE: {score}</span>
-                <span className="text-cyan-200">STAGE: {currentStage}/10</span>
-              </div>
-            </div>
-            <div className="border-4 border-gray-800 rounded-lg overflow-hidden" style={{ imageRendering: 'pixelated', boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }}>
-              <canvas
-                ref={canvasRef}
-                width={GAME_WIDTH}
-                height={GAME_HEIGHT}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  imageRendering: 'pixelated',
-                }}
-                className="bg-black"
-              />
-            </div>
-          </div>
-          
-          {/* Controls */}
-          <div className="flex justify-between items-end">
-            {/* D-Pad */}
-            <div className="relative" style={{ width: 'clamp(140px, 35vw, 180px)', height: 'clamp(140px, 35vw, 180px)' }}>
-              <div className="absolute inset-0 flex items-center justify-center">
-                {/* D-pad cross shape */}
-                <div className="relative" style={{ width: '100%', height: '100%' }}>
-                  {/* Horizontal bar */}
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full flex" style={{ height: 'clamp(48px, 12vw, 60px)' }}>
-                    {/* Left button */}
-                    <button
-                      onTouchStart={() => handleMobileButton('left', true)}
-                      onTouchEnd={() => handleMobileButton('left', false)}
-                      onMouseDown={() => handleMobileButton('left', true)}
-                      onMouseUp={() => handleMobileButton('left', false)}
-                      onMouseLeave={() => handleMobileButton('left', false)}
-                      className="bg-green-900 rounded-l-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
-                      style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
-                    >
-                      <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
-                      </svg>
-                    </button>
-                    {/* Center spacer */}
-                    <div style={{ width: '20%' }} />
-                    {/* Right button */}
-                    <button
-                      onTouchStart={() => handleMobileButton('right', true)}
-                      onTouchEnd={() => handleMobileButton('right', false)}
-                      onMouseDown={() => handleMobileButton('right', true)}
-                      onMouseUp={() => handleMobileButton('right', false)}
-                      onMouseLeave={() => handleMobileButton('right', false)}
-                      className="bg-green-900 rounded-r-lg shadow-xl active:bg-green-800 flex items-center justify-center text-white font-bold border-2 border-green-700"
-                      style={{ width: '40%', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
-                    >
-                      <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex gap-3 items-start">
-              {/* B Button (shoot) */}
+
+          {/* Audio Toggle */}
+          <button
+            onClick={() => {
+              if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
+                bgMusicRef.current.play().catch(() => {});
+              }
+              setAudioEnabled(!audioEnabled);
+            }}
+            className="flex items-center justify-center rounded-full"
+            style={{ ...noSelectStyle, width: '36px', height: '36px', backgroundColor: 'rgba(0,0,0,0.35)' }}
+          >
+            {audioEnabled ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,0.7)">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,0.7)">
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+              </svg>
+            )}
+          </button>
+        </div>
+
+        {/* Bottom-Left Overlay - D-Pad */}
+        <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', left: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <div className="relative" style={{ width: 'clamp(120px, 30vw, 160px)', height: 'clamp(56px, 14vw, 72px)' }}>
+            <div className="absolute inset-0 flex">
+              {/* Left button */}
               <button
-                onTouchStart={() => handleMobileButton('shoot', true)}
-                onTouchEnd={() => handleMobileButton('shoot', false)}
-                onMouseDown={() => handleMobileButton('shoot', true)}
-                onMouseUp={() => handleMobileButton('shoot', false)}
-                onMouseLeave={() => handleMobileButton('shoot', false)}
-                className="bg-gradient-to-b from-red-600 to-red-800 rounded-full shadow-xl active:from-red-700 active:to-red-900 flex items-center justify-center text-white font-black border-4 border-red-900"
-                style={{ width: 'clamp(60px, 15vw, 72px)', height: 'clamp(60px, 15vw, 72px)', fontSize: 'clamp(1.5rem, 6vw, 1.75rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(20px, 5vw, 28px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
+                onTouchStart={() => handleMobileButton('left', true)}
+                onTouchEnd={() => handleMobileButton('left', false)}
+                onMouseDown={() => handleMobileButton('left', true)}
+                onMouseUp={() => handleMobileButton('left', false)}
+                onMouseLeave={() => handleMobileButton('left', false)}
+                className="rounded-l-xl flex items-center justify-center active:brightness-150"
+                style={{ ...noSelectStyle, width: '42%', height: '100%', backgroundColor: 'rgba(255,255,255,0.12)', borderRight: '1px solid rgba(255,255,255,0.08)' }}
               >
-                B
+                <svg width="24" height="24" viewBox="0 0 16 16" fill="rgba(255,255,255,0.5)">
+                  <path d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+                </svg>
               </button>
-              {/* A Button (jump) */}
+              {/* Center spacer */}
+              <div style={{ width: '16%', backgroundColor: 'rgba(255,255,255,0.06)' }} />
+              {/* Right button */}
               <button
-                onTouchStart={() => handleMobileButton('jump', true)}
-                onTouchEnd={() => handleMobileButton('jump', false)}
-                onMouseDown={() => handleMobileButton('jump', true)}
-                onMouseUp={() => handleMobileButton('jump', false)}
-                onMouseLeave={() => handleMobileButton('jump', false)}
-                className="bg-gradient-to-b from-green-600 to-green-800 rounded-full shadow-xl active:from-green-700 active:to-green-900 flex items-center justify-center text-white font-black border-4 border-green-900"
-                style={{ width: 'clamp(96px, 24vw, 112px)', height: 'clamp(96px, 24vw, 112px)', fontSize: 'clamp(2rem, 8vw, 2.5rem)', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', marginTop: 'clamp(-32px, -8vw, -20px)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation', MozUserSelect: 'none', msUserSelect: 'none' }}
+                onTouchStart={() => handleMobileButton('right', true)}
+                onTouchEnd={() => handleMobileButton('right', false)}
+                onMouseDown={() => handleMobileButton('right', true)}
+                onMouseUp={() => handleMobileButton('right', false)}
+                onMouseLeave={() => handleMobileButton('right', false)}
+                className="rounded-r-xl flex items-center justify-center active:brightness-150"
+                style={{ ...noSelectStyle, width: '42%', height: '100%', backgroundColor: 'rgba(255,255,255,0.12)', borderLeft: '1px solid rgba(255,255,255,0.08)' }}
               >
-                A
+                <svg width="24" height="24" viewBox="0 0 16 16" fill="rgba(255,255,255,0.5)">
+                  <path d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
+                </svg>
               </button>
             </div>
-          </div>
-          
-          {/* Speaker Holes */}
-          <div className="flex justify-center gap-1" style={{ marginTop: 'clamp(1rem, 4vw, 1.25rem)' }}>
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-gray-900 rounded-full opacity-50" style={{ width: 'clamp(4px, 1.5vw, 6px)', height: 'clamp(32px, 8vw, 40px)' }} />
-            ))}
           </div>
         </div>
 
-        {/* Wallet Upgrade Modal - Gameboy Style */}
+        {/* Bottom-Right Overlay - Action Buttons */}
+        <div className="absolute z-10 flex gap-3 items-end" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {/* B Button (shoot) */}
+          <button
+            onTouchStart={() => handleMobileButton('shoot', true)}
+            onTouchEnd={() => handleMobileButton('shoot', false)}
+            onMouseDown={() => handleMobileButton('shoot', true)}
+            onMouseUp={() => handleMobileButton('shoot', false)}
+            onMouseLeave={() => handleMobileButton('shoot', false)}
+            className="rounded-full flex items-center justify-center font-black active:brightness-150"
+            style={{ ...noSelectStyle, width: 'clamp(52px, 13vw, 64px)', height: 'clamp(52px, 13vw, 64px)', fontSize: 'clamp(1.2rem, 5vw, 1.5rem)', backgroundColor: 'rgba(255,60,60,0.2)', border: '2px solid rgba(255,60,60,0.3)', color: 'rgba(255,255,255,0.5)', textShadow: '1px 1px 3px rgba(0,0,0,0.5)' }}
+          >
+            B
+          </button>
+          {/* A Button (jump) */}
+          <button
+            onTouchStart={() => handleMobileButton('jump', true)}
+            onTouchEnd={() => handleMobileButton('jump', false)}
+            onMouseDown={() => handleMobileButton('jump', true)}
+            onMouseUp={() => handleMobileButton('jump', false)}
+            onMouseLeave={() => handleMobileButton('jump', false)}
+            className="rounded-full flex items-center justify-center font-black active:brightness-150"
+            style={{ ...noSelectStyle, width: 'clamp(72px, 18vw, 88px)', height: 'clamp(72px, 18vw, 88px)', fontSize: 'clamp(1.5rem, 6vw, 2rem)', backgroundColor: 'rgba(60,255,60,0.2)', border: '2px solid rgba(60,255,60,0.3)', color: 'rgba(255,255,255,0.5)', textShadow: '1px 1px 3px rgba(0,0,0,0.5)', marginBottom: 'clamp(8px, 2vw, 16px)' }}
+          >
+            A
+          </button>
+        </div>
+
+        {/* Wallet Upgrade Modal */}
         {showWalletModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
-            <div className="relative rounded-3xl shadow-2xl w-full max-w-sm" style={{ background: 'linear-gradient(135deg, rgba(55, 65, 81, 0.98) 0%, rgba(75, 85, 99, 0.95) 50%, rgba(55, 65, 81, 0.98) 100%)', padding: '1.5rem', border: '4px solid #374151' }}>
-              {/* Screen-like container */}
-              <div className="bg-gray-900 rounded-xl shadow-inner p-4" style={{ boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.5)' }}>
-                <div className="bg-gradient-to-b from-green-800 to-green-900 rounded-lg p-4 border-4 border-green-700">
-                  <div className="text-center mb-4">
-                    <div className="inline-block bg-yellow-400 text-black font-bold px-4 py-2 rounded border-2 border-yellow-600 mb-3" style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '2px', imageRendering: 'pixelated' }}>
-                      <span className="inline-flex items-center gap-2">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
-                        </svg>
-                        UPGRADE!
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
-                        </svg>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="bg-black bg-opacity-60 rounded p-3 mb-4 border-2 border-green-600">
-                    <p className="text-green-300 font-mono text-center text-sm leading-relaxed mb-3">
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M6 9h4v6H6zm8 0h4v6h-4zM4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
-                        </svg>
-                        <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
-                      </span>
-                    </p>
-                    <p className="text-white font-mono text-center text-xs leading-relaxed mb-3">
-                      We&apos;ve upgraded to <span className="text-cyan-400 font-bold">FLIPPRX ONE</span> wallet - 
-                      <span className="text-green-400 font-bold"> cheaper</span> and 
-                      <span className="text-blue-400 font-bold"> faster</span>!
-                    </p>
-                    <div className="text-center mb-3">
-                      <a 
-                        href="https://FLIPPRX.ONE" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-4 py-2 rounded border-2 border-cyan-700 shadow-lg active:from-cyan-600 active:to-blue-700"
-                        style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-                          </svg>
-                          VISIT FLIPPRX.ONE
-                        </span>
-                      </a>
-                    </div>
-                    <p className="text-gray-400 font-mono text-center text-xs">
-                      Enjoy playing <span className="text-green-400">FLIPPRX</span>!
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      localStorage.setItem('flipprx_wallet_modal_seen', 'true');
-                      setShowWalletModal(false);
-                    }}
-                    className="w-full bg-gradient-to-b from-green-500 to-green-700 text-white font-bold py-3 px-4 rounded border-4 border-green-800 shadow-xl active:from-green-600 active:to-green-800"
-                    style={{ fontFamily: 'monospace', fontSize: '1rem', letterSpacing: '1px' }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                      START PLAYING!
-                    </span>
-                  </button>
+            <div className="relative rounded-2xl shadow-2xl w-full max-w-sm" style={{ background: 'rgba(20, 20, 30, 0.95)', padding: '1.5rem', border: '2px solid rgba(255,255,255,0.15)' }}>
+              <div className="text-center mb-4">
+                <div className="inline-block bg-yellow-400 text-black font-bold px-4 py-2 rounded border-2 border-yellow-600 mb-3" style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '2px' }}>
+                  UPGRADE!
                 </div>
               </div>
+
+              <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <p className="text-green-300 font-mono text-center text-sm leading-relaxed mb-3">
+                  <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
+                </p>
+                <p className="text-white font-mono text-center text-xs leading-relaxed mb-3">
+                  We&apos;ve upgraded to <span className="text-cyan-400 font-bold">FLIPPRX ONE</span> wallet - 
+                  <span className="text-green-400 font-bold"> cheaper</span> and 
+                  <span className="text-blue-400 font-bold"> faster</span>!
+                </p>
+                <div className="text-center mb-3">
+                  <a 
+                    href="https://FLIPPRX.ONE" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-4 py-2 rounded border-2 border-cyan-700 shadow-lg active:from-cyan-600 active:to-blue-700"
+                    style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
+                  >
+                    VISIT FLIPPRX.ONE
+                  </a>
+                </div>
+                <p className="text-gray-400 font-mono text-center text-xs">
+                  Enjoy playing <span className="text-green-400">FLIPPRX</span>!
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  localStorage.setItem('flipprx_wallet_modal_seen', 'true');
+                  setShowWalletModal(false);
+                }}
+                className="w-full bg-gradient-to-b from-green-500 to-green-700 text-white font-bold py-3 px-4 rounded-lg border-2 border-green-800 shadow-xl active:from-green-600 active:to-green-800"
+                style={{ fontFamily: 'monospace', fontSize: '1rem', letterSpacing: '1px' }}
+              >
+                START PLAYING!
+              </button>
             </div>
           </div>
         )}
