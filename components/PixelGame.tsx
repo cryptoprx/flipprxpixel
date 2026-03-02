@@ -227,7 +227,7 @@ export default function PixelGame() {
   const COYOTE_TIME = 0.2; // Forgiving edge jumps
   const JUMP_BUFFER = 0.25; // Forgiving jump timing
   const MAX_FALL_SPEED = 480; // Controlled falling
-  const MAX_PARTICLES = 300; // Particle count limit to prevent memory leaks
+  const MAX_PARTICLES = 150; // Reduced for smoother performance
 
   // Pooled audio elements for mp3 sounds (prevent creating new Audio() each call)
   const audioPoolRef = useRef<Record<string, HTMLAudioElement>>({});
@@ -1002,8 +1002,8 @@ export default function PixelGame() {
         playSound('jump');
         try { navigator.vibrate(30); } catch {}
         
-        // Spawn jump particles - enhanced burst effect with better colors
-        for (let i = 0; i < 20; i++) {
+        // Spawn jump particles - reduced for performance
+        for (let i = 0; i < 10; i++) {
           const angle = Math.PI * (0.3 + Math.random() * 0.4); // Upward burst
           const speed = 55 + Math.random() * 75;
           state.particles.push({
@@ -1027,8 +1027,8 @@ export default function PixelGame() {
           playSound('jump');
           try { navigator.vibrate(30); } catch {}
           
-          // Double jump particles - cyan/blue colors (optimized: 25 -> 15)
-          for (let i = 0; i < 15; i++) {
+          // Double jump particles - reduced for performance
+          for (let i = 0; i < 8; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 60 + Math.random() * 80;
             state.particles.push({
@@ -1068,7 +1068,7 @@ export default function PixelGame() {
           playSound('flip');
           
           // Dash particles - orange/yellow trail
-          for (let i = 0; i < 15; i++) {
+          for (let i = 0; i < 8; i++) {
             state.particles.push({
               x: player.x + 6,
               y: player.y + 7,
@@ -2543,19 +2543,22 @@ export default function PixelGame() {
         state.screenShake = Math.max(0, state.screenShake - dt);
       }
 
-      // Update particles with count limit
+      // Update particles in-place (avoid allocating new array every frame)
       if (state.particles.length > MAX_PARTICLES) {
-        // Remove oldest particles when limit exceeded
-        state.particles = state.particles.slice(-MAX_PARTICLES);
+        state.particles.length = MAX_PARTICLES; // Truncate in-place
       }
-      
-      state.particles = state.particles.filter(p => {
+      let writeIdx = 0;
+      for (let i = 0; i < state.particles.length; i++) {
+        const p = state.particles[i];
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        p.vy += 200 * dt; // Gravity
+        p.vy += 200 * dt;
         p.life -= dt;
-        return p.life > 0;
-      });
+        if (p.life > 0) {
+          state.particles[writeIdx++] = p;
+        }
+      }
+      state.particles.length = writeIdx;
 
       // Check if player reached goal
       if (player.x >= state.goalX - 20 && player.onGround && !state.celebrating) {
@@ -2564,8 +2567,8 @@ export default function PixelGame() {
         state.celebrationTimer = 3.5; // 3.5 seconds celebration
         playSound('celebration');
         
-        // Massive celebration particle explosion (optimized: 150 -> 80)
-        for (let i = 0; i < 80; i++) {
+        // Celebration particle explosion - reduced for performance
+        for (let i = 0; i < 40; i++) {
           const angle = (Math.PI * 2 * i) / 80;
           const speed = 100 + Math.random() * 150;
           state.particles.push({
@@ -2579,8 +2582,8 @@ export default function PixelGame() {
           });
         }
         
-        // Additional firework particles at goal position (optimized: 80 -> 40)
-        for (let i = 0; i < 40; i++) {
+        // Additional firework particles at goal position
+        for (let i = 0; i < 20; i++) {
           const angle = (Math.PI * 2 * i) / 40;
           const speed = 80 + Math.random() * 100;
           state.particles.push({
@@ -2739,9 +2742,11 @@ export default function PixelGame() {
       const shakeX = state.screenShake > 0 ? Math.floor((Math.random() - 0.5) * state.screenShake * 3) : 0;
       ctx.translate(Math.floor(-state.camera.x + shakeX), Math.floor(-state.camera.y));
 
-      // Draw clouds (far background) - enhanced with more detail
+      // Draw clouds (far background) - with viewport culling
+      const GW = gameWidthRef.current;
       for (let i = 0; i < 18; i++) {
         const x = Math.floor(i * 85 + 15 - state.camera.x * 0.12);
+        if (x < state.camera.x - 30 || x > state.camera.x + GW + 30) continue;
         const y = Math.floor(12 + (i % 4) * 10);
         
         // Cloud base shape
@@ -2777,9 +2782,10 @@ export default function PixelGame() {
         ctx.fillRect(x + 12, y + 8, 8, 1);
       }
 
-      // Draw parallax mountains (background) - extend to bottom of screen
+      // Draw parallax mountains (background) - with viewport culling
       for (let i = 0; i < 14; i++) {
         const x = Math.floor(i * 105 + 45 - state.camera.x * 0.22);
+        if (x < state.camera.x - 40 || x > state.camera.x + GW + 40) continue;
         const mountainHeight = 160 - 74; // From peak to bottom of canvas
         
         // Mountain body - extends to bottom
@@ -2802,9 +2808,10 @@ export default function PixelGame() {
         ctx.fillRect(x + 8, 74, 1, 8);
       }
 
-      // Draw parallax hills - extend to bottom of screen
+      // Draw parallax hills - with viewport culling
       for (let i = 0; i < 24; i++) {
         const x = Math.floor(i * 65 + 30 - state.camera.x * 0.4);
+        if (x < state.camera.x - 40 || x > state.camera.x + GW + 40) continue;
         
         // Hill body - extends to bottom
         ctx.fillStyle = '#22C55E';
@@ -2819,9 +2826,10 @@ export default function PixelGame() {
         ctx.fillRect(x + 12, 106, 1, 4);
       }
 
-      // Draw bushes (foreground decoration) - extend to bottom like mountains
+      // Draw bushes (foreground decoration) - with viewport culling
       for (let i = 0; i < 28; i++) {
         const x = Math.floor(i * 52 + 8 - state.camera.x * 0.75);
+        if (x < state.camera.x - 30 || x > state.camera.x + GW + 30) continue;
         const y = 120;
         const bushType = i % 3;
         
@@ -3378,8 +3386,11 @@ export default function PixelGame() {
         ctx.fillRect(flagX + 13 + waveOffset, flagY + row * 3, 1, 3);
       }
 
-      // Draw particles with enhanced effects
+      // Draw particles with enhanced effects (viewport culled)
+      const pCamL = state.camera.x - 10;
+      const pCamR = state.camera.x + GW + 10;
       state.particles.forEach(p => {
+        if (p.x < pCamL || p.x > pCamR) return;
         const lifePercent = p.life / p.maxLife;
         const px = Math.floor(p.x);
         const py = Math.floor(p.y);
@@ -4185,11 +4196,11 @@ export default function PixelGame() {
         }
       }
       
-      // Draw lives as pixel hearts in top left
+      // Draw lives as pixel hearts in top left (below HUD bar)
       if (!state.inBlackhole && !state.celebrating) {
         for (let i = 0; i < livesRef.current; i++) {
           const hx = 4 + i * 10;
-          const hy = 4;
+          const hy = 14;
           ctx.fillStyle = '#FF0000';
           ctx.fillRect(hx + 1, hy, 2, 1);
           ctx.fillRect(hx + 5, hy, 2, 1);
