@@ -65,11 +65,15 @@ export default function PixelGame() {
   const [selectedCharacter, setSelectedCharacter] = useState<'guy1' | 'guy2' | 'guy3'>('guy1');
   const [highScore, setHighScore] = useState(0);
   const [deathCount, setDeathCount] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [gameWon, setGameWon] = useState(false);
+  const livesRef = useRef(3);
   
   // Keep refs in sync with state (avoids useEffect restart)
   useEffect(() => { selectedCharRef.current = selectedCharacter; }, [selectedCharacter]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
   useEffect(() => { gameScreenRef.current = gameScreen; }, [gameScreen]);
+  useEffect(() => { livesRef.current = lives; }, [lives]);
 
   // Detect mobile/tablet device - always show gameboy style on mobile/tablet
   useEffect(() => {
@@ -176,6 +180,7 @@ export default function PixelGame() {
     chartResult: '' as 'green' | 'red' | '',
     speechBubble: null as { text: string; timer: number; phraseIndex: number } | null,
     speechCooldown: 0,
+    deathFlashTimer: 0,
   });
 
   // Game constants
@@ -857,6 +862,11 @@ export default function PixelGame() {
         }
       }
 
+      // Update death flash timer
+      if (state.deathFlashTimer > 0) {
+        state.deathFlashTimer -= dt;
+      }
+
       // Handle game start countdown
       if (!state.gameStarted) {
         state.gameStartTimer += dt;
@@ -875,9 +885,9 @@ export default function PixelGame() {
             setCurrentStage(nextStage);
             loadStage(nextStage);
           } else {
-            // After completing stage 10, loop back to stage 1
-            setCurrentStage(1);
-            loadStage(1);
+            // Completed all 10 stages - YOU WIN!
+            setGameWon(true);
+            setGameScreen('gameover');
           }
           return; // Exit after loading new stage
         }
@@ -990,6 +1000,7 @@ export default function PixelGame() {
         }
         
         playSound('jump');
+        try { navigator.vibrate(30); } catch {}
         
         // Spawn jump particles - enhanced burst effect with better colors
         for (let i = 0; i < 20; i++) {
@@ -1014,6 +1025,7 @@ export default function PixelGame() {
           player.doubleJumpAvailable = false;
           state.jumpBuffer = 0;
           playSound('jump');
+          try { navigator.vibrate(30); } catch {}
           
           // Double jump particles - cyan/blue colors (optimized: 25 -> 15)
           for (let i = 0; i < 15; i++) {
@@ -2467,8 +2479,24 @@ export default function PixelGame() {
               });
             }
           } else {
-            // Player dies - respawn at starting position
+            // Player dies - check lives
             playSound('death');
+            state.deathFlashTimer = 0.3;
+            try { navigator.vibrate(200); } catch {}
+            setDeathCount(d => d + 1);
+            
+            if (livesRef.current <= 1) {
+              // Last life - game over
+              setLives(0);
+              setGameWon(false);
+              setGameScreen('gameover');
+              return;
+            }
+            
+            setLives(l => l - 1);
+            setScore(0);
+            
+            // Respawn
             player.x = 80;
             player.y = 112;
             player.velocityX = 0;
@@ -2490,14 +2518,12 @@ export default function PixelGame() {
             player.slamCharging = false;
             player.chargeLevel = 0;
             player.groundPoundRadius = 0;
-            player.invincibilityTimer = 2.0; // 2 seconds spawn protection
+            player.invincibilityTimer = 2.0;
             player.doubleJumpAvailable = false;
             player.airDashCount = 0;
             player.jumpHoldTime = 0;
             state.combo = 0;
             state.comboTimer = 0;
-            setDeathCount(d => d + 1);
-            setScore(0);
           }
         }
       });
@@ -2647,6 +2673,21 @@ export default function PixelGame() {
           });
         }
         
+        // Player dies from pit - check lives
+        state.deathFlashTimer = 0.3;
+        try { navigator.vibrate(200); } catch {}
+        setDeathCount(d => d + 1);
+        
+        if (livesRef.current <= 1) {
+          setLives(0);
+          setGameWon(false);
+          setGameScreen('gameover');
+          return;
+        }
+        
+        setLives(l => l - 1);
+        setScore(0);
+        
         // Reset player position and all ability states
         player.x = 80;
         player.y = 112;
@@ -2669,16 +2710,12 @@ export default function PixelGame() {
         player.slamCharging = false;
         player.chargeLevel = 0;
         player.groundPoundRadius = 0;
-        player.invincibilityTimer = 2.0; // 2 seconds spawn protection
+        player.invincibilityTimer = 2.0;
         player.doubleJumpAvailable = false;
         player.airDashCount = 0;
         player.jumpHoldTime = 0;
         state.combo = 0;
         state.comboTimer = 0;
-        
-        // Reset score on death
-        setDeathCount(d => d + 1);
-        setScore(0);
       }
     };
 
@@ -4148,6 +4185,30 @@ export default function PixelGame() {
         }
       }
       
+      // Draw lives as pixel hearts in top left
+      if (!state.inBlackhole && !state.celebrating) {
+        for (let i = 0; i < livesRef.current; i++) {
+          const hx = 4 + i * 10;
+          const hy = 4;
+          ctx.fillStyle = '#FF0000';
+          ctx.fillRect(hx + 1, hy, 2, 1);
+          ctx.fillRect(hx + 5, hy, 2, 1);
+          ctx.fillRect(hx, hy + 1, 4, 1);
+          ctx.fillRect(hx + 4, hy + 1, 4, 1);
+          ctx.fillRect(hx, hy + 2, 8, 1);
+          ctx.fillRect(hx + 1, hy + 3, 6, 1);
+          ctx.fillRect(hx + 2, hy + 4, 4, 1);
+          ctx.fillRect(hx + 3, hy + 5, 2, 1);
+        }
+      }
+
+      // Death flash overlay
+      if (state.deathFlashTimer > 0) {
+        const flashAlpha = state.deathFlashTimer / 0.3;
+        ctx.fillStyle = flashAlpha > 0.5 ? `rgba(255,255,255,${flashAlpha})` : `rgba(255,0,0,${flashAlpha * 0.6})`;
+        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
+      }
+
       // Draw blackhole mini-game overlay (MUST BE LAST - draws on top of everything)
       if (state.inBlackhole) {
         ctx.save();
@@ -4778,10 +4839,38 @@ export default function PixelGame() {
             {/* Start button */}
             <button
               onClick={() => {
-                setGameScreen('playing');
+                // Full reset
                 setScore(0);
                 setDeathCount(0);
                 setCurrentStage(1);
+                setLives(3);
+                setGameWon(false);
+                
+                // Reset game state ref
+                const state = gameStateRef.current;
+                const player = state.player;
+                player.x = 80; player.y = 112;
+                player.velocityX = 0; player.velocityY = 0;
+                player.onGround = true; player.facingLeft = false;
+                player.rotation = 0; player.hasHelmet = false; player.helmetTimer = 0;
+                player.hasWaterGun = false; player.waterGunTimer = 0; player.shootCooldown = 0;
+                player.invincibilityTimer = 0; player.isAirSliding = false; player.airSlideTimer = 0;
+                player.airSlideUsed = false; player.isSlamming = false; player.slamCharging = false;
+                player.jumpHoldTime = 0; player.doubleJumpAvailable = false;
+                player.dashAvailable = true; player.dashTimer = 0; player.isDashing = false;
+                player.dashCooldown = 0; player.speedBoostTimer = 0; player.airDashCount = 0;
+                player.groundPoundRadius = 0; player.chargeLevel = 0; player.landingTimer = 0;
+                state.camera = { x: 0, y: 0, targetX: 0 };
+                state.combo = 0; state.comboTimer = 0; state.screenShake = 0;
+                state.celebrating = false; state.celebrationTimer = 0;
+                state.gameStarted = false; state.gameStartTimer = 0;
+                state.deathFlashTimer = 0;
+                state.particles = []; state.waterProjectiles = [];
+                state.inBlackhole = false; state.blackholeTimer = 0;
+                state.speechBubble = null; state.speechCooldown = 0;
+                state.keys = {};
+                
+                setGameScreen('playing');
               }}
               style={{ ...pxBtn, color: '#fff', fontSize: '10px', letterSpacing: '2px', animation: 'blinkText 1.2s step-end infinite', background: 'none', border: 'none', padding: '12px', marginBottom: '16px' }}
             >
@@ -4799,13 +4888,22 @@ export default function PixelGame() {
 
         {/* === GAME OVER OVERLAY === */}
         {gameScreen === 'gameover' && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.9)' }}>
-            <div style={{ color: '#FF0000', fontSize: '16px', letterSpacing: '3px', marginBottom: '20px', textShadow: '2px 2px 0 #000' }}>GAME OVER</div>
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.92)' }}>
+            <div style={{ color: gameWon ? '#FFD700' : '#FF0000', fontSize: '14px', letterSpacing: '3px', marginBottom: '6px', textShadow: '2px 2px 0 #000' }}>
+              {gameWon ? 'YOU WIN!' : 'GAME OVER'}
+            </div>
+            {gameWon && (
+              <div style={{ color: '#4ade80', fontSize: '7px', letterSpacing: '1px', marginBottom: '16px' }}>ALL 10 STAGES CLEARED</div>
+            )}
+            {!gameWon && (
+              <div style={{ color: '#888', fontSize: '7px', marginBottom: '16px' }}>NO LIVES LEFT</div>
+            )}
             
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <div style={{ color: '#FFD700', fontSize: '8px', marginBottom: '8px' }}>SCORE: {score}</div>
-              <div style={{ color: '#aaa', fontSize: '7px', marginBottom: '4px' }}>STAGE: {currentStage}/10</div>
-              <div style={{ color: '#aaa', fontSize: '7px', marginBottom: '4px' }}>DEATHS: {deathCount}</div>
+            <div style={{ textAlign: 'center', marginBottom: '20px', border: '1px solid #333', padding: '12px 20px' }}>
+              <div style={{ color: '#FFD700', fontSize: '8px', marginBottom: '6px' }}>SCORE: {score}</div>
+              <div style={{ color: '#aaa', fontSize: '6px', marginBottom: '3px' }}>STAGE: {currentStage}/10</div>
+              <div style={{ color: '#aaa', fontSize: '6px', marginBottom: '3px' }}>DEATHS: {deathCount}</div>
+              <div style={{ color: '#aaa', fontSize: '6px' }}>LIVES LEFT: {lives}</div>
               {score > highScore && (
                 <div style={{ color: '#4ade80', fontSize: '8px', marginTop: '8px', letterSpacing: '1px' }}>NEW HI-SCORE!</div>
               )}
@@ -4815,13 +4913,13 @@ export default function PixelGame() {
               onClick={() => {
                 if (score > highScore) {
                   setHighScore(score);
-                  localStorage.setItem('flipprx_highscore', score.toString());
+                  try { localStorage.setItem('flipprx_highscore', score.toString()); } catch {}
                 }
                 setGameScreen('title');
               }}
               style={{ ...pxBtn, color: '#fff', fontSize: '8px', letterSpacing: '2px', background: 'none', border: '2px solid #fff', padding: '10px 20px', marginBottom: '12px' }}
             >
-              CONTINUE
+              {gameWon ? 'PLAY AGAIN' : 'TRY AGAIN'}
             </button>
           </div>
         )}
@@ -4884,9 +4982,9 @@ export default function PixelGame() {
                     setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
                   }
                 }}
-                style={{ ...pxBtn, color: '#4ade80', fontSize: '5px', padding: '3px 6px', background: 'none', border: '1px solid rgba(74,222,128,0.4)', letterSpacing: '1px' }}
+                style={{ ...pxBtn, color: '#4ade80', fontSize: '4px', padding: '3px 5px', background: 'none', border: '1px solid rgba(74,222,128,0.4)', letterSpacing: '0.5px' }}
               >
-                {selectedCharacter === 'guy1' ? 'C' : selectedCharacter === 'guy2' ? 'S' : 'P'}
+                {selectedCharacter === 'guy1' ? 'CLSc' : selectedCharacter === 'guy2' ? 'SPD' : 'SLM'}
               </button>
               <button
                 onClick={() => {
@@ -4909,6 +5007,7 @@ export default function PixelGame() {
               <button
                 onTouchStart={() => handleMobileButton('left', true)}
                 onTouchEnd={() => handleMobileButton('left', false)}
+                onTouchCancel={() => handleMobileButton('left', false)}
                 onMouseDown={() => handleMobileButton('left', true)}
                 onMouseUp={() => handleMobileButton('left', false)}
                 onMouseLeave={() => handleMobileButton('left', false)}
@@ -4921,6 +5020,7 @@ export default function PixelGame() {
               <button
                 onTouchStart={() => handleMobileButton('right', true)}
                 onTouchEnd={() => handleMobileButton('right', false)}
+                onTouchCancel={() => handleMobileButton('right', false)}
                 onMouseDown={() => handleMobileButton('right', true)}
                 onMouseUp={() => handleMobileButton('right', false)}
                 onMouseLeave={() => handleMobileButton('right', false)}
@@ -4940,6 +5040,7 @@ export default function PixelGame() {
             <button
               onTouchStart={() => handleMobileButton('shoot', true)}
               onTouchEnd={() => handleMobileButton('shoot', false)}
+              onTouchCancel={() => handleMobileButton('shoot', false)}
               onMouseDown={() => handleMobileButton('shoot', true)}
               onMouseUp={() => handleMobileButton('shoot', false)}
               onMouseLeave={() => handleMobileButton('shoot', false)}
@@ -4952,6 +5053,7 @@ export default function PixelGame() {
             <button
               onTouchStart={() => handleMobileButton('jump', true)}
               onTouchEnd={() => handleMobileButton('jump', false)}
+              onTouchCancel={() => handleMobileButton('jump', false)}
               onMouseDown={() => handleMobileButton('jump', true)}
               onMouseUp={() => handleMobileButton('jump', false)}
               onMouseLeave={() => handleMobileButton('jump', false)}
