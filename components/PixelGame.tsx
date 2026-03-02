@@ -60,13 +60,16 @@ export default function PixelGame() {
   const [spritesLoaded, setSpritesLoaded] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [gameScreen, setGameScreen] = useState<'title' | 'playing' | 'gameover'>('title');
   const [selectedCharacter, setSelectedCharacter] = useState<'guy1' | 'guy2' | 'guy3'>('guy1');
+  const [highScore, setHighScore] = useState(0);
+  const [deathCount, setDeathCount] = useState(0);
   
-  // Keep selectedCharRef in sync with state (avoids useEffect restart on char switch)
-  useEffect(() => {
-    selectedCharRef.current = selectedCharacter;
-  }, [selectedCharacter]);
+  // Keep refs in sync with state (avoids useEffect restart)
+  useEffect(() => { selectedCharRef.current = selectedCharacter; }, [selectedCharacter]);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => { gameScreenRef.current = gameScreen; }, [gameScreen]);
 
   // Detect mobile/tablet device - always show gameboy style on mobile/tablet
   useEffect(() => {
@@ -86,6 +89,8 @@ export default function PixelGame() {
   const helmetCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const skyGradientRef = useRef<CanvasGradient | null>(null);
   const selectedCharRef = useRef<'guy1' | 'guy2' | 'guy3'>('guy1');
+  const isPausedRef = useRef(false);
+  const gameScreenRef = useRef<'title' | 'playing' | 'gameover'>('title');
   const gameStateRef = useRef({
     player: {
       x: 80,
@@ -427,12 +432,10 @@ export default function PixelGame() {
     }
   }, [audioEnabled]);
 
-  // Check if user has seen wallet modal
+  // Load high score from localStorage
   useEffect(() => {
-    const hasSeenWalletModal = localStorage.getItem('flipprx_wallet_modal_seen');
-    if (!hasSeenWalletModal) {
-      setShowWalletModal(true);
-    }
+    const saved = localStorage.getItem('flipprx_highscore');
+    if (saved) setHighScore(parseInt(saved, 10));
   }, []);
 
   // Load character sprites
@@ -801,7 +804,10 @@ export default function PixelGame() {
       const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
       lastTime = currentTime;
 
-      update(deltaTime);
+      // Only update game logic when playing and not paused
+      if (gameScreenRef.current === 'playing' && !isPausedRef.current) {
+        update(deltaTime);
+      }
       render(ctx);
 
       animationId = requestAnimationFrame(gameLoop);
@@ -2459,6 +2465,7 @@ export default function PixelGame() {
             player.jumpHoldTime = 0;
             state.combo = 0;
             state.comboTimer = 0;
+            setDeathCount(d => d + 1);
             setScore(0);
           }
         }
@@ -2639,6 +2646,7 @@ export default function PixelGame() {
         state.comboTimer = 0;
         
         // Reset score on death
+        setDeathCount(d => d + 1);
         setScore(0);
       }
     };
@@ -4612,30 +4620,39 @@ export default function PixelGame() {
 
   if (!spritesLoaded) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black">
+      <div className="flex flex-col items-center justify-center min-h-screen" style={{ background: '#000' }}>
         <style>{`
-          @keyframes pixelRotate {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+          @keyframes pixelBounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
           }
-          .pixel-rotate {
-            animation: pixelRotate 2s linear infinite;
-            image-rendering: pixelated;
+          @keyframes pixelBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+          }
+          @keyframes pixelBar {
+            0% { width: 10%; }
+            50% { width: 70%; }
+            100% { width: 95%; }
           }
         `}</style>
         <img 
           src="/croak.png" 
           alt="Loading..." 
-          className="pixel-rotate mb-8" 
           style={{ 
-            width: '120px', 
-            height: '120px',
-            imageRendering: 'pixelated'
+            width: '64px', 
+            height: '64px',
+            imageRendering: 'pixelated',
+            animation: 'pixelBounce 1s ease-in-out infinite',
+            marginBottom: '24px',
           }} 
         />
-        <div className="text-green-400 text-2xl mb-4 font-mono font-bold">Loading sprites...</div>
-        <div className="w-64 h-4 bg-gray-700 rounded-full overflow-hidden border-2 border-green-600">
-          <div className="h-full bg-gradient-to-r from-green-500 to-green-400 animate-pulse" style={{ width: '50%' }}></div>
+        <div style={{ color: '#4ade80', fontSize: '10px', marginBottom: '16px', letterSpacing: '2px' }}>
+          LOADING...
+        </div>
+        {/* Pixel progress bar */}
+        <div style={{ width: '160px', height: '8px', background: '#1a1a2e', border: '2px solid #4ade80', padding: '1px' }}>
+          <div style={{ height: '100%', background: '#4ade80', animation: 'pixelBar 2s ease-in-out infinite', imageRendering: 'pixelated' }} />
         </div>
       </div>
     );
@@ -4664,12 +4681,12 @@ export default function PixelGame() {
     }
   };
 
+  // Pixel art button style
+  const pxBtn = { userSelect: 'none' as const, WebkitUserSelect: 'none' as const, WebkitTouchCallout: 'none' as const, touchAction: 'manipulation' as const, MozUserSelect: 'none' as const, msUserSelect: 'none' as const, imageRendering: 'pixelated' as const };
+
   if (isMobile) {
-    // Fullscreen mobile UI - no Game Boy frame, transparent overlay controls
-    const noSelectStyle = { userSelect: 'none' as const, WebkitUserSelect: 'none' as const, WebkitTouchCallout: 'none' as const, touchAction: 'manipulation' as const, MozUserSelect: 'none' as const, msUserSelect: 'none' as const };
-    
     return (
-      <div className="fixed inset-0 bg-black overflow-hidden" style={{ touchAction: 'none' }}>
+      <div className="fixed inset-0 overflow-hidden" style={{ touchAction: 'none', background: '#000' }}>
         {/* Fullscreen Canvas */}
         <canvas
           ref={canvasRef}
@@ -4685,255 +4702,249 @@ export default function PixelGame() {
             objectFit: 'contain',
             imageRendering: 'pixelated',
           }}
-          className="bg-black"
         />
 
-        {/* Top Overlay - Score, Stage, Audio, Character Select */}
-        <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-3 pt-2" style={{ paddingTop: 'env(safe-area-inset-top, 8px)' }}>
-          {/* Character Select */}
-          <button
-            onClick={() => {
-              const player = gameStateRef.current.player;
-              if (player.x < 200) {
-                player.isDashing = false;
-                player.dashTimer = 0;
-                player.dashCooldown = 0;
-                player.dashAvailable = true;
-                player.isAirSliding = false;
-                player.airSlideTimer = 0;
-                player.speedBoostTimer = 0;
-                player.isSlamming = false;
-                player.slamCharging = false;
-                player.chargeLevel = 0;
-                player.groundPoundRadius = 0;
-                player.invincibilityTimer = 0;
-                player.doubleJumpAvailable = false;
-                player.airDashCount = 0;
-                player.jumpHoldTime = 0;
-                setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
-              }
-            }}
-            className="flex items-center gap-1 rounded-lg px-2"
-            style={{ ...noSelectStyle, height: '32px', backgroundColor: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)' }}
-          >
-            <span className="font-mono font-bold" style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.85)', textShadow: '1px 1px 2px rgba(0,0,0,0.9)' }}>
-              {selectedCharacter === 'guy1' ? 'GUY1' : selectedCharacter === 'guy2' ? 'GUY2' : 'GUY3'}
-            </span>
-          </button>
+        {/* === TITLE SCREEN OVERLAY === */}
+        {gameScreen === 'title' && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)' }}>
+            <style>{`
+              @keyframes titlePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+              @keyframes blinkText { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+              @keyframes starFloat { 0% { transform: translateY(0); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
+            `}</style>
+            <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', animation: 'titlePulse 2s ease-in-out infinite', marginBottom: '12px' }} />
+            <div style={{ color: '#FFD700', fontSize: '14px', letterSpacing: '3px', marginBottom: '4px', textShadow: '2px 2px 0 #000' }}>FLIPPRX</div>
+            <div style={{ color: '#4ade80', fontSize: '8px', letterSpacing: '1px', marginBottom: '32px' }}>PIXEL GAME</div>
+            
+            {/* Character select */}
+            <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+              <div style={{ color: '#aaa', fontSize: '6px', marginBottom: '8px', letterSpacing: '1px' }}>SELECT CHARACTER</div>
+              <div className="flex gap-4 items-center justify-center">
+                {(['guy1', 'guy2', 'guy3'] as const).map((char) => (
+                  <button
+                    key={char}
+                    onClick={() => setSelectedCharacter(char)}
+                    style={{
+                      ...pxBtn,
+                      padding: '6px 10px',
+                      background: selectedCharacter === char ? '#4ade80' : '#222',
+                      color: selectedCharacter === char ? '#000' : '#888',
+                      border: `2px solid ${selectedCharacter === char ? '#4ade80' : '#444'}`,
+                      fontSize: '7px',
+                      letterSpacing: '1px',
+                    }}
+                  >
+                    {char === 'guy1' ? 'CLASSIC' : char === 'guy2' ? 'SPEED' : 'SLAM'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          {/* Score & Stage */}
-          <div className="flex gap-3 font-mono font-bold" style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)' }}>
-            <span style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>SCORE: {score}</span>
-            <span style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>STAGE: {currentStage}/10</span>
-          </div>
+            {/* Start button */}
+            <button
+              onClick={() => {
+                setGameScreen('playing');
+                setScore(0);
+                setDeathCount(0);
+                setCurrentStage(1);
+              }}
+              style={{ ...pxBtn, color: '#fff', fontSize: '10px', letterSpacing: '2px', animation: 'blinkText 1.2s step-end infinite', background: 'none', border: 'none', padding: '12px', marginBottom: '16px' }}
+            >
+              PRESS START
+            </button>
 
-          {/* Audio Toggle */}
-          <button
-            onClick={() => {
-              if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) {
-                bgMusicRef.current.play().catch(() => {});
-              }
-              setAudioEnabled(!audioEnabled);
-            }}
-            className="flex items-center justify-center rounded-full"
-            style={{ ...noSelectStyle, width: '36px', height: '36px', backgroundColor: 'rgba(0,0,0,0.35)' }}
-          >
-            {audioEnabled ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,0.7)">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,0.7)">
-                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-              </svg>
+            {/* High score */}
+            {highScore > 0 && (
+              <div style={{ color: '#FFD700', fontSize: '6px', letterSpacing: '1px' }}>
+                HI-SCORE: {highScore}
+              </div>
             )}
-          </button>
-        </div>
+          </div>
+        )}
 
-        {/* Bottom-Left Overlay - D-Pad */}
-        <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', left: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-          <div className="relative" style={{ width: 'clamp(120px, 30vw, 160px)', height: 'clamp(56px, 14vw, 72px)' }}>
-            <div className="absolute inset-0 flex">
-              {/* Left button */}
+        {/* === GAME OVER OVERLAY === */}
+        {gameScreen === 'gameover' && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.9)' }}>
+            <div style={{ color: '#FF0000', fontSize: '16px', letterSpacing: '3px', marginBottom: '20px', textShadow: '2px 2px 0 #000' }}>GAME OVER</div>
+            
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div style={{ color: '#FFD700', fontSize: '8px', marginBottom: '8px' }}>SCORE: {score}</div>
+              <div style={{ color: '#aaa', fontSize: '7px', marginBottom: '4px' }}>STAGE: {currentStage}/10</div>
+              <div style={{ color: '#aaa', fontSize: '7px', marginBottom: '4px' }}>DEATHS: {deathCount}</div>
+              {score > highScore && (
+                <div style={{ color: '#4ade80', fontSize: '8px', marginTop: '8px', letterSpacing: '1px' }}>NEW HI-SCORE!</div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                if (score > highScore) {
+                  setHighScore(score);
+                  localStorage.setItem('flipprx_highscore', score.toString());
+                }
+                setGameScreen('title');
+              }}
+              style={{ ...pxBtn, color: '#fff', fontSize: '8px', letterSpacing: '2px', background: 'none', border: '2px solid #fff', padding: '10px 20px', marginBottom: '12px' }}
+            >
+              CONTINUE
+            </button>
+          </div>
+        )}
+
+        {/* === PAUSE OVERLAY === */}
+        {isPaused && gameScreen === 'playing' && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
+            <div style={{ color: '#fff', fontSize: '14px', letterSpacing: '3px', marginBottom: '24px' }}>PAUSED</div>
+            
+            <button
+              onClick={() => setIsPaused(false)}
+              style={{ ...pxBtn, color: '#4ade80', fontSize: '8px', letterSpacing: '2px', background: 'none', border: '2px solid #4ade80', padding: '10px 20px', marginBottom: '12px' }}
+            >
+              RESUME
+            </button>
+            <button
+              onClick={() => {
+                setIsPaused(false);
+                if (score > highScore) {
+                  setHighScore(score);
+                  localStorage.setItem('flipprx_highscore', score.toString());
+                }
+                setGameScreen('title');
+              }}
+              style={{ ...pxBtn, color: '#FF6666', fontSize: '7px', letterSpacing: '1px', background: 'none', border: '2px solid #FF6666', padding: '8px 16px' }}
+            >
+              QUIT TO TITLE
+            </button>
+          </div>
+        )}
+
+        {/* === TOP HUD BAR (pixel style) === */}
+        {gameScreen === 'playing' && !isPaused && (
+          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between" style={{ padding: '6px 10px', paddingTop: 'env(safe-area-inset-top, 6px)', background: 'rgba(0,0,0,0.5)' }}>
+            {/* Pause button */}
+            <button
+              onClick={() => setIsPaused(true)}
+              style={{ ...pxBtn, color: '#fff', fontSize: '7px', padding: '4px 8px', background: 'none', border: '1px solid rgba(255,255,255,0.3)' }}
+            >
+              II
+            </button>
+
+            {/* Score & Stage */}
+            <div className="flex gap-3" style={{ fontSize: '6px', color: '#fff', letterSpacing: '1px' }}>
+              <span>{score}</span>
+              <span style={{ color: '#FFD700' }}>STG {currentStage}</span>
+            </div>
+
+            {/* Audio + Character */}
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={() => {
+                  const player = gameStateRef.current.player;
+                  if (player.x < 200) {
+                    player.isDashing = false; player.dashTimer = 0; player.dashCooldown = 0; player.dashAvailable = true;
+                    player.isAirSliding = false; player.airSlideTimer = 0; player.speedBoostTimer = 0;
+                    player.isSlamming = false; player.slamCharging = false; player.chargeLevel = 0;
+                    player.groundPoundRadius = 0; player.invincibilityTimer = 0;
+                    player.doubleJumpAvailable = false; player.airDashCount = 0; player.jumpHoldTime = 0;
+                    setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
+                  }
+                }}
+                style={{ ...pxBtn, color: '#4ade80', fontSize: '5px', padding: '3px 6px', background: 'none', border: '1px solid rgba(74,222,128,0.4)', letterSpacing: '1px' }}
+              >
+                {selectedCharacter === 'guy1' ? 'C' : selectedCharacter === 'guy2' ? 'S' : 'P'}
+              </button>
+              <button
+                onClick={() => {
+                  if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) bgMusicRef.current.play().catch(() => {});
+                  setAudioEnabled(!audioEnabled);
+                }}
+                style={{ ...pxBtn, color: audioEnabled ? '#4ade80' : '#666', fontSize: '6px', padding: '3px 6px', background: 'none', border: '1px solid rgba(255,255,255,0.2)' }}
+              >
+                {audioEnabled ? '♪' : '×'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* === PIXEL D-PAD (left/right only) === */}
+        {gameScreen === 'playing' && !isPaused && (
+          <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', left: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <div className="flex" style={{ gap: '4px' }}>
+              {/* Left */}
               <button
                 onTouchStart={() => handleMobileButton('left', true)}
                 onTouchEnd={() => handleMobileButton('left', false)}
                 onMouseDown={() => handleMobileButton('left', true)}
                 onMouseUp={() => handleMobileButton('left', false)}
                 onMouseLeave={() => handleMobileButton('left', false)}
-                className="rounded-l-xl flex items-center justify-center active:brightness-150"
-                style={{ ...noSelectStyle, width: '42%', height: '100%', backgroundColor: 'rgba(255,255,255,0.12)', borderRight: '1px solid rgba(255,255,255,0.08)' }}
+                className="flex items-center justify-center active:brightness-150"
+                style={{ ...pxBtn, width: 'clamp(56px, 14vw, 72px)', height: 'clamp(48px, 12vw, 60px)', background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.4)', fontSize: '16px' }}
               >
-                <svg width="24" height="24" viewBox="0 0 16 16" fill="rgba(255,255,255,0.5)">
-                  <path d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
-                </svg>
+                ◀
               </button>
-              {/* Center spacer */}
-              <div style={{ width: '16%', backgroundColor: 'rgba(255,255,255,0.06)' }} />
-              {/* Right button */}
+              {/* Right */}
               <button
                 onTouchStart={() => handleMobileButton('right', true)}
                 onTouchEnd={() => handleMobileButton('right', false)}
                 onMouseDown={() => handleMobileButton('right', true)}
                 onMouseUp={() => handleMobileButton('right', false)}
                 onMouseLeave={() => handleMobileButton('right', false)}
-                className="rounded-r-xl flex items-center justify-center active:brightness-150"
-                style={{ ...noSelectStyle, width: '42%', height: '100%', backgroundColor: 'rgba(255,255,255,0.12)', borderLeft: '1px solid rgba(255,255,255,0.08)' }}
+                className="flex items-center justify-center active:brightness-150"
+                style={{ ...pxBtn, width: 'clamp(56px, 14vw, 72px)', height: 'clamp(48px, 12vw, 60px)', background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.4)', fontSize: '16px' }}
               >
-                <svg width="24" height="24" viewBox="0 0 16 16" fill="rgba(255,255,255,0.5)">
-                  <path d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom-Right Overlay - Action Buttons */}
-        <div className="absolute z-10 flex gap-3 items-end" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-          {/* B Button (shoot) */}
-          <button
-            onTouchStart={() => handleMobileButton('shoot', true)}
-            onTouchEnd={() => handleMobileButton('shoot', false)}
-            onMouseDown={() => handleMobileButton('shoot', true)}
-            onMouseUp={() => handleMobileButton('shoot', false)}
-            onMouseLeave={() => handleMobileButton('shoot', false)}
-            className="rounded-full flex items-center justify-center font-black active:brightness-150"
-            style={{ ...noSelectStyle, width: 'clamp(52px, 13vw, 64px)', height: 'clamp(52px, 13vw, 64px)', fontSize: 'clamp(1.2rem, 5vw, 1.5rem)', backgroundColor: 'rgba(255,60,60,0.2)', border: '2px solid rgba(255,60,60,0.3)', color: 'rgba(255,255,255,0.5)', textShadow: '1px 1px 3px rgba(0,0,0,0.5)' }}
-          >
-            B
-          </button>
-          {/* A Button (jump) */}
-          <button
-            onTouchStart={() => handleMobileButton('jump', true)}
-            onTouchEnd={() => handleMobileButton('jump', false)}
-            onMouseDown={() => handleMobileButton('jump', true)}
-            onMouseUp={() => handleMobileButton('jump', false)}
-            onMouseLeave={() => handleMobileButton('jump', false)}
-            className="rounded-full flex items-center justify-center font-black active:brightness-150"
-            style={{ ...noSelectStyle, width: 'clamp(72px, 18vw, 88px)', height: 'clamp(72px, 18vw, 88px)', fontSize: 'clamp(1.5rem, 6vw, 2rem)', backgroundColor: 'rgba(60,255,60,0.2)', border: '2px solid rgba(60,255,60,0.3)', color: 'rgba(255,255,255,0.5)', textShadow: '1px 1px 3px rgba(0,0,0,0.5)', marginBottom: 'clamp(8px, 2vw, 16px)' }}
-          >
-            A
-          </button>
-        </div>
-
-        {/* Wallet Upgrade Modal */}
-        {showWalletModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
-            <div className="relative rounded-2xl shadow-2xl w-full max-w-sm" style={{ background: 'rgba(20, 20, 30, 0.95)', padding: '1.5rem', border: '2px solid rgba(255,255,255,0.15)' }}>
-              <div className="text-center mb-4">
-                <div className="inline-block bg-yellow-400 text-black font-bold px-4 py-2 rounded border-2 border-yellow-600 mb-3" style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '2px' }}>
-                  UPGRADE!
-                </div>
-              </div>
-
-              <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <p className="text-green-300 font-mono text-center text-sm leading-relaxed mb-3">
-                  <span className="text-yellow-300 font-bold">FLIPPRX</span> has evolved!
-                </p>
-                <p className="text-white font-mono text-center text-xs leading-relaxed mb-3">
-                  We&apos;ve upgraded to <span className="text-cyan-400 font-bold">FLIPPRX ONE</span> wallet - 
-                  <span className="text-green-400 font-bold"> cheaper</span> and 
-                  <span className="text-blue-400 font-bold"> faster</span>!
-                </p>
-                <div className="text-center mb-3">
-                  <a 
-                    href="https://FLIPPRX.ONE" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-4 py-2 rounded border-2 border-cyan-700 shadow-lg active:from-cyan-600 active:to-blue-700"
-                    style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
-                  >
-                    VISIT FLIPPRX.ONE
-                  </a>
-                </div>
-                <p className="text-gray-400 font-mono text-center text-xs">
-                  Enjoy playing <span className="text-green-400">FLIPPRX</span>!
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  localStorage.setItem('flipprx_wallet_modal_seen', 'true');
-                  setShowWalletModal(false);
-                }}
-                className="w-full bg-gradient-to-b from-green-500 to-green-700 text-white font-bold py-3 px-4 rounded-lg border-2 border-green-800 shadow-xl active:from-green-600 active:to-green-800"
-                style={{ fontFamily: 'monospace', fontSize: '1rem', letterSpacing: '1px' }}
-              >
-                START PLAYING!
+                ▶
               </button>
             </div>
           </div>
         )}
+
+        {/* === PIXEL A/B BUTTONS === */}
+        {gameScreen === 'playing' && !isPaused && (
+          <div className="absolute z-10 flex gap-3 items-end" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            {/* B (shoot) */}
+            <button
+              onTouchStart={() => handleMobileButton('shoot', true)}
+              onTouchEnd={() => handleMobileButton('shoot', false)}
+              onMouseDown={() => handleMobileButton('shoot', true)}
+              onMouseUp={() => handleMobileButton('shoot', false)}
+              onMouseLeave={() => handleMobileButton('shoot', false)}
+              className="flex items-center justify-center active:brightness-150"
+              style={{ ...pxBtn, width: 'clamp(48px, 12vw, 60px)', height: 'clamp(48px, 12vw, 60px)', fontSize: '10px', background: 'rgba(255,60,60,0.12)', border: '2px solid rgba(255,60,60,0.25)', color: 'rgba(255,100,100,0.6)' }}
+            >
+              B
+            </button>
+            {/* A (jump) */}
+            <button
+              onTouchStart={() => handleMobileButton('jump', true)}
+              onTouchEnd={() => handleMobileButton('jump', false)}
+              onMouseDown={() => handleMobileButton('jump', true)}
+              onMouseUp={() => handleMobileButton('jump', false)}
+              onMouseLeave={() => handleMobileButton('jump', false)}
+              className="flex items-center justify-center active:brightness-150"
+              style={{ ...pxBtn, width: 'clamp(64px, 16vw, 80px)', height: 'clamp(64px, 16vw, 80px)', fontSize: '12px', background: 'rgba(60,255,60,0.12)', border: '2px solid rgba(60,255,60,0.25)', color: 'rgba(100,255,100,0.6)', marginBottom: 'clamp(8px, 2vw, 16px)' }}
+            >
+              A
+            </button>
+          </div>
+        )}
+
       </div>
     );
   }
 
-  // Desktop - Show mobile-only message
+  // Desktop - Pixel art mobile-only message
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black p-4">
-      <div className="max-w-2xl w-full text-center">
-        <div className="mb-8">
-          <img src="/flip.png" alt="FLIPPRX Logo" className="pixelated mx-auto drop-shadow-2xl" style={{ imageRendering: 'pixelated', height: '120px' }} />
+    <div className="flex flex-col items-center justify-center min-h-screen" style={{ background: '#0a0a0a' }}>
+      <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', marginBottom: '24px' }} />
+      <div style={{ color: '#FFD700', fontSize: '12px', letterSpacing: '2px', marginBottom: '8px' }}>FLIPPRX PIXEL GAME</div>
+      <div style={{ border: '2px solid #333', padding: '24px', maxWidth: '320px', textAlign: 'center' }}>
+        <div style={{ color: '#fff', fontSize: '10px', marginBottom: '12px', letterSpacing: '1px' }}>MOBILE ONLY</div>
+        <div style={{ color: '#888', fontSize: '7px', lineHeight: '1.8', marginBottom: '16px' }}>
+          THIS GAME IS DESIGNED FOR MOBILE DEVICES. OPEN ON YOUR PHONE OR TABLET TO PLAY.
         </div>
-        
-        <div className="bg-gradient-to-b from-green-900 to-green-950 border-8 border-green-600 rounded-3xl shadow-2xl p-8 md:p-12">
-          <div className="mb-6">
-            <div className="inline-block bg-yellow-400 text-black font-bold px-8 py-3 rounded-lg border-4 border-yellow-600 shadow-lg mb-6" style={{ fontFamily: 'monospace', fontSize: '2rem', letterSpacing: '3px' }}>
-              <span className="inline-flex items-center gap-3">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H7V4h10v16z"/>
-                </svg>
-                MOBILE ONLY
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-black bg-opacity-50 rounded-xl p-6 mb-6 border-4 border-green-700">
-            <p className="text-white font-mono text-xl leading-relaxed mb-4">
-              <span className="inline-flex items-center justify-center gap-2">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M6 9h4v6H6zm8 0h4v6h-4zM4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
-                </svg>
-                <span className="text-green-400 font-bold">FLIPPRX Pixel Game</span> is designed for mobile devices only!
-              </span>
-            </p>
-            <p className="text-gray-300 font-mono text-lg leading-relaxed mb-6">
-              Please open this page on your <span className="text-cyan-400 font-bold">phone</span> or <span className="text-cyan-400 font-bold">tablet</span> to play.
-            </p>
-            
-            <div className="border-t-2 border-green-700 pt-6 mt-6">
-              <p className="text-green-300 font-mono text-base mb-4">
-                <span className="inline-flex items-center justify-center gap-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
-                  Experience the full gameboy-style interface with touch controls!
-                </span>
-              </p>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <a 
-              href="https://FLIPPRX.ONE" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-block bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold px-8 py-4 rounded-lg border-4 border-cyan-700 shadow-lg hover:from-cyan-400 hover:to-blue-500 transition-all transform hover:scale-105"
-              style={{ fontFamily: 'monospace', fontSize: '1.2rem' }}
-            >
-              <span className="inline-flex items-center gap-2">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-                </svg>
-                VISIT FLIPPRX.ONE
-              </span>
-            </a>
-          </div>
+        <div style={{ color: '#4ade80', fontSize: '6px', letterSpacing: '1px' }}>
+          TOUCH CONTROLS REQUIRED
         </div>
-
-        <p className="text-gray-500 font-mono text-sm mt-8">
-          Scan QR code or share this link to play on mobile
-        </p>
       </div>
     </div>
   );

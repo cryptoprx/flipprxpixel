@@ -7,7 +7,7 @@ export default function Home() {
     name: 'FLIPPRX Pixel Game',
     description: 'An addictive retro platformer featuring 3 unique characters with special abilities. 10 challenging stages with power-ups, enemies, and pixel-perfect gameplay in authentic Game Boy style.',
     url: 'https://flipprxpixel.vercel.app',
-    image: 'https://flipprxpixel.vercel.app/banner.png',
+    image: 'https://flipprxpixel.vercel.app/icon.png',
     author: {
       '@type': 'Organization',
       name: 'FLIPPRX',

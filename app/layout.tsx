@@ -1,16 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Press_Start_2P } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const pixelFont = Press_Start_2P({
+  weight: "400",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-pixel",
 });
 
 export const metadata: Metadata = {
@@ -38,10 +34,10 @@ export const metadata: Metadata = {
     siteName: 'FLIPPRX Pixel Game',
     images: [
       {
-        url: 'https://flipprxpixel.vercel.app/banner.png',
-        width: 1200,
-        height: 630,
-        alt: 'FLIPPRX Pixel Game - Retro platformer with 3 unique characters in Game Boy style',
+        url: 'https://flipprxpixel.vercel.app/icon.png',
+        width: 512,
+        height: 512,
+        alt: 'FLIPPRX Pixel Game - Retro platformer with 3 unique characters',
         type: 'image/png',
       },
     ],
@@ -54,8 +50,8 @@ export const metadata: Metadata = {
     description: '🕹️ Ultimate retro platformer! Choose your character: Classic, Speedster (air slide), or Slammer (ground pound). 10 stages of pixel-perfect action. Play now! 👾',
     images: [
       {
-        url: 'https://flipprxpixel.vercel.app/banner.png',
-        alt: 'FLIPPRX Pixel Game - Retro platformer gameplay',
+        url: 'https://flipprxpixel.vercel.app/icon.png',
+        alt: 'FLIPPRX Pixel Game - Retro platformer',
       },
     ],
   },
@@ -97,7 +93,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${pixelFont.variable}`}
+        style={{ fontFamily: 'var(--font-pixel), monospace' }}
       >
         <ServiceWorkerRegistration />
         {children}
