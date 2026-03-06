@@ -143,4 +143,4 @@ flipgame-android/        # Bubblewrap TWA project (separate folder)
 ## License
 
 **Proprietary — All Rights Reserved.**
-See [LICENSE](./LICENSE) for full terms. Unauthorized copying, distribution, or modification is prohibited.
+See [LICENSE](./LICENSE) for full terms and [COPYRIGHT](./COPYRIGHT.md) for ownership and legal compliance details. Unauthorized copying, distribution, or modification is prohibited.
