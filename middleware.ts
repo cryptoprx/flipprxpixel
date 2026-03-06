@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   
   // Allow these paths
   const allowedPaths = ['/', '/_next', '/api', '/favicon.ico', '/flip.png', '/croak.png', '/bro.mp3', '/helmet.png'];
-  const allowedDirs = ['/sprites/', '/public/'];
+  const allowedDirs = ['/sprites/', '/public/', '/.well-known/'];
   
   // Check if path is allowed
   const isAllowed = 
