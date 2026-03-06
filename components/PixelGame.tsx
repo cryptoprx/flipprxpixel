@@ -4951,7 +4951,7 @@ export default function PixelGame() {
                 setIsPaused(false);
                 if (score > highScore) {
                   setHighScore(score);
-                  localStorage.setItem('flipprx_highscore', score.toString());
+                  try { localStorage.setItem('flipprx_highscore', score.toString()); } catch {}
                 }
                 setGameScreen('title');
               }}
