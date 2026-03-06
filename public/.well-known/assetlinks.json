@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "app.flipprx.game",
+      "package_name": "www.flipprx.app",
       "sha256_cert_fingerprints": [
-        "37:77:A2:EB:E4:34:B1:3A:3F:3F:0B:C0:E6:BB:75:2D:24:C4:7E:1B:B3:7F:C0:D7:E0:48:6E:BC:C5:DE:B1:79"
+        "C6:16:EF:B4:6A:DE:ED:92:17:1B:1F:CC:65:36:98:25:64:CA:86:97:3F:72:3C:C1:F8:10:35:7E:76:6D:BD:AF"
       ]
     }
   }
