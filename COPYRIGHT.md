@@ -2,11 +2,11 @@
 
 ## Ownership
 
-**FLIPPRX Pixel Game** is the sole and exclusive intellectual property of **FLIPPRX**.
+**FLIPPRX Pixel Game** is the sole and exclusive intellectual property of **CROAKWORKS** (https://croak.work).
 
-All rights to the Software — including but not limited to source code, game mechanics, visual assets, sprite artwork, audio files, level designs, character designs, UI/UX design, and all associated documentation — are owned by FLIPPRX.
+All rights to the Software — including but not limited to source code, game mechanics, visual assets, sprite artwork, audio files, level designs, character designs, UI/UX design, and all associated documentation — are owned by CROAKWORKS.
 
-**Copyright (c) 2025-2026 FLIPPRX. All Rights Reserved.**
+**Copyright (c) 2025-2026 CROAKWORKS. All Rights Reserved.**
 
 ---
 
@@ -14,7 +14,7 @@ All rights to the Software — including but not limited to source code, game me
 
 ### Original Works
 
-The following elements are original creations owned entirely by FLIPPRX:
+The following elements are original creations owned entirely by CROAKWORKS:
 
 - **Game Engine** — Custom HTML5 Canvas rendering engine built from scratch (no third-party game engine used)
 - **Character Designs** — Classic, Speed, and Slam characters including all sprite artwork and animations
@@ -45,7 +45,7 @@ All third-party dependencies are used in compliance with their respective open-s
 
 ### Usage Restrictions
 
-This Software is distributed under a **Proprietary License** (see [LICENSE](./LICENSE)). The following actions are strictly prohibited without prior written consent from FLIPPRX:
+This Software is distributed under a **Proprietary License** (see [LICENSE](./LICENSE)). The following actions are strictly prohibited without prior written consent from CROAKWORKS:
 
 1. **Reproduction** — Copying or duplicating any part of the Software
 2. **Distribution** — Sharing, publishing, or redistributing the Software
@@ -57,21 +57,21 @@ This Software is distributed under a **Proprietary License** (see [LICENSE](./LI
 
 ### DMCA & Takedown
 
-FLIPPRX reserves the right to issue DMCA takedown notices and pursue legal action against any unauthorized use, reproduction, or distribution of this Software or its assets.
+CROAKWORKS reserves the right to issue DMCA takedown notices and pursue legal action against any unauthorized use, reproduction, or distribution of this Software or its assets.
 
-If you believe your work has been used in this project without authorization, or if you wish to report unauthorized use of FLIPPRX intellectual property, contact:
+If you believe your work has been used in this project without authorization, or if you wish to report unauthorized use of CROAKWORKS intellectual property, contact:
 
-**flipprx@flipprx.app**
+**flipgame@croak.work**
 
 ### Trademarks
 
-**FLIPPRX** and the FLIPPRX logo are trademarks of FLIPPRX. Unauthorized use of these trademarks is prohibited.
+**FLIPPRX** and the FLIPPRX logo are trademarks of CROAKWORKS. Unauthorized use of these trademarks is prohibited.
 
 ---
 
 ## Disclaimer
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL FLIPPRX BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL CROAKWORKS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
 
 ---
 
@@ -79,6 +79,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 For licensing inquiries, permissions, or legal matters:
 
-- **Email** — flipprx@flipprx.app
-- **Website** — [flipprx.app](https://www.flipprx.app)
+- **Email** — flipgame@croak.work
+- **Website** — [croak.work](https://croak.work)
 - **GitHub** — [github.com/cryptoprx/flipprxpixel](https://github.com/cryptoprx/flipprxpixel)

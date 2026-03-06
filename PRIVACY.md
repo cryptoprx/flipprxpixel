@@ -9,6 +9,8 @@
 
 FLIPPRX Pixel Game ("the Game") is a browser-based pixel platformer available at [flipprx.app](https://www.flipprx.app) and as an Android application. This Privacy Policy explains what data the Game collects, how it is used, and your rights regarding that data.
 
+**Developer: CROAKWORKS** (https://croak.work)
+
 **In short: We collect almost nothing. The Game runs entirely in your browser with no accounts, no tracking, and no personal data collection.**
 
 ---
@@ -39,7 +41,7 @@ The Game stores the following data **locally on your device only** using your br
 This data:
 - **Never leaves your device**
 - Is not transmitted to any server
-- Is not accessible by FLIPPRX or any third party
+- Is not accessible by CROAKWORKS or any third party
 - Can be cleared at any time by clearing your browser data
 - Is stored as a single numeric value (`flipprx_highscore`)
 
@@ -106,6 +108,6 @@ If this Privacy Policy is updated, the changes will be reflected on this page wi
 
 For privacy-related questions or concerns:
 
-- **Email** — flipprx@flipprx.app
-- **Website** — [flipprx.app](https://www.flipprx.app)
+- **Email** — flipgame@croak.work
+- **Website** — [croak.work](https://croak.work)
 - **GitHub** — [github.com/cryptoprx/flipprxpixel](https://github.com/cryptoprx/flipprxpixel)

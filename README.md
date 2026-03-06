@@ -135,12 +135,13 @@ flipgame-android/        # Bubblewrap TWA project (separate folder)
 ## Links
 
 - **Play** — [flipprx.app](https://www.flipprx.app)
+- **Developer** — [CROAKWORKS](https://croak.work)
 - **GitHub** — [github.com/cryptoprx/flipprxpixel](https://github.com/cryptoprx/flipprxpixel)
-- **Twitter** — [@flipprx](https://twitter.com/flipprx)
+- **Contact** — flipgame@croak.work
 
 ---
 
 ## License
 
-**Proprietary — All Rights Reserved.**
+**Copyright (c) 2025-2026 CROAKWORKS. All Rights Reserved.**
 See [LICENSE](./LICENSE) for full terms, [COPYRIGHT](./COPYRIGHT.md) for ownership and legal compliance, and [PRIVACY](./PRIVACY.md) for our privacy policy. Unauthorized copying, distribution, or modification is prohibited.
