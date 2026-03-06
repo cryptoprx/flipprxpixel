@@ -1,181 +1,148 @@
-# 🎮 FLIPPRX Pixel Game
+# FLIPPRX Pixel Game
 
 ![FLIPPRX Pixel Game Banner](./public/banner.png)
 
-**The Ultimate Retro Platformer Experience** - A nostalgic Game Boy-style adventure featuring 3 unique characters, 10 challenging stages, and pixel-perfect gameplay!
+**Retro platformer with 3 unique characters, 10 stages, and a 3-lives system.** Built with custom HTML5 Canvas rendering — no game engine, no dependencies.
 
-🕹️ **[Play Now](https://flipprxpixel.vercel.app)** | 🌟 **Free to Play** | 📱 **Mobile Optimized**
-
----
-
-## 🌟 Features
-
-### 🎯 Three Unique Characters
-- **Classic Hero** - The original platformer experience with balanced abilities
-- **Speedster** - 35% faster movement + air slide ability (hold jump in air, release to slide)
-- **Slammer** - Ground slam attack that breaks bricks and defeats enemies (hold jump at peak, release to slam)
-
-### 🎮 Gameplay Features
-- **10 Challenging Stages** - Progressive difficulty with unique layouts
-- **Dynamic Enemy AI** - Goombas and snakes with smart movement patterns
-- **Power-Ups System**
-  - 🪙 Coins to collect (aim for perfect runs!)
-  - 🎩 Invincibility helmet with rainbow effect
-  - 💧 Water gun for ranged attacks
-  - 🌀 Portal system for teleportation
-- **Combo System** - Chain enemy defeats for massive score bonuses
-- **Pixel-Perfect Collision** - Authentic retro game physics
-- **3-2-1-GO Countdown** - Epic game start animation
-- **Celebration Animations** - Fireworks and particles on stage completion
-
-### 🎨 Visual & Audio
-- **Authentic Game Boy Aesthetics** - Classic pixel art style
-- **Smooth Animations** - 60 FPS gameplay
-- **Retro Sound Effects** - Nostalgic audio feedback
-- **Screen Shake Effects** - Dynamic impact feedback
-- **Particle Systems** - Explosions, coins, and visual effects
-
-### 📱 Mobile-First Design
-- **Touch Controls** - Optimized for mobile gameplay
-- **Responsive Layout** - Perfect on all screen sizes
-- **PWA Support** - Install as an app on your device
-- **No Installation Required** - Play instantly in browser
+**[Play Now at flipprx.app](https://www.flipprx.app)** | Mobile-First | Installable PWA | Android APK Available
 
 ---
 
-## 🚀 Quick Start
+## Features
 
-### Play Online
-Visit **[flipprxpixel.vercel.app](https://flipprxpixel.vercel.app)** and start playing immediately!
+### Three Playable Characters
+- **Classic** — Double jump ability. Balanced stats, great for learning.
+- **Speed** — 35% faster movement, air dash, and fart-powered air slide.
+- **Slam** — Chargeable ground slam that breaks bricks and defeats enemies on impact.
 
-### Development Setup
+### Gameplay
+- **10 Stages** with progressive difficulty and procedural elements
+- **3-Lives System** — Lose all lives and it's game over. Beat all 10 stages to win.
+- **Dynamic Enemy AI** — Goombas, snakes, and ghosts with unique behaviors (patrol, lunge, disappear)
+- **Combo System** — Chain enemy defeats for score multipliers
+- **Power-Ups** — Invincibility helmet, water gun, speed boost, portals
+- **Boss Encounters** — End-stage challenges
+- **Death Flash + Haptic Feedback** — Screen flash on death, vibration on jump/death (mobile)
+
+### Visuals
+- **Pixel art rendered entirely on Canvas** — no sprite sheets for characters, all drawn with `fillRect`
+- **60 FPS** with viewport-culled backgrounds and optimized particle system
+- **Parallax scrolling** — Clouds, mountains, hills, bushes at different depths
+- **Dynamic widescreen** — Wider field of view on landscape/tablet screens
+- **Screen shake, particles, celebration fireworks**
+
+### Mobile & PWA
+- **Touch controls** — D-pad + A/B buttons with `onTouchCancel` for reliability
+- **Installable PWA** — Service worker with cache-first strategy for offline play
+- **Android APK** — TWA (Trusted Web Activity) wrapper via Bubblewrap
+- **No text selection interference** — `user-select: none` on all interactive elements
+- **Fullscreen standalone mode** — No browser chrome
+
+### Security
+- **CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy** headers
+- **Versioned service worker cache** for clean deploys
+- **Validated localStorage** — High score input sanitized
+
+---
+
+## Play
+
+### Online
+Visit **[flipprx.app](https://www.flipprx.app)** — works on any modern browser.
+
+### Android
+Install the APK from the `flipgame-android/` folder, or sideload via ADB.
+
+### Development
 
 ```bash
-# Clone the repository
 git clone https://github.com/cryptoprx/flipprxpixel.git
-
-# Install dependencies
+cd flipprxpixel
 npm install
-
-# Run development server
 npm run dev
-
 # Open http://localhost:3000
 ```
 
 ---
 
-## 🎯 How to Play
+## Controls
 
-### Controls
-- **Arrow Keys / WASD** - Move left/right
-- **Space / Z / W / Up Arrow** - Jump
-- **Character-Specific Abilities:**
-  - **Speedster**: Hold jump in air → Release to air slide
-  - **Slammer**: Hold jump at peak → Release to ground slam
+### Keyboard
+- **Arrow Keys / WASD** — Move left/right
+- **Space / Z / W / Up** — Jump
+- **X / Shift** — Shoot (water gun) / Dash (Speed character)
 
-### Objectives
-1. 🏁 Reach the finish line flag
-2. 🪙 Collect all coins for perfect score
-3. 👾 Defeat enemies for combo bonuses
-4. ⭐ Complete all 10 stages
-
-### Tips
-- 🎯 Time your jumps perfectly to avoid enemies
-- 💨 Use character abilities strategically
-- 🔄 Chain enemy defeats for combo multipliers
-- 🎩 Grab power-ups for temporary advantages
-- 🌟 Aim for perfect coin collection on each stage
+### Mobile
+- **D-Pad (left side)** — Move
+- **A button (right side)** — Jump
+- **B button (right side)** — Shoot / Ability
+- **Tap character label (top)** — Switch character mid-game (early in stage only)
 
 ---
 
-## 🏆 Game Mechanics
+## Characters
 
-### Character Abilities Breakdown
-
-#### Classic Hero
-- Standard movement speed
-- Balanced jump height
-- Perfect for learning the game
-
-#### Speedster
-- **35% faster** movement
-- **25% faster** acceleration
-- **Air Slide**: Hold jump while airborne → Release after 0.3s for horizontal boost
-- Best for speedrunning
-
-#### Slammer
-- **Ground Slam**: Hold jump at peak → Release to slam down at high speed
-- **Breaks brick platforms** on impact
-- **Defeats nearby enemies** with slam
-- **Massive particle effects** and screen shake
-- Best for aggressive playstyle
-
-### Power-Up System
-- **Helmet** (10 seconds): Invincibility with rainbow effect
-- **Water Gun** (limited ammo): Ranged enemy attacks
-- **Portal**: Instant teleportation across the stage
-
-### Scoring System
-- Coins: 100 points each
-- Enemy defeat: 300 points
-- Combo multiplier: +150 per combo level
-- Perfect stage: Bonus points
-- Brick breaking: 100 points
+| Character | Speed | Ability | Best For |
+|-----------|-------|---------|----------|
+| **Classic** | Normal | Double jump | Learning, precision |
+| **Speed** | +35% | Air slide + dash | Speedrunning |
+| **Slam** | Normal | Chargeable ground pound | Aggressive play, brick breaking |
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Framework**: Next.js 15 (React)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Deployment**: Vercel
-- **Game Engine**: Custom HTML5 Canvas
-- **Audio**: Web Audio API
-
----
-
-## 📊 SEO & Social Media
-
-### Keywords
-Retro platformer, pixel game, gameboy game, browser game, free online game, mario-style platformer, 8-bit game, nostalgic gaming, character abilities, speedrun game, arcade platformer, touch controls, mobile game, pixel art game, classic platformer
-
-### Social Sharing
-Perfect for sharing on:
-- 🐦 Twitter/X - Retro gaming community
-- 📘 Facebook - Gaming groups
-- 🎮 Reddit - r/webgames, r/pixelart, r/gamedev
-- 📺 YouTube - Gameplay videos and speedruns
-- 📸 Instagram - Pixel art showcase
+- **Framework** — Next.js 16 (React 19)
+- **Language** — TypeScript
+- **Styling** — Tailwind CSS
+- **Font** — Press Start 2P (Google Fonts)
+- **Rendering** — Custom HTML5 Canvas (no game engine)
+- **Audio** — Pooled HTML5 Audio + procedural Web Audio API
+- **PWA** — Service worker + Web App Manifest
+- **Android** — Bubblewrap TWA
+- **Hosting** — flipprx.app
 
 ---
 
-## 🎨 Assets & Credits
+## Project Structure
 
-- **Character Sprites**: Custom pixel art
-- **Environment**: Retro Game Boy-inspired tileset
-- **Sound Effects**: Authentic 8-bit audio
-- **Banner**: Professional game artwork
+```
+flipgame/
+  components/
+    PixelGame.tsx        # Core game (rendering, physics, AI, input)
+    ServiceWorkerRegistration.tsx
+  utils/
+    stageGenerator.ts    # Procedural stage layout generation
+  app/
+    page.tsx             # Home page
+    layout.tsx           # Root layout, metadata, fonts
+  public/
+    manifest.json        # PWA manifest
+    sw.js                # Service worker
+    .well-known/
+      assetlinks.json    # Android TWA verification
+    sprites/             # Character sprite sheets
+  middleware.ts          # Route protection
+  next.config.ts         # Security headers
+  LICENSE                # Proprietary — All Rights Reserved
+
+flipgame-android/        # Bubblewrap TWA project (separate folder)
+  twa-manifest.json
+  app-release-signed.apk
+  app-release-bundle.aab
+```
 
 ---
 
-## 🔗 Links
+## Links
 
-- 🌐 **Website**: [flipprxpixel.vercel.app](https://flipprxpixel.vercel.app)
-- 🐙 **GitHub**: [github.com/cryptoprx/flipprxpixel](https://github.com/cryptoprx/flipprxpixel)
-- 🐦 **Twitter**: [@flipprx](https://twitter.com/flipprx)
-
----
-
-## 📝 License
-
-© 2025 FLIPPRX. All rights reserved.
+- **Play** — [flipprx.app](https://www.flipprx.app)
+- **GitHub** — [github.com/cryptoprx/flipprxpixel](https://github.com/cryptoprx/flipprxpixel)
+- **Twitter** — [@flipprx](https://twitter.com/flipprx)
 
 ---
 
-## 🎮 Start Your Adventure Now!
+## License
 
-**[Play FLIPPRX Pixel Game →](https://flipprxpixel.vercel.app)**
-
-Experience the nostalgia. Master the mechanics. Become the ultimate pixel hero! 🏆
+**Proprietary — All Rights Reserved.**
+See [LICENSE](./LICENSE) for full terms. Unauthorized copying, distribution, or modification is prohibited.
