@@ -1,15 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://flipprxpixel.vercel.app/</loc>
-    <lastmod>2025-01-16</lastmod>
+    <loc>https://www.flipprx.app/</loc>
+    <lastmod>2026-03-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <image:image>
-      <image:loc>https://flipprxpixel.vercel.app/banner.png</image:loc>
-      <image:title>FLIPPRX Pixel Game - Retro Platformer</image:title>
-      <image:caption>Play FLIPPRX Pixel Game - 3 unique characters, 10 challenging stages, retro Game Boy style platformer</image:caption>
-    </image:image>
   </url>
 </urlset>

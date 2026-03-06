@@ -1,7 +1,5 @@
 # FLIPPRX Pixel Game
 
-![FLIPPRX Pixel Game Banner](./public/banner.png)
-
 **Retro platformer with 3 unique characters, 10 stages, and a 3-lives system.** Built with custom HTML5 Canvas rendering — no game engine, no dependencies.
 
 **[Play Now at flipprx.app](https://www.flipprx.app)** | Mobile-First | Installable PWA | Android APK Available

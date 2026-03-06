@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# dev notes / internal docs
+FIXES-APPLIED.txt
+PORTAL_IMPLEMENTATION.md
+bug-analysis-and-optimization-report.txt
+game-article.txt
+
+# legacy folders
+pixel-game/
+
+# duplicate favicon (app/favicon.ico is used by Next.js)
+public/favicon.ico
