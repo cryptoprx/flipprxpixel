@@ -1,4 +1,5 @@
 # FLIPPRX Pixel Game
+<img width="1200" height="600" alt="FLIPPRX Pixel Game" src="https://github.com/user-attachments/assets/1f92004a-b724-4975-b097-0b1b6f82cc2c" />
 
 **Retro platformer with 3 unique characters, 10 stages, and a 3-lives system.** Built with custom HTML5 Canvas rendering — no game engine, no dependencies.
 
