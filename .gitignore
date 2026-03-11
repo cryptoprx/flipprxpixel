@@ -52,17 +52,8 @@ pixel-game/
 # duplicate favicon (app/favicon.ico is used by Next.js)
 public/favicon.ico
 
-# Capacitor build artifacts
-capacitor/www/
-capacitor/node_modules/
-capacitor/android/.gradle/
-capacitor/android/build/
-capacitor/android/app/build/
-capacitor/android/app-release-*.apk
-capacitor/android/app-release-*.aab
-capacitor/android/*.idsig
-capacitor/android/capacitor-cordova-android-plugins/build/
-capacitor/android/capacitor-android/build/
+# Capacitor (local-only Android build, not needed for Vercel)
+capacitor/
 
 # Next.js static export output
 out/
