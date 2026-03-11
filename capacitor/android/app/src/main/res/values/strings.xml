@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FLIPPRX Pixel Game</string>
+    <string name="title_activity_main">FLIPPRX Pixel Game</string>
+    <string name="package_name">www.flipprx.app</string>
+    <string name="custom_url_scheme">www.flipprx.app</string>
+</resources>
