@@ -4821,8 +4821,7 @@ export default function PixelGame() {
               @keyframes blinkText { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
               @keyframes starFloat { 0% { transform: translateY(0); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
             `}</style>
-            <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', animation: 'titlePulse 2s ease-in-out infinite', marginBottom: '12px' }} />
-            <div style={{ color: '#FFD700', fontSize: '14px', letterSpacing: '3px', marginBottom: '4px', textShadow: '2px 2px 0 #000' }}>FLIPPRX</div>
+            <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', animation: 'titlePulse 2s ease-in-out infinite', marginBottom: '12px', filter: 'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%)' }} />
             <div style={{ color: '#4ade80', fontSize: '8px', letterSpacing: '1px', marginBottom: '32px' }}>PIXEL GAME</div>
             
             {/* Character select */}
@@ -5129,8 +5128,8 @@ export default function PixelGame() {
   // Desktop - Pixel art mobile-only message
   return (
     <div className="flex flex-col items-center justify-center min-h-screen" style={{ background: '#0a0a0a' }}>
-      <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', marginBottom: '24px' }} />
-      <div style={{ color: '#FFD700', fontSize: '12px', letterSpacing: '2px', marginBottom: '8px' }}>FLIPPRX PIXEL GAME</div>
+      <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', marginBottom: '24px', filter: 'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%)' }} />
+      <div style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '2px', marginBottom: '12px' }}>PIXEL GAME</div>
       <div style={{ border: '2px solid #333', padding: '24px', maxWidth: '320px', textAlign: 'center' }}>
         <div style={{ color: '#fff', fontSize: '10px', marginBottom: '12px', letterSpacing: '1px' }}>MOBILE ONLY</div>
         <div style={{ color: '#888', fontSize: '7px', lineHeight: '1.8', marginBottom: '16px' }}>
