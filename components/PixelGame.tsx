@@ -1000,7 +1000,7 @@ export default function PixelGame() {
         }
         
         playSound('jump');
-        try { navigator.vibrate(30); } catch {}
+        try { if (isMobile) navigator.vibrate(15); } catch {} // Reduced from 30 for comfort
         
         // Spawn jump particles - reduced for performance
         for (let i = 0; i < 10; i++) {
@@ -1025,7 +1025,7 @@ export default function PixelGame() {
           player.doubleJumpAvailable = false;
           state.jumpBuffer = 0;
           playSound('jump');
-          try { navigator.vibrate(30); } catch {}
+          try { if (isMobile) navigator.vibrate(15); } catch {} // Reduced from 30
           
           // Double jump particles - reduced for performance
           for (let i = 0; i < 8; i++) {
@@ -1179,8 +1179,9 @@ export default function PixelGame() {
           const impactRadius = player.groundPoundRadius;
           
           // Massive screen shake based on charge
-          state.screenShake = 0.15 + (player.chargeLevel * 0.1);
+          state.screenShake = 0.1 + (player.chargeLevel * 0.05); // Reduced intensity
           playSound('stomp');
+          try { if (isMobile) navigator.vibrate(20 + player.chargeLevel * 10); } catch {}
           
           // Ground pound impact particles - shockwave effect (optimized)
           const impactParticles = 25 + (player.chargeLevel * 10);
@@ -1507,7 +1508,8 @@ export default function PixelGame() {
               }
               // Small screen shake on hard landing
               if (landingSpeed > 250) {
-                state.screenShake = 0.13;
+                state.screenShake = 0.08; // Reduced from 0.13
+                try { if (isMobile) navigator.vibrate(20); } catch {}
               }
             }
           } else if (player.velocityY < 0 && wasBelow) {
@@ -2482,7 +2484,7 @@ export default function PixelGame() {
             // Player dies - check lives
             playSound('death');
             state.deathFlashTimer = 0.3;
-            try { navigator.vibrate(200); } catch {}
+            try { if (isMobile) navigator.vibrate(100); } catch {} // Reduced from 200
             setDeathCount(d => d + 1);
             
             if (livesRef.current <= 1) {
@@ -2648,10 +2650,10 @@ export default function PixelGame() {
       // Floor camera position for pixel-perfect rendering
       state.camera.x = Math.floor(state.camera.x);
       
-      // Apply screen shake
+      // Apply screen shake (reduced intensity for comfort)
       if (state.screenShake > 0) {
-        const shakeAmount = state.screenShake * 4;
-        state.camera.y = (Math.random() - 0.5) * shakeAmount;
+        const shakeAmount = state.screenShake * 2; // Reduced from 4
+        state.camera.y = Math.floor((Math.random() - 0.5) * shakeAmount); // Ensure pixel perfect shake
       } else {
         state.camera.y = 0;
       }
@@ -2678,7 +2680,7 @@ export default function PixelGame() {
         
         // Player dies from pit - check lives
         state.deathFlashTimer = 0.3;
-        try { navigator.vibrate(200); } catch {}
+        try { if (isMobile) navigator.vibrate(100); } catch {} // Reduced from 200
         setDeathCount(d => d + 1);
         
         if (livesRef.current <= 1) {
@@ -2739,7 +2741,7 @@ export default function PixelGame() {
 
       ctx.save();
       // Apply camera transform with shake - pixel perfect
-      const shakeX = state.screenShake > 0 ? Math.floor((Math.random() - 0.5) * state.screenShake * 3) : 0;
+      const shakeX = state.screenShake > 0 ? Math.floor((Math.random() - 0.5) * state.screenShake * 1.5) : 0; // Reduced from 3
       ctx.translate(Math.floor(-state.camera.x + shakeX), Math.floor(-state.camera.y));
 
       // Draw clouds (far background) - with viewport culling
@@ -4213,10 +4215,10 @@ export default function PixelGame() {
         }
       }
 
-      // Death flash overlay
+      // Death flash overlay (reduced opacity for comfort)
       if (state.deathFlashTimer > 0) {
-        const flashAlpha = state.deathFlashTimer / 0.3;
-        ctx.fillStyle = flashAlpha > 0.5 ? `rgba(255,255,255,${flashAlpha})` : `rgba(255,0,0,${flashAlpha * 0.6})`;
+        const flashAlpha = (state.deathFlashTimer / 0.3) * 0.5; // Halved intensity
+        ctx.fillStyle = flashAlpha > 0.25 ? `rgba(255,255,255,${flashAlpha})` : `rgba(255,0,0,${flashAlpha * 0.6})`;
         ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
       }
 
@@ -5013,7 +5015,7 @@ export default function PixelGame() {
         {/* === PIXEL D-PAD (left/right only) === */}
         {gameScreen === 'playing' && !isPaused && (
           <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', left: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onContextMenu={(e) => e.preventDefault()}>
-            <div className="flex" style={{ gap: '4px' }}>
+            <div className="flex" style={{ gap: '12px' }}>
               {/* Left */}
               <button
                 onTouchStart={() => handleMobileButton('left', true)}
@@ -5022,8 +5024,18 @@ export default function PixelGame() {
                 onMouseDown={() => handleMobileButton('left', true)}
                 onMouseUp={() => handleMobileButton('left', false)}
                 onMouseLeave={() => handleMobileButton('left', false)}
-                className="flex items-center justify-center active:brightness-150"
-                style={{ ...pxBtn, width: 'clamp(56px, 14vw, 72px)', height: 'clamp(48px, 12vw, 60px)', background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.4)', fontSize: '16px' }}
+                className="flex items-center justify-center transition-transform active:scale-95"
+                style={{ 
+                  ...pxBtn, 
+                  width: 'clamp(64px, 16vw, 80px)', 
+                  height: 'clamp(64px, 16vw, 80px)', 
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)', 
+                  border: '2px solid rgba(255,255,255,0.2)', 
+                  borderRadius: '50%',
+                  color: 'rgba(255,255,255,0.8)', 
+                  fontSize: '24px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.1)'
+                }}
               >
                 ◀
               </button>
@@ -5035,8 +5047,18 @@ export default function PixelGame() {
                 onMouseDown={() => handleMobileButton('right', true)}
                 onMouseUp={() => handleMobileButton('right', false)}
                 onMouseLeave={() => handleMobileButton('right', false)}
-                className="flex items-center justify-center active:brightness-150"
-                style={{ ...pxBtn, width: 'clamp(56px, 14vw, 72px)', height: 'clamp(48px, 12vw, 60px)', background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.4)', fontSize: '16px' }}
+                className="flex items-center justify-center transition-transform active:scale-95"
+                style={{ 
+                  ...pxBtn, 
+                  width: 'clamp(64px, 16vw, 80px)', 
+                  height: 'clamp(64px, 16vw, 80px)', 
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)', 
+                  border: '2px solid rgba(255,255,255,0.2)', 
+                  borderRadius: '50%',
+                  color: 'rgba(255,255,255,0.8)', 
+                  fontSize: '24px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.1)'
+                }}
               >
                 ▶
               </button>
@@ -5044,35 +5066,59 @@ export default function PixelGame() {
           </div>
         )}
 
-        {/* === PIXEL A/B BUTTONS === */}
+        {/* === ACTION BUTTONS === */}
         {gameScreen === 'playing' && !isPaused && (
-          <div className="absolute z-10 flex gap-3 items-end" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onContextMenu={(e) => e.preventDefault()}>
-            {/* B (shoot) */}
-            <button
-              onTouchStart={() => handleMobileButton('shoot', true)}
-              onTouchEnd={() => handleMobileButton('shoot', false)}
-              onTouchCancel={() => handleMobileButton('shoot', false)}
-              onMouseDown={() => handleMobileButton('shoot', true)}
-              onMouseUp={() => handleMobileButton('shoot', false)}
-              onMouseLeave={() => handleMobileButton('shoot', false)}
-              className="flex items-center justify-center active:brightness-150"
-              style={{ ...pxBtn, width: 'clamp(48px, 12vw, 60px)', height: 'clamp(48px, 12vw, 60px)', fontSize: '10px', background: 'rgba(255,60,60,0.12)', border: '2px solid rgba(255,60,60,0.25)', color: 'rgba(255,100,100,0.6)' }}
-            >
-              B
-            </button>
-            {/* A (jump) */}
-            <button
-              onTouchStart={() => handleMobileButton('jump', true)}
-              onTouchEnd={() => handleMobileButton('jump', false)}
-              onTouchCancel={() => handleMobileButton('jump', false)}
-              onMouseDown={() => handleMobileButton('jump', true)}
-              onMouseUp={() => handleMobileButton('jump', false)}
-              onMouseLeave={() => handleMobileButton('jump', false)}
-              className="flex items-center justify-center active:brightness-150"
-              style={{ ...pxBtn, width: 'clamp(64px, 16vw, 80px)', height: 'clamp(64px, 16vw, 80px)', fontSize: '12px', background: 'rgba(60,255,60,0.12)', border: '2px solid rgba(60,255,60,0.25)', color: 'rgba(100,255,100,0.6)', marginBottom: 'clamp(8px, 2vw, 16px)' }}
-            >
-              A
-            </button>
+          <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onContextMenu={(e) => e.preventDefault()}>
+            <div className="relative" style={{ width: 'clamp(120px, 30vw, 160px)', height: 'clamp(120px, 30vw, 160px)' }}>
+              {/* B (shoot) - Positioned bottom-left */}
+              <button
+                onTouchStart={() => handleMobileButton('shoot', true)}
+                onTouchEnd={() => handleMobileButton('shoot', false)}
+                onTouchCancel={() => handleMobileButton('shoot', false)}
+                onMouseDown={() => handleMobileButton('shoot', true)}
+                onMouseUp={() => handleMobileButton('shoot', false)}
+                onMouseLeave={() => handleMobileButton('shoot', false)}
+                className="absolute flex items-center justify-center transition-transform active:scale-95"
+                style={{ 
+                  ...pxBtn, 
+                  bottom: '10%', left: '0',
+                  width: 'clamp(56px, 14vw, 70px)', 
+                  height: 'clamp(56px, 14vw, 70px)', 
+                  fontSize: '16px', fontWeight: 'bold',
+                  background: 'linear-gradient(135deg, rgba(255,60,60,0.25) 0%, rgba(255,60,60,0.1) 100%)', 
+                  border: '2px solid rgba(255,60,60,0.4)', 
+                  borderRadius: '50%',
+                  color: 'rgba(255,160,160,0.9)',
+                  boxShadow: '0 4px 12px rgba(255,60,60,0.2), inset 0 2px 4px rgba(255,255,255,0.1)'
+                }}
+              >
+                B
+              </button>
+              {/* A (jump) - Positioned top-right and slightly larger */}
+              <button
+                onTouchStart={() => handleMobileButton('jump', true)}
+                onTouchEnd={() => handleMobileButton('jump', false)}
+                onTouchCancel={() => handleMobileButton('jump', false)}
+                onMouseDown={() => handleMobileButton('jump', true)}
+                onMouseUp={() => handleMobileButton('jump', false)}
+                onMouseLeave={() => handleMobileButton('jump', false)}
+                className="absolute flex items-center justify-center transition-transform active:scale-95"
+                style={{ 
+                  ...pxBtn, 
+                  top: '0', right: '0',
+                  width: 'clamp(70px, 18vw, 90px)', 
+                  height: 'clamp(70px, 18vw, 90px)', 
+                  fontSize: '20px', fontWeight: 'bold',
+                  background: 'linear-gradient(135deg, rgba(60,255,60,0.25) 0%, rgba(60,255,60,0.1) 100%)', 
+                  border: '2px solid rgba(60,255,60,0.4)', 
+                  borderRadius: '50%',
+                  color: 'rgba(160,255,160,0.9)', 
+                  boxShadow: '0 4px 12px rgba(60,255,60,0.2), inset 0 2px 4px rgba(255,255,255,0.1)'
+                }}
+              >
+                A
+              </button>
+            </div>
           </div>
         )}
 
