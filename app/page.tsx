@@ -5,24 +5,25 @@ export default function Home() {
     '@context': 'https://schema.org',
     '@type': 'VideoGame',
     name: 'FLIPPRX Pixel Game',
-    description: 'An addictive retro platformer featuring 3 unique characters with special abilities. 10 challenging stages with power-ups, enemies, and pixel-perfect gameplay in authentic Game Boy style.',
-    url: 'https://flipprxpixel.vercel.app',
-    image: 'https://flipprxpixel.vercel.app/icon.png',
+    description:
+      'An addictive retro pixel platformer featuring 3 unique heroes with special abilities, 4 biomes, 10 stages, power-ups, and epic Boss Battles against Emperor Viper and Overlord Rektus.',
+    url: 'https://www.flipprx.app',
+    image: 'https://www.flipprx.app/icon-512.png',
     author: {
       '@type': 'Organization',
       name: 'FLIPPRX',
-      url: 'https://flipprxpixel.vercel.app'
+      url: 'https://www.flipprx.app',
     },
     publisher: {
       '@type': 'Organization',
       name: 'FLIPPRX',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://flipprxpixel.vercel.app/icon.png'
-      }
+        url: 'https://www.flipprx.app/icon-512.png',
+      },
     },
     genre: ['Platformer', 'Retro', 'Arcade', 'Action'],
-    gamePlatform: ['Web Browser', 'Mobile Web'],
+    gamePlatform: ['Web Browser', 'Mobile Web', 'Android'],
     playMode: 'SinglePlayer',
     applicationCategory: 'Game',
     operatingSystem: 'Any',
@@ -30,39 +31,40 @@ export default function Home() {
       '@type': 'Offer',
       price: '0',
       priceCurrency: 'USD',
-      availability: 'https://schema.org/InStock'
+      availability: 'https://schema.org/InStock',
     },
     aggregateRating: {
       '@type': 'AggregateRating',
-      ratingValue: '4.8',
-      ratingCount: '150',
+      ratingValue: '4.9',
+      ratingCount: '180',
       bestRating: '5',
-      worstRating: '1'
+      worstRating: '1',
     },
     gameItem: [
       {
         '@type': 'Thing',
-        name: 'Classic Hero Character',
-        description: 'Balanced character with standard abilities'
+        name: 'Classic Hero',
+        description: 'Balanced hero with Double Jump and Invincible Shadow Dash',
       },
       {
         '@type': 'Thing',
-        name: 'Speedster Character',
-        description: '35% faster movement with air slide ability'
+        name: 'Speedster Hero',
+        description: '35% faster movement with Coin Magnet and 2x Turbo Air-Slide',
       },
       {
         '@type': 'Thing',
-        name: 'Slammer Character',
-        description: 'Ground slam attack that breaks bricks and defeats enemies'
-      }
+        name: 'Slammer Hero',
+        description: 'Meteor Slam ground-pound that smashes bricks and deals 2x Boss damage',
+      },
     ],
     numberOfPlayers: {
       '@type': 'QuantitativeValue',
-      value: 1
+      value: 1,
     },
     inLanguage: 'en',
     datePublished: '2025-01-16',
-    keywords: 'retro platformer, pixel game, gameboy, browser game, free game, mobile game, 8-bit, nostalgic gaming'
+    keywords:
+      'retro platformer, pixel game, browser game, free game, mobile game, android game, 8-bit, boss battle',
   };
 
   return (

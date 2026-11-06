@@ -1,4802 +1,1209 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { generateStage } from '../utils/stageGenerator';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { SoundManager } from '../game/audio';
+import {
+  CHARACTERS,
+  FIXED_DT,
+  GAME_HEIGHT,
+  GAME_WIDTH_BASE,
+  JUMP_BUFFER,
+} from '../game/constants';
+import {
+  createInitialGameState,
+  loadStageIntoState,
+  resetPlayerAbilities,
+  updateGameEngine,
+} from '../game/engine';
+import { renderGame } from '../game/renderer';
+import { SpatialGrid } from '../game/spatialGrid';
+import { CharacterId, GameScreen, GameState } from '../game/types';
 
-interface Sprite {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  velocityX: number;
-  velocityY: number;
-  onGround: boolean;
-  facingLeft: boolean;
-  currentAnimation: string;
-  animationFrame: number;
-  animationTimer: number;
-  rotation: number;
-  hasHelmet: boolean;
-  helmetTimer: number;
-  landingTimer: number;
-  hasWaterGun: boolean;
-  waterGunTimer: number;
-  shootCooldown: number;
-  invincibilityTimer: number;
-  isAirSliding: boolean;
-  airSlideTimer: number;
-  airSlideUsed: boolean;
-  isSlamming: boolean;
-  slamCharging: boolean;
-  jumpHoldTime: number;
-  // Guy1 enhanced abilities
-  doubleJumpAvailable: boolean;
-  dashAvailable: boolean;
-  dashTimer: number;
-  isDashing: boolean;
-  dashCooldown: number;
-  // Guy2 enhanced abilities
-  speedBoostTimer: number;
-  airDashCount: number;
-  // Guy3 enhanced abilities
-  groundPoundRadius: number;
-  chargeLevel: number;
-}
+const GUY1_AND_SHARED_SPRITES = [
+  'standing.png',
+  'step1.PNG',
+  'step2.PNG',
+  'step3.PNG',
+  'step4.PNG',
+  'jump1.PNG',
+  'jump2.PNG',
+  'jump3.PNG',
+  'jumpfall.png',
+  'helmet.png',
+  '1.png',
+  '2.png',
+  '3.png',
+  '4.png',
+  '5.png',
+  '6.png',
+  '7.png',
+  '8.png',
+];
 
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
-  color: string;
-}
+const CHAR_VARIANT_SPRITES = [
+  'standing.png',
+  'step1.png',
+  'step2.png',
+  'step3.png',
+  'step4.png',
+  'jump1.png',
+  'jump2.png',
+  'jump3.png',
+  'jumpfall.png',
+];
+
+const BOSS_SPRITES = [
+  'mini_idle1.png',
+  'mini_idle2.png',
+  'mini_charge.png',
+  'mini_attack.png',
+  'mini_hurt.png',
+  'boss_idle1.png',
+  'boss_idle2.png',
+  'boss_walk1.png',
+  'boss_walk2.png',
+  'boss_roar.png',
+  'boss_attack.png',
+  'boss_slam.png',
+  'boss_hurt.png',
+  'boss_p2_idle1.png',
+  'boss_p2_idle2.png',
+  'boss_p2_walk1.png',
+  'boss_p2_walk2.png',
+  'boss_p2_roar.png',
+  'boss_p2_attack.png',
+  'boss_p2_slam.png',
+  'boss_p2_hurt.png',
+];
+
+const pxNoSelect = {
+  userSelect: 'none' as const,
+  WebkitUserSelect: 'none' as const,
+  WebkitTouchCallout: 'none' as const,
+  touchAction: 'none' as const,
+  imageRendering: 'pixelated' as const,
+};
 
 export default function PixelGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [score, setScore] = useState(0);
-  const [currentStage, setCurrentStage] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dpadRef = useRef<HTMLDivElement>(null);
+
   const [spritesLoaded, setSpritesLoaded] = useState(false);
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [isTouchMode, setIsTouchMode] = useState(true);
+  const [gameScreen, setGameScreen] = useState<GameScreen>('title');
+  const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('guy1');
   const [isPaused, setIsPaused] = useState(false);
-  const [gameScreen, setGameScreen] = useState<'title' | 'playing' | 'gameover'>('title');
-  const [selectedCharacter, setSelectedCharacter] = useState<'guy1' | 'guy2' | 'guy3'>('guy1');
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [scanlinesEnabled, setScanlinesEnabled] = useState(true);
+
+  const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
-  const [deathCount, setDeathCount] = useState(0);
+  const [bestStage, setBestStage] = useState(1);
+  const [currentStage, setCurrentStage] = useState(1);
   const [lives, setLives] = useState(3);
+  const [deathCount, setDeathCount] = useState(0);
   const [gameWon, setGameWon] = useState(false);
-  const livesRef = useRef(3);
-  
-  // Keep refs in sync with state (avoids useEffect restart)
-  useEffect(() => { selectedCharRef.current = selectedCharacter; }, [selectedCharacter]);
-  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
-  useEffect(() => { gameScreenRef.current = gameScreen; }, [gameScreen]);
-  useEffect(() => { livesRef.current = lives; }, [lives]);
+  const [isNewRecord, setIsNewRecord] = useState(false);
+  const [activeDpadDir, setActiveDpadDir] = useState<'left' | 'right' | null>(null);
+  const [activeBtnA, setActiveBtnA] = useState(false);
+  const [activeBtnB, setActiveBtnB] = useState(false);
+  const [activeBtnFire, setActiveBtnFire] = useState(false);
+  const [waterGunSecs, setWaterGunSecs] = useState(0);
 
-  // Detect mobile/tablet device - always show gameboy style on mobile/tablet
-  useEffect(() => {
-    const checkMobile = () => {
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isSmallScreen = window.innerWidth < 768;
-      setIsMobile(isMobileDevice || isSmallScreen);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
-  const musicStartedRef = useRef(false);
+  // Mutable engine refs (persistent across renders without restarting RAF)
+  const gameStateRef = useRef<GameState>(createInitialGameState());
+  const spatialGridRef = useRef<SpatialGrid>(new SpatialGrid());
+  const soundRef = useRef<SoundManager | null>(null);
   const spritesRef = useRef<Record<string, HTMLImageElement>>({});
-  const helmetCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const skyGradientRef = useRef<CanvasGradient | null>(null);
-  const selectedCharRef = useRef<'guy1' | 'guy2' | 'guy3'>('guy1');
-  const isPausedRef = useRef(false);
-  const gameScreenRef = useRef<'title' | 'playing' | 'gameover'>('title');
-  const gameStateRef = useRef({
-    player: {
-      x: 80,
-      y: 112,
-      width: 12,  // Reduced from 16 to match actual sprite size (ignoring transparency)
-      height: 14, // Reduced from 16 to match actual sprite size (ignoring transparency)
-      velocityX: 0,
-      velocityY: 0,
-      onGround: false,
-      facingLeft: false,
-      currentAnimation: 'idle',
-      animationFrame: 0,
-      animationTimer: 0,
-      rotation: 0,
-      hasHelmet: false,
-      helmetTimer: 0,
-      landingTimer: 0,
-      hasWaterGun: false,
-      waterGunTimer: 0,
-      shootCooldown: 0,
-      invincibilityTimer: 0,
-      isAirSliding: false,
-      airSlideTimer: 0,
-      airSlideUsed: false,
-      isSlamming: false,
-      slamCharging: false,
-      jumpHoldTime: 0,
-      doubleJumpAvailable: false,
-      dashAvailable: true,
-      dashTimer: 0,
-      isDashing: false,
-      dashCooldown: 0,
-      speedBoostTimer: 0,
-      airDashCount: 0,
-      groundPoundRadius: 0,
-      chargeLevel: 0,
-    } as Sprite,
-    keys: {} as Record<string, boolean>,
-    coyoteTime: 0,
-    jumpBuffer: 0,
-    combo: 0,
-    comboTimer: 0,
-    screenShake: 0,
-    camera: { x: 0, y: 0, targetX: 0 },
-    currentStage: 1,
-    stageWidth: 0,
-    goalX: 0,
-    lastFootstepTime: 0,
-    coinsCollectedThisStage: 0,
-    totalCoinsThisStage: 0,
-    celebrating: false,
-    celebrationTimer: 0,
-    gameStarted: false,
-    gameStartTimer: 0,
-    coins: [] as Array<{ x: number; y: number; collected: boolean; floatOffset: number }>,
-    enemies: [] as Array<{ 
-      x: number; 
-      y: number; 
-      direction: number; 
-      alive: boolean; 
-      type: 'goomba' | 'snake' | 'badguy'; 
-      waveOffset?: number; 
-      animFrame?: number;
-      // Badguy (ghost) specific properties
-      frozen?: boolean;
-      mimicJumpTimer?: number;
-      mimicJumpVelocity?: number;
-      disappearTimer?: number;
-      isDisappearing?: boolean;
-      opacity?: number;
-      floatOffset?: number;
-    }>,
-    waterGun: null as { x: number; y: number; collected: boolean } | null,
-    waterProjectiles: [] as Array<{ x: number; y: number; vx: number; vy: number; life: number }>,
-    particles: [] as Particle[],
-    platforms: [] as Array<{ x: number; y: number; width: number; height: number; type: string; used?: boolean; broken?: boolean; bounceOffset?: number }>,
-    portal: null as { x: number; y: number; animationFrame: number; active: boolean } | null,
-    inBlackhole: false,
-    blackholeTimer: 0,
-    blackholeFallSpeed: 0,
-    chartBars: [] as Array<{ height: number; color: string }>,
-    chartComplete: false,
-    chartResult: '' as 'green' | 'red' | '',
-    speechBubble: null as { text: string; timer: number; phraseIndex: number } | null,
-    speechCooldown: 0,
-    deathFlashTimer: 0,
-  });
+  const gameWidthRef = useRef<number>(256);
+  const waterGunSecsRef = useRef<number>(0);
 
-  // Game constants
-  const GAME_WIDTH_BASE = 160;
-  const GAME_HEIGHT = 144;
-  const SCALE = 4;
-  const gameWidthRef = useRef(GAME_WIDTH_BASE);
+  const screenRef = useRef<GameScreen>('title');
+  const pausedRef = useRef(false);
+  const charRef = useRef<CharacterId>('guy1');
+  const livesRef = useRef(3);
+  const highScoreRef = useRef(0);
+  const bestStageRef = useRef(1);
+  const scanlinesRef = useRef(true);
+  const touchModeRef = useRef(true);
 
-  // Dynamically adjust game width based on screen aspect ratio (landscape = wider view)
   useEffect(() => {
-    const updateGameWidth = () => {
-      const aspectRatio = window.innerWidth / window.innerHeight;
-      // In landscape, widen the viewport to match screen ratio. In portrait, keep base width.
-      const dynamicWidth = Math.max(GAME_WIDTH_BASE, Math.round(GAME_HEIGHT * aspectRatio));
-      gameWidthRef.current = dynamicWidth;
+    screenRef.current = gameScreen;
+  }, [gameScreen]);
+  useEffect(() => {
+    pausedRef.current = isPaused;
+  }, [isPaused]);
+  useEffect(() => {
+    charRef.current = selectedCharacter;
+  }, [selectedCharacter]);
+  useEffect(() => {
+    livesRef.current = lives;
+  }, [lives]);
+  useEffect(() => {
+    highScoreRef.current = highScore;
+  }, [highScore]);
+  useEffect(() => {
+    bestStageRef.current = bestStage;
+  }, [bestStage]);
+  useEffect(() => {
+    scanlinesRef.current = scanlinesEnabled;
+  }, [scanlinesEnabled]);
+  useEffect(() => {
+    touchModeRef.current = isTouchMode;
+  }, [isTouchMode]);
+
+  // Persist records helper
+  const persistProgress = useCallback((runScore: number, stageReached: number) => {
+    if (runScore > highScoreRef.current) {
+      highScoreRef.current = runScore;
+      setHighScore(runScore);
+      setIsNewRecord(true);
+      try {
+        localStorage.setItem('flipprx_highscore', String(runScore));
+      } catch {}
+    }
+    if (stageReached > bestStageRef.current) {
+      bestStageRef.current = stageReached;
+      setBestStage(stageReached);
+      try {
+        localStorage.setItem('flipprx_beststage', String(stageReached));
+      } catch {}
+    }
+  }, []);
+
+  // Load saved records & initialize SoundManager + Stage 1 backdrop
+  useEffect(() => {
+    try {
+      const savedHi = parseInt(localStorage.getItem('flipprx_highscore') || '0', 10);
+      const savedStage = parseInt(localStorage.getItem('flipprx_beststage') || '1', 10);
+      if (!isNaN(savedHi) && savedHi > 0) {
+        setHighScore(savedHi);
+        highScoreRef.current = savedHi;
+      }
+      if (!isNaN(savedStage) && savedStage >= 1) {
+        setBestStage(savedStage);
+        bestStageRef.current = savedStage;
+      }
+    } catch {}
+
+    const sm = new SoundManager();
+    sm.initMusic();
+    soundRef.current = sm;
+
+    loadStageIntoState(gameStateRef.current, spatialGridRef.current, 1);
+
+    return () => {
+      sm.destroy();
+    };
+  }, []);
+
+  // Responsive Device & Aspect-Ratio Canvas Sizing
+  useEffect(() => {
+    const updateViewport = () => {
+      const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      );
+      const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+      const smallViewport = window.innerWidth < 860;
+      const mobile = uaMobile || coarsePointer || smallViewport;
+      setIsTouchMode(mobile);
+      touchModeRef.current = mobile;
+
+      let nextW = 256; // Crisp 16:9 widescreen arcade resolution on desktop
+      if (mobile) {
+        const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+        nextW = Math.min(320, Math.max(GAME_WIDTH_BASE, Math.round(GAME_HEIGHT * aspect)));
+      }
+
+      gameWidthRef.current = nextW;
       if (canvasRef.current) {
-        canvasRef.current.width = dynamicWidth;
+        canvasRef.current.width = nextW;
         canvasRef.current.height = GAME_HEIGHT;
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) ctx.imageSmoothingEnabled = false;
       }
-      // Reset cached sky gradient since canvas size changed
-      skyGradientRef.current = null;
     };
-    updateGameWidth();
-    window.addEventListener('resize', updateGameWidth);
-    window.addEventListener('orientationchange', updateGameWidth);
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
     return () => {
-      window.removeEventListener('resize', updateGameWidth);
-      window.removeEventListener('orientationchange', updateGameWidth);
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
     };
   }, []);
-  
-  const GRAVITY = 850; // Optimized for responsive feel
-  const PLAYER_SPEED = 145; // Smooth movement speed
-  const PLAYER_ACCEL = 1500; // Quick acceleration
-  const PLAYER_FRICTION = 1700; // Precise stopping
-  const AIR_FRICTION = 300; // Enhanced air control
-  const JUMP_VELOCITY = -325; // Perfect jump height
-  const DOUBLE_JUMP_VELOCITY = -280; // Slightly weaker double jump
-  const DASH_SPEED = 280; // Fast dash speed
-  const DASH_DURATION = 0.18; // Quick dash
-  const DASH_COOLDOWN = 0.8; // Dash cooldown
-  const COYOTE_TIME = 0.2; // Forgiving edge jumps
-  const JUMP_BUFFER = 0.25; // Forgiving jump timing
-  const MAX_FALL_SPEED = 480; // Controlled falling
-  const MAX_PARTICLES = 150; // Reduced for smoother performance
 
-  // Pooled audio elements for mp3 sounds (prevent creating new Audio() each call)
-  const audioPoolRef = useRef<Record<string, HTMLAudioElement>>({});
-  const getPooledAudio = (src: string, volume: number): HTMLAudioElement => {
-    if (!audioPoolRef.current[src]) {
-      audioPoolRef.current[src] = new Audio(src);
-    }
-    const audio = audioPoolRef.current[src];
-    audio.volume = volume;
-    audio.currentTime = 0;
-    return audio;
-  };
-
-  // Audio system - procedural sound generation
-  const playSound = (type: string) => {
-    if (!audioEnabled) return;
-    
-    // Play bro.mp3 for death sound
-    if (type === 'death') {
-      getPooledAudio('/bro.mp3', 0.5).play().catch(() => {});
-      return;
-    }
-    
-    // Play fart.mp3 for air slide
-    if (type === 'fart') {
-      getPooledAudio('/fart.mp3', 0.6).play().catch(() => {});
-      return;
-    }
-    
-    // Play huh.mp3 for cliff deaths
-    if (type === 'huh') {
-      getPooledAudio('/huh.mp3', 0.7).play().catch(() => {});
-      return;
-    }
-    
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    
-    const ctx = audioContextRef.current;
-    const now = ctx.currentTime;
-    
-    if (type === 'jump') {
-      // Jump sound - rising tone
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(200, now);
-      osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-      
-      osc.start(now);
-      osc.stop(now + 0.15);
-    } else if (type === 'land') {
-      // Landing sound - thud
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(150, now);
-      osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-      
-      osc.start(now);
-      osc.stop(now + 0.1);
-    } else if (type === 'footstep') {
-      // Footstep - quick tap
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(100, now);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-      
-      osc.start(now);
-      osc.stop(now + 0.05);
-    } else if (type === 'coin') {
-      // Coin collect - bright ding
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(800, now);
-      osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-      
-      osc.start(now);
-      osc.stop(now + 0.2);
-    } else if (type === 'stomp') {
-      // Enemy stomp - powerful hit
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(300, now);
-      osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
-      gain.gain.setValueAtTime(0.5, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-      
-      osc.start(now);
-      osc.stop(now + 0.15);
-    } else if (type === 'break') {
-      // Brick break - crash
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(200, now);
-      osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-      
-      osc.start(now);
-      osc.stop(now + 0.2);
-    } else if (type === 'powerup') {
-      // Power-up / question block - ascending chime
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(400, now);
-      osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
-      osc.frequency.exponentialRampToValueAtTime(1200, now + 0.2);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-      
-      osc.start(now);
-      osc.stop(now + 0.3);
-    } else if (type === 'flip') {
-      // Flip sound - whoosh
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      
-      osc.frequency.setValueAtTime(600, now);
-      osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-      
-      osc.start(now);
-      osc.stop(now + 0.15);
-    } else if (type === 'stage_clear') {
-      // Stage clear - victory fanfare
-      const playNote = (freq: number, delay: number, duration: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.frequency.setValueAtTime(freq, now + delay);
-        gain.gain.setValueAtTime(0.3, now + delay);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + delay + duration);
-        
-        osc.start(now + delay);
-        osc.stop(now + delay + duration);
-      };
-      
-      playNote(523, 0, 0.15);    // C
-      playNote(659, 0.15, 0.15); // E
-      playNote(784, 0.3, 0.3);   // G
-    } else if (type === 'celebration') {
-      // Celebration - full victory fanfare
-      const playNote = (freq: number, delay: number, duration: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.frequency.setValueAtTime(freq, now + delay);
-        gain.gain.setValueAtTime(0.35, now + delay);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + delay + duration);
-        
-        osc.start(now + delay);
-        osc.stop(now + delay + duration);
-      };
-      
-      // Victory melody
-      playNote(523, 0, 0.12);      // C
-      playNote(659, 0.12, 0.12);   // E
-      playNote(784, 0.24, 0.12);   // G
-      playNote(1047, 0.36, 0.25);  // High C
-      playNote(784, 0.61, 0.12);   // G
-      playNote(1047, 0.73, 0.35);  // High C (hold)
-    }
-  };
-
-  // Initialize background music
+  // Android / Browser Tab Visibility & Blur Lifecycle
   useEffect(() => {
-    const audio = new Audio('/flip.mp3');
-    audio.loop = true;
-    audio.volume = 0.3; // Set to 30% volume
-    bgMusicRef.current = audio;
-    
-    // Try to start playing, but will likely be blocked by browser
-    // Music will start on first user interaction (handled in game loop)
-    if (audioEnabled) {
-      audio.play().catch(() => {
-        // Autoplay blocked - will start on first interaction
+    const handleVisibility = () => {
+      const hidden = document.hidden;
+      soundRef.current?.onVisibilityChange(hidden);
+      gameStateRef.current.keys = {};
+      setActiveDpadDir(null);
+      setActiveBtnA(false);
+      setActiveBtnB(false);
+      setActiveBtnFire(false);
+      if (hidden && screenRef.current === 'playing') {
+        setIsPaused(true);
+      }
+    };
+
+    const handleBlur = () => {
+      gameStateRef.current.keys = {};
+      setActiveDpadDir(null);
+      setActiveBtnA(false);
+      setActiveBtnB(false);
+      setActiveBtnFire(false);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  // Preload All Character, Ghost, Helmet & Boss Sprites (Zero cache-busting query strings!)
+  useEffect(() => {
+    const manifest: Array<{ key: string; src: string }> = [];
+
+    for (const file of GUY1_AND_SHARED_SPRITES) {
+      manifest.push({
+        key: file,
+        src: file === 'helmet.png' ? '/helmet.png' : `/sprites/${file}`,
       });
     }
-    
-    return () => {
-      audio.pause();
-      audio.currentTime = 0;
-    };
-  }, []);
-
-  // Handle audio toggle
-  useEffect(() => {
-    if (bgMusicRef.current) {
-      if (audioEnabled) {
-        bgMusicRef.current.play().catch(() => {
-          // Will start on first user interaction
-        });
-      } else {
-        bgMusicRef.current.pause();
-      }
+    for (const file of CHAR_VARIANT_SPRITES) {
+      manifest.push({ key: `guy2_${file}`, src: `/sprites/guy2/${file}` });
+      manifest.push({ key: `guy3_${file}`, src: `/sprites/guy3/${file}` });
     }
-  }, [audioEnabled]);
+    for (const file of BOSS_SPRITES) {
+      manifest.push({ key: file, src: `/sprites/boss/${file}` });
+    }
 
-  // Load high score from localStorage (with validation)
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('flipprx_highscore');
-      if (saved) {
-        const val = parseInt(saved, 10);
-        if (!isNaN(val) && val >= 0 && val <= 999999) setHighScore(val);
-      }
-    } catch { /* localStorage unavailable */ }
-  }, []);
-
-  // Load character sprites
-  useEffect(() => {
-    const spriteFiles = [
-      'standing.png',
-      'step1.PNG',
-      'step2.PNG',
-      'step3.PNG',
-      'step4.PNG',
-      'jump1.PNG',
-      'jump2.PNG',
-      'jump3.PNG',
-      'jumpfall.png',
-      'helmet.png',
-      '1.png',
-      '2.png',
-      '3.png',
-      '4.png',
-      '5.png',
-      '6.png',
-      '7.png',
-      '8.png',
-    ];
-    
-    // Guy2 sprite files (lowercase extensions)
-    const guy2SpriteFiles = [
-      'standing.png',
-      'step1.png',
-      'step2.png',
-      'step3.png',
-      'step4.png',
-      'jump1.png',
-      'jump2.png',
-      'jump3.png',
-      'jumpfall.png',
-    ];
-
-    // Guy3 sprite files
-    const guy3SpriteFiles = [
-      'standing.png',
-      'step1.png',
-      'step2.png',
-      'step3.png',
-      'step4.png',
-      'jump1.png',
-      'jump2.png',
-      'jump3.png',
-      'jumpfall.png',
-    ];
-
-    let loadedCount = 0;
-    const totalSprites = spriteFiles.length + guy2SpriteFiles.length + guy3SpriteFiles.length;
+    let count = 0;
+    const total = manifest.length;
     const startTime = Date.now();
-    const minLoadingTime = 1500; // Show loading screen for at least 1.5 seconds
+    const minSplashMs = 650;
 
-    // Load guy1 sprites
-    spriteFiles.forEach(file => {
-      const img = new Image();
-      img.onload = () => {
-        loadedCount++;
-        if (loadedCount === totalSprites) {
-          // Ensure minimum loading time to show croak.png animation
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-          setTimeout(() => {
-            setSpritesLoaded(true);
-          }, remainingTime);
-        }
-      };
-      img.onerror = () => {
-        console.error('Failed to load sprite:', file);
-        loadedCount++;
-        if (loadedCount === totalSprites) {
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-          setTimeout(() => {
-            setSpritesLoaded(true);
-          }, remainingTime);
-        }
-      };
-      // Add cache busting for standing.png to force reload
-      const cacheBuster = file === 'standing.png' ? `?v=${Date.now()}` : '';
-      // helmet.png is in root /public, others are in /sprites
-      const path = file === 'helmet.png' ? `/${file}` : `/sprites/${file}${cacheBuster}`;
-      img.src = path;
-      spritesRef.current[file] = img;
-    });
-    
-    // Load guy2 sprites
-    guy2SpriteFiles.forEach(file => {
-      const img = new Image();
-      img.onload = () => {
-        loadedCount++;
-        if (loadedCount === totalSprites) {
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-          setTimeout(() => {
-            setSpritesLoaded(true);
-          }, remainingTime);
-        }
-      };
-      img.onerror = () => {
-        console.error('Failed to load guy2 sprite:', file);
-        loadedCount++;
-        if (loadedCount === totalSprites) {
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-          setTimeout(() => {
-            setSpritesLoaded(true);
-          }, remainingTime);
-        }
-      };
-      const path = `/sprites/guy2/${file}`;
-      img.src = path;
-      spritesRef.current[`guy2_${file}`] = img;
-    });
-    
-    // Load guy3 sprites
-    guy3SpriteFiles.forEach(file => {
-      const img = new Image();
-      img.onload = () => {
-        loadedCount++;
-        if (loadedCount === totalSprites) {
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-          setTimeout(() => {
-            setSpritesLoaded(true);
-          }, remainingTime);
-        }
-      };
-      img.onerror = () => {
-        console.error('Failed to load guy3 sprite:', file);
-        loadedCount++;
-        if (loadedCount === totalSprites) {
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-          setTimeout(() => {
-            setSpritesLoaded(true);
-          }, remainingTime);
-        }
-      };
-      const path = `/sprites/guy3/${file}`;
-      img.src = path;
-      spritesRef.current[`guy3_${file}`] = img;
-    });
-
-    // Timeout fallback - only if sprites haven't loaded
-    const timeout = setTimeout(() => {
-      if (loadedCount < totalSprites) {
-        console.warn('Sprite loading timeout, proceeding anyway');
-        setSpritesLoaded(true);
+    const onSettled = () => {
+      count++;
+      setLoadProgress(Math.round((count / total) * 100));
+      if (count >= total) {
+        const wait = Math.max(0, minSplashMs - (Date.now() - startTime));
+        setTimeout(() => setSpritesLoaded(true), wait);
       }
-    }, 5000);
-
-    return () => clearTimeout(timeout);
-  }, []);
-
-  // Draw player sprite using loaded images
-  const drawPlayerSprite = (ctx: CanvasRenderingContext2D, x: number, y: number, frame: string, facingLeft: boolean) => {
-    if (!spritesLoaded) {
-      // Fallback while loading - draw at hitbox size
-      ctx.fillStyle = '#FF6B6B';
-      ctx.fillRect(x, y, 12, 14);
-      return;
-    }
-
-    ctx.save();
-    
-    // Determine which sprite to use based on frame
-    let spriteKey = 'standing.png';
-    if (frame === 'idle') {
-      // Alternate between standing and jumpfall for breathing effect
-      const idleCycle = Math.floor(performance.now() / 500) % 2;
-      spriteKey = idleCycle === 0 ? 'standing.png' : 'jumpfall.png';
-    } else if (frame === 'walk1') {
-      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step1.png' : 'step1.PNG';
-    } else if (frame === 'walk2') {
-      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step2.png' : 'step2.PNG';
-    } else if (frame === 'walk3') {
-      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step3.png' : 'step3.PNG';
-    } else if (frame === 'walk4') {
-      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'step4.png' : 'step4.PNG';
-    } else if (frame === 'jump1') {
-      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'jump1.png' : 'jump1.PNG';
-    } else if (frame === 'jump2') {
-      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'jump2.png' : 'jump2.PNG';
-    } else if (frame === 'jump3') {
-      spriteKey = (selectedCharRef.current === 'guy2' || selectedCharRef.current === 'guy3') ? 'jump3.png' : 'jump3.PNG';
-    } else if (frame === 'crouch') {
-      spriteKey = 'jumpfall.png';
-    }
-
-    // Add character prefix for guy2 and guy3 sprites
-    const finalSpriteKey = selectedCharRef.current === 'guy2' ? `guy2_${spriteKey}` : 
-                          selectedCharRef.current === 'guy3' ? `guy3_${spriteKey}` : 
-                          spriteKey;
-    const sprite = spritesRef.current[finalSpriteKey];
-    
-    if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-      // Get actual sprite dimensions
-      const spriteWidth = sprite.naturalWidth;
-      const spriteHeight = sprite.naturalHeight;
-      
-      // Render sprite at 16x16 size but offset to center over 12x14 hitbox
-      const targetSize = 16;
-      const aspectRatio = spriteWidth / spriteHeight;
-      
-      // Offset to center 16x16 sprite over 12x14 hitbox
-      const hitboxOffsetX = -2; // (16-12)/2 = 2 pixels left
-      const hitboxOffsetY = -1; // (16-14)/2 = 1 pixel up
-      
-      let drawWidth, drawHeight, spriteOffsetX, spriteOffsetY;
-      
-      if (aspectRatio > 1) {
-        // Wider than tall - fit to width
-        drawWidth = targetSize;
-        drawHeight = targetSize / aspectRatio;
-        spriteOffsetX = 0;
-        spriteOffsetY = (targetSize - drawHeight) / 2;
-      } else {
-        // Taller than wide or square - fit to height
-        drawHeight = targetSize;
-        drawWidth = targetSize * aspectRatio;
-        spriteOffsetX = (targetSize - drawWidth) / 2;
-        spriteOffsetY = 0;
-      }
-      
-      // Draw the sprite with proper aspect ratio and centering over hitbox
-      if (facingLeft) {
-        ctx.translate(x + hitboxOffsetX + 16, y + hitboxOffsetY);
-        ctx.scale(-1, 1);
-        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, spriteOffsetX, spriteOffsetY, drawWidth, drawHeight);
-      } else {
-        ctx.drawImage(sprite, 0, 0, spriteWidth, spriteHeight, x + hitboxOffsetX + spriteOffsetX, y + hitboxOffsetY + spriteOffsetY, drawWidth, drawHeight);
-      }
-    } else {
-      // Fallback: draw a simple colored rectangle at hitbox size
-      ctx.fillStyle = '#FF6B6B';
-      ctx.fillRect(x, y, 12, 14);
-      ctx.fillStyle = '#FFD4A3';
-      ctx.fillRect(x + 3, y + 2, 6, 5);
-      ctx.fillStyle = '#2C3E50';
-      ctx.fillRect(x + 3, y + 10, 6, 4);
-    }
-
-    ctx.restore();
-  };
-
-  // Load stage function
-  const loadStage = (stageNum: number) => {
-    const state = gameStateRef.current;
-    const stageData = generateStage(stageNum);
-    
-    state.platforms = stageData.platforms;
-    state.coins = stageData.coins;
-    state.enemies = stageData.enemies;
-    state.stageWidth = stageData.width;
-    state.goalX = stageData.goalX;
-    state.currentStage = stageNum;
-    state.coinsCollectedThisStage = 0;
-    state.totalCoinsThisStage = stageData.coins.length;
-    state.celebrating = false;
-    state.celebrationTimer = 0;
-    state.gameStarted = false;
-    state.gameStartTimer = 0;
-    
-    // Spawn portal randomly (30% chance per stage)
-    if (Math.random() < 0.3) {
-      const portalX = 200 + Math.random() * (stageData.width - 400);
-      const portalY = 90; // Above ground level
-      state.portal = { x: portalX, y: portalY, animationFrame: 0, active: true };
-    } else {
-      state.portal = null;
-    }
-    
-    // Spawn water gun power-up in hard-to-reach areas (stages 3-9)
-    if (stageNum >= 3 && stageNum <= 9) {
-      // Find a high platform (hard to reach)
-      const highPlatforms = state.platforms.filter(p => 
-        p.type === 'brick' && p.y < 80 && p.x > 300 && p.x < stageData.width - 300
-      );
-      
-      if (highPlatforms.length > 0) {
-        const randomPlatform = highPlatforms[Math.floor(Math.random() * highPlatforms.length)];
-        state.waterGun = {
-          x: randomPlatform.x + 4,
-          y: randomPlatform.y - 12,
-          collected: false
-        };
-      } else {
-        state.waterGun = null;
-      }
-    } else {
-      state.waterGun = null;
-    }
-    
-    // Boss will be added later with sprite-based system
-    
-    // Reset water projectiles
-    state.waterProjectiles = [];
-    
-    // Reset blackhole state
-    state.inBlackhole = false;
-    state.blackholeTimer = 0;
-    state.blackholeFallSpeed = 0;
-    state.chartBars = [];
-    state.chartComplete = false;
-    state.chartResult = '';
-    
-    // Reset player position, animation, and all ability states
-    state.player.x = 80;
-    state.player.y = 112;
-    state.player.velocityX = 0;
-    state.player.velocityY = 0;
-    state.player.rotation = 0;
-    state.player.onGround = true;
-    state.player.currentAnimation = 'idle';
-    state.player.animationFrame = 0;
-    state.player.animationTimer = 0;
-    state.player.hasHelmet = false;
-    state.player.helmetTimer = 0;
-    state.player.hasWaterGun = false;
-    state.player.waterGunTimer = 0;
-    state.player.shootCooldown = 0;
-    state.player.isDashing = false;
-    state.player.dashTimer = 0;
-    state.player.dashCooldown = 0;
-    state.player.dashAvailable = true;
-    state.player.isAirSliding = false;
-    state.player.airSlideTimer = 0;
-    state.player.airSlideUsed = false;
-    state.player.speedBoostTimer = 0;
-    state.player.isSlamming = false;
-    state.player.slamCharging = false;
-    state.player.chargeLevel = 0;
-    state.player.groundPoundRadius = 0;
-    state.player.invincibilityTimer = 0;
-    state.player.doubleJumpAvailable = false;
-    state.player.airDashCount = 0;
-    state.player.jumpHoldTime = 0;
-    state.player.landingTimer = 0;
-    state.combo = 0;
-    state.comboTimer = 0;
-    state.camera.x = 0;
-    state.camera.targetX = 0;
-  };
-
-  // Initialize game
-  useEffect(() => {
-    loadStage(currentStage);
-    // Stage data loaded by loadStage function
-    
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.imageSmoothingEnabled = false;
-
-    let lastTime = performance.now();
-    let animationId: number;
-
-    const gameLoop = (currentTime: number) => {
-      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
-      lastTime = currentTime;
-
-      // Only update game logic when playing and not paused
-      if (gameScreenRef.current === 'playing' && !isPausedRef.current) {
-        update(deltaTime);
-      }
-      render(ctx);
-
-      animationId = requestAnimationFrame(gameLoop);
     };
 
-    const update = (dt: number) => {
+    manifest.forEach(({ key, src }) => {
+      const img = new Image();
+      img.onload = onSettled;
+      img.onerror = onSettled;
+      img.src = src;
+      spritesRef.current[key] = img;
+    });
+  }, []);
+
+  // Start / Restart Run Action
+  const startNewRun = useCallback(() => {
+    soundRef.current?.tryStartMusic();
+    const state = gameStateRef.current;
+    state.score = 0;
+    state.keys = {};
+    loadStageIntoState(state, spatialGridRef.current, 1);
+
+    setScore(0);
+    setCurrentStage(1);
+    setLives(3);
+    livesRef.current = 3;
+    waterGunSecsRef.current = 0;
+    setWaterGunSecs(0);
+    setActiveBtnFire(false);
+    setDeathCount(0);
+    setGameWon(false);
+    setIsNewRecord(false);
+    setIsPaused(false);
+    setGameScreen('playing');
+  }, []);
+
+  const restartCurrentStage = useCallback(() => {
+    const state = gameStateRef.current;
+    state.keys = {};
+    loadStageIntoState(state, spatialGridRef.current, state.currentStage);
+    waterGunSecsRef.current = 0;
+    setWaterGunSecs(0);
+    setActiveBtnFire(false);
+    setIsPaused(false);
+  }, []);
+
+  // Single Persistent Fixed-Timestep Game Loop + Keyboard + Gamepad Support
+  useEffect(() => {
+    if (!spritesLoaded) return;
+
+    let rafId = 0;
+    let lastTime = performance.now();
+    let accumulator = 0;
+    let prevPadJump = false;
+    let prevPadAction = false;
+    let prevPadShoot = false;
+    let prevPadStart = false;
+
+    const pollGamepad = () => {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const pad = pads && (pads[0] || pads[1] || pads[2] || pads[3]);
+      if (!pad) return;
+
       const state = gameStateRef.current;
-      const player = state.player;
+      const axisX = pad.axes[0] || 0;
+      const axisY = pad.axes[1] || 0;
+      const dLeft = pad.buttons[14]?.pressed || axisX < -0.35;
+      const dRight = pad.buttons[15]?.pressed || axisX > 0.35;
+      const dDown = pad.buttons[13]?.pressed || axisY > 0.45;
+      const jumpBtn = !!(pad.buttons[0]?.pressed || pad.buttons[12]?.pressed);
+      const abilityOnlyBtn = !!(pad.buttons[1]?.pressed || pad.buttons[5]?.pressed);
+      const fireOrAltBtn = !!(pad.buttons[2]?.pressed || pad.buttons[7]?.pressed);
+      const hasGun = state.player.hasWaterGun;
+      const actionBtn = hasGun ? abilityOnlyBtn : abilityOnlyBtn || fireOrAltBtn;
+      const shootBtn = hasGun && fireOrAltBtn;
+      const startBtn = !!pad.buttons[9]?.pressed;
 
-      // Auto-start music on first user interaction
-      if (!musicStartedRef.current && bgMusicRef.current && audioEnabled) {
-        const anyKeyPressed = Object.values(state.keys).some(pressed => pressed);
-        if (anyKeyPressed) {
-          bgMusicRef.current.play().catch(() => {});
-          musicStartedRef.current = true;
+      if (startBtn && !prevPadStart) {
+        if (screenRef.current === 'title' || screenRef.current === 'gameover') {
+          startNewRun();
+        } else if (screenRef.current === 'playing') {
+          setIsPaused((p) => !p);
         }
       }
+      prevPadStart = startBtn;
 
-      // Update death flash timer
-      if (state.deathFlashTimer > 0) {
-        state.deathFlashTimer -= dt;
-      }
+      if (screenRef.current !== 'playing' || pausedRef.current) return;
 
-      // Handle game start countdown
-      if (!state.gameStarted) {
-        state.gameStartTimer += dt;
-        if (state.gameStartTimer >= 3.0) {
-          state.gameStarted = true;
-        }
-      }
+      state.keys['PadLeft'] = dLeft;
+      state.keys['PadRight'] = dRight;
+      state.keys['ArrowLeft'] = !!(state.keys['KeyLeft'] || state.keys['TouchLeft'] || dLeft);
+      state.keys['ArrowRight'] = !!(state.keys['KeyRight'] || state.keys['TouchRight'] || dRight);
+      state.keys['ArrowDown'] = !!(state.keys['KeyDown'] || dDown);
 
-      // Handle celebration timer (MUST be before freeze check)
-      if (state.celebrating) {
-        state.celebrationTimer -= dt;
-        if (state.celebrationTimer <= 0) {
-          state.celebrating = false;
-          if (state.currentStage < 10) {
-            const nextStage = state.currentStage + 1;
-            setCurrentStage(nextStage);
-            loadStage(nextStage);
-          } else {
-            // Completed all 10 stages - YOU WIN!
-            setGameWon(true);
-            setGameScreen('gameover');
-          }
-          return; // Exit after loading new stage
-        }
+      if (jumpBtn && !prevPadJump) {
+        state.jumpBuffer = JUMP_BUFFER;
       }
+      state.keys[' '] = !!(state.keys['KeyJump'] || state.keys['TouchJump'] || jumpBtn);
+      prevPadJump = jumpBtn;
 
-      // Freeze player controls when celebrating or before game starts
-      if (state.celebrating || !state.gameStarted) {
-        player.velocityX = 0;
-        player.velocityY = Math.min(player.velocityY, 0); // Allow falling but not jumping
-        
-        // Apply gravity only
-        if (!player.onGround) {
-          player.velocityY += GRAVITY * dt;
-          player.velocityY = Math.min(player.velocityY, MAX_FALL_SPEED);
-        }
-        
-        // Move player (for gravity)
-        const oldY = player.y;
-        player.y += player.velocityY * dt;
-        
-        // Simple ground collision during freeze
-        for (const platform of state.platforms) {
-          if (platform.broken) continue;
-          if (player.x + player.width > platform.x &&
-              player.x < platform.x + platform.width &&
-              player.y + player.height > platform.y &&
-              player.y < platform.y + platform.height) {
-            const wasAbove = oldY + player.height <= platform.y + 1;
-            if (player.velocityY >= 0 && wasAbove) {
-              player.y = platform.y - player.height;
-              player.velocityY = 0;
-              player.onGround = true;
-            }
-          }
-        }
-        
-        // Skip all other game logic when frozen
-        return;
+      if (actionBtn && !prevPadAction) {
+        state.abilityJustPressed = true;
       }
+      state.keys['ActionB'] = !!(state.keys['KeyAction'] || state.keys['TouchAction'] || actionBtn);
+      prevPadAction = actionBtn;
 
-      // Update coyote time
-      if (player.onGround) {
-        state.coyoteTime = COYOTE_TIME;
-      } else {
-        state.coyoteTime = Math.max(0, state.coyoteTime - dt);
+      if (shootBtn && !prevPadShoot) {
+        state.shootJustPressed = true;
       }
+      state.keys['PadShoot'] = shootBtn;
+      state.keys['ShootWater'] = !!(state.keys['TouchShoot'] || shootBtn);
+      prevPadShoot = shootBtn;
+    };
 
-      // Update jump buffer
-      if (state.jumpBuffer > 0) {
-        state.jumpBuffer = Math.max(0, state.jumpBuffer - dt);
-      }
+    const tick = (now: number) => {
+      const rawDt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+      lastTime = now;
 
-      // Horizontal movement with acceleration
-      let inputAxis = 0;
-      const rightPressed = state.keys['ArrowRight'] || state.keys['d'] || state.keys['D'];
-      const leftPressed = state.keys['ArrowLeft'] || state.keys['a'] || state.keys['A'];
-      
-      if (rightPressed && !leftPressed) {
-        inputAxis = 1;
-      } else if (leftPressed && !rightPressed) {
-        inputAxis = -1;
-      }
-      
-      // Character-specific speed multipliers
-      let speedMultiplier = 1.0;
-      let accelMultiplier = 1.0;
-      
-      if (selectedCharRef.current === 'guy2') {
-        speedMultiplier = 1.35; // guy2 is 35% faster
-        accelMultiplier = 1.25;
-      } else if (selectedCharRef.current === 'guy3') {
-        speedMultiplier = 0.9; // guy3 is slightly slower but more powerful
-        accelMultiplier = 0.95;
-      }
+      pollGamepad();
 
-      // Skip normal movement during dash
-      if (!player.isDashing) {
-        if (inputAxis !== 0) {
-          const targetVelocity = inputAxis * PLAYER_SPEED * speedMultiplier;
-          const accelAmount = (player.onGround ? PLAYER_ACCEL : PLAYER_ACCEL * 0.65) * accelMultiplier * dt;
-          const velocityChange = Math.sign(targetVelocity - player.velocityX) * Math.min(Math.abs(targetVelocity - player.velocityX), accelAmount);
-          player.velocityX += velocityChange;
-          player.facingLeft = inputAxis < 0;
-          
-        } else {
-          // Apply friction (stronger on ground, lighter in air)
-          const frictionAmount = (player.onGround ? PLAYER_FRICTION : AIR_FRICTION) * dt;
-          player.velocityX -= Math.sign(player.velocityX) * Math.min(Math.abs(player.velocityX), frictionAmount);
-          // Stop at same threshold as idle animation detection
-          if (Math.abs(player.velocityX) < 0.5) player.velocityX = 0;
-        }
-      }
+      const state = gameStateRef.current;
+      const sound = soundRef.current!;
 
-      // Apply gravity with terminal velocity
-      if (!player.onGround) {
-        player.velocityY += GRAVITY * dt;
-        player.velocityY = Math.min(player.velocityY, MAX_FALL_SPEED);
-      }
-
-      // Jump with coyote time and buffer
-      if (state.jumpBuffer > 0 && state.coyoteTime > 0) {
-        player.velocityY = JUMP_VELOCITY;
-        state.jumpBuffer = 0;
-        state.coyoteTime = 0;
-        player.landingTimer = 0;
-        
-        // Guy1: Enable double jump after first jump
-        if (selectedCharRef.current === 'guy1') {
-          player.doubleJumpAvailable = true;
-        }
-        
-        playSound('jump');
-        try { if (isMobile) navigator.vibrate(15); } catch {} // Reduced from 30 for comfort
-        
-        // Spawn jump particles - reduced for performance
-        for (let i = 0; i < 10; i++) {
-          const angle = Math.PI * (0.3 + Math.random() * 0.4); // Upward burst
-          const speed = 55 + Math.random() * 75;
-          state.particles.push({
-            x: player.x + 8 + (Math.random() - 0.5) * 12,
-            y: player.y + 16,
-            vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
-            vy: -Math.sin(angle) * speed - 45,
-            life: 0.65 + Math.random() * 0.25,
-            maxLife: 0.65 + Math.random() * 0.25,
-            color: i % 6 === 0 ? '#FFD700' : i % 6 === 1 ? '#FFA500' : i % 6 === 2 ? '#FF8C00' : i % 6 === 3 ? '#FFB347' : i % 6 === 4 ? '#F4A460' : '#DEB887',
-          });
-        }
-      }
-      
-      // Guy1: Double jump mechanic
-      if (selectedCharRef.current === 'guy1') {
-        if (player.doubleJumpAvailable && !player.onGround && state.jumpBuffer > 0) {
-          player.velocityY = DOUBLE_JUMP_VELOCITY;
-          player.doubleJumpAvailable = false;
-          state.jumpBuffer = 0;
-          playSound('jump');
-          try { if (isMobile) navigator.vibrate(15); } catch {} // Reduced from 30
-          
-          // Double jump particles - reduced for performance
-          for (let i = 0; i < 8; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 60 + Math.random() * 80;
-            state.particles.push({
-              x: player.x + 6,
-              y: player.y + 7,
-              vx: Math.cos(angle) * speed,
-              vy: Math.sin(angle) * speed,
-              life: 0.6,
-              maxLife: 0.6,
-              color: i % 3 === 0 ? '#00FFFF' : i % 3 === 1 ? '#00BFFF' : '#1E90FF',
-            });
-          }
-        }
-        
-        // Reset double jump when landing
-        if (player.onGround) {
-          player.doubleJumpAvailable = false;
-        }
-      }
-      
-      // Guy1: Dash mechanic (Shift key)
-      if (selectedCharRef.current === 'guy1') {
-        const dashKey = state.keys['Shift'];
-        
-        // Update dash cooldown
-        if (player.dashCooldown > 0) {
-          player.dashCooldown -= dt;
-        }
-        
-        // Activate dash
-        if (dashKey && player.dashAvailable && player.dashCooldown <= 0 && !player.isDashing) {
-          player.isDashing = true;
-          player.dashTimer = DASH_DURATION;
-          player.dashCooldown = DASH_COOLDOWN;
-          player.dashAvailable = false;
-          player.invincibilityTimer = DASH_DURATION; // Invincible during dash
-          playSound('flip');
-          
-          // Dash particles - orange/yellow trail
-          for (let i = 0; i < 8; i++) {
-            state.particles.push({
-              x: player.x + 6,
-              y: player.y + 7,
-              vx: (player.facingLeft ? 40 : -40) + (Math.random() - 0.5) * 30,
-              vy: (Math.random() - 0.5) * 40,
-              life: 0.5,
-              maxLife: 0.5,
-              color: i % 2 === 0 ? '#FFA500' : '#FFD700',
-            });
-          }
-        }
-        
-        // Update dash
-        if (player.isDashing) {
-          player.dashTimer -= dt;
-          player.velocityX = (player.facingLeft ? -1 : 1) * DASH_SPEED;
-          player.velocityY *= 0.5; // Reduce vertical velocity during dash
-          
-          // Continuous dash trail
-          for (let i = 0; i < 2; i++) {
-            state.particles.push({
-              x: player.x + 6,
-              y: player.y + 7,
-              vx: (player.facingLeft ? 30 : -30) + (Math.random() - 0.5) * 20,
-              vy: (Math.random() - 0.5) * 30,
-              life: 0.3,
-              maxLife: 0.3,
-              color: Math.random() > 0.5 ? '#FFA500' : '#FFD700',
-            });
-          }
-          
-          if (player.dashTimer <= 0) {
-            player.isDashing = false;
-          }
-        }
-        
-        // Update invincibility timer
-        if (player.invincibilityTimer > 0) {
-          player.invincibilityTimer -= dt;
-        }
-        
-        // Reset dash availability when landing
-        if (player.onGround) {
-          player.dashAvailable = true;
-        }
-      }
-
-      // Variable jump height - release jump key to stop rising
-      const jumpKeyPressed = state.keys['ArrowUp'] || state.keys['w'] || state.keys['W'] || 
-                            state.keys[' '] || state.keys['z'] || state.keys['Z'];
-      
-      // Guy3: Enhanced slam attack with charge levels and ground pound
-      if (selectedCharRef.current === 'guy3') {
-        if (jumpKeyPressed && !player.onGround && player.velocityY < 0) {
-          player.jumpHoldTime += dt;
-          player.slamCharging = true;
-          
-          // Calculate charge level (0-3)
-          player.chargeLevel = Math.min(3, Math.floor(player.jumpHoldTime / 0.3));
-          
-          // Charging particles - intensity increases with charge
-          if (player.chargeLevel > 0 && Math.random() > 0.8) {
-            const particleCount = player.chargeLevel;
-            for (let i = 0; i < particleCount; i++) {
-              state.particles.push({
-                x: player.x + 6 + (Math.random() - 0.5) * 10,
-                y: player.y + 12,
-                vx: (Math.random() - 0.5) * 20,
-                vy: Math.random() * 30,
-                life: 0.3,
-                maxLife: 0.3,
-                color: player.chargeLevel === 3 ? '#FF0000' : player.chargeLevel === 2 ? '#FF4444' : '#FF8888',
-              });
-            }
-          }
-        } else {
-          player.slamCharging = false;
-        }
-        
-        // If jump released after holding at peak, activate slam
-        if (!jumpKeyPressed && player.jumpHoldTime > 0.3 && !player.onGround && !player.isSlamming) {
-          player.isSlamming = true;
-          const slamSpeed = 600 + (player.chargeLevel * 150); // Faster with charge
-          player.velocityY = slamSpeed;
-          player.groundPoundRadius = 20 + (player.chargeLevel * 15); // Larger radius with charge
-          playSound('jump');
-          
-          // Slam activation particles - more with higher charge
-          const particleCount = 15 + (player.chargeLevel * 10);
-          for (let i = 0; i < particleCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 50 + Math.random() * 60;
-            state.particles.push({
-              x: player.x + 6,
-              y: player.y + 7,
-              vx: Math.cos(angle) * speed,
-              vy: Math.sin(angle) * speed,
-              life: 0.6,
-              maxLife: 0.6,
-              color: player.chargeLevel === 3 ? '#FF0000' : player.chargeLevel === 2 ? '#FF4444' : '#FF6666',
-            });
-          }
-        }
-        
-        // Ground pound impact when landing from slam
-        if (player.isSlamming && player.onGround) {
-          player.isSlamming = false;
-          const impactRadius = player.groundPoundRadius;
-          
-          // Massive screen shake based on charge
-          state.screenShake = 0.1 + (player.chargeLevel * 0.05); // Reduced intensity
-          playSound('stomp');
-          try { if (isMobile) navigator.vibrate(20 + player.chargeLevel * 10); } catch {}
-          
-          // Ground pound impact particles - shockwave effect (optimized)
-          const impactParticles = 25 + (player.chargeLevel * 10);
-          for (let i = 0; i < impactParticles; i++) {
-            const angle = (Math.PI * 2 * i) / impactParticles;
-            const speed = 80 + Math.random() * 100;
-            state.particles.push({
-              x: player.x + 6,
-              y: player.y + 14,
-              vx: Math.cos(angle) * speed,
-              vy: Math.sin(angle) * speed * 0.3 - 30,
-              life: 0.8,
-              maxLife: 0.8,
-              color: i % 5 === 0 ? '#FF0000' : i % 5 === 1 ? '#FF4444' : i % 5 === 2 ? '#FF6666' : i % 5 === 3 ? '#FFA500' : '#FFD700',
-            });
-          }
-          
-          // Damage enemies in radius
-          state.enemies.forEach(enemy => {
-            if (enemy.alive) {
-              const dx = enemy.x - player.x;
-              const dy = enemy.y - player.y;
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              
-              if (distance < impactRadius) {
-                enemy.alive = false;
-                playSound('stomp');
-                state.combo++;
-                state.comboTimer = 3.5;
-                const comboBonus = state.combo > 1 ? state.combo * 150 : 0;
-                setScore(s => s + 300 + comboBonus);
-                
-                // Enemy death particles
-                for (let j = 0; j < 12; j++) {
-                  const angle = (Math.PI * 2 * j) / 12;
-                  state.particles.push({
-                    x: enemy.x + 6,
-                    y: enemy.y + 6,
-                    vx: Math.cos(angle) * 100,
-                    vy: Math.sin(angle) * 100 - 50,
-                    life: 0.6,
-                    maxLife: 0.6,
-                    color: '#FF0000',
-                  });
+      if (screenRef.current === 'playing' && !pausedRef.current) {
+        accumulator += rawDt;
+        let steps = 0;
+        while (accumulator >= FIXED_DT && steps < 3) {
+          updateGameEngine(
+            state,
+            spatialGridRef.current,
+            FIXED_DT,
+            gameWidthRef.current,
+            charRef.current,
+            sound,
+            {
+              onScoreChange: (newScore) => setScore(newScore),
+              onStageAdvance: (nextStage) => {
+                setCurrentStage(nextStage);
+                persistProgress(state.score, nextStage);
+              },
+              onPlayerLoseLife: () => {
+                setDeathCount((d) => d + 1);
+                if (livesRef.current <= 1) {
+                  livesRef.current = 0;
+                  setLives(0);
+                  setGameWon(false);
+                  persistProgress(state.score, state.currentStage);
+                  setGameScreen('gameover');
+                } else {
+                  const nextLives = livesRef.current - 1;
+                  livesRef.current = nextLives;
+                  setLives(nextLives);
                 }
-              }
-            }
-          });
-          
-          // Break nearby bricks
-          state.platforms.forEach(platform => {
-            if (platform.type === 'brick' && !platform.broken) {
-              const dx = platform.x - player.x;
-              const dy = platform.y - player.y;
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              
-              if (distance < impactRadius * 1.5) {
-                platform.broken = true;
-                playSound('break');
-                setScore(s => s + 50);
-                
-                // Brick break particles
-                for (let j = 0; j < 15; j++) {
-                  const angle = Math.random() * Math.PI * 2;
-                  const speed = 50 + Math.random() * 70;
-                  state.particles.push({
-                    x: platform.x + 8,
-                    y: platform.y + 8,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed - 40,
-                    life: 0.7,
-                    maxLife: 0.7,
-                    color: '#FF6347',
-                  });
+              },
+              onGameWin: () => {
+                setGameWon(true);
+                persistProgress(state.score, 10);
+                setGameScreen('gameover');
+              },
+              vibrate: (ms) => {
+                if (touchModeRef.current && typeof navigator !== 'undefined' && navigator.vibrate) {
+                  try {
+                    navigator.vibrate(ms);
+                  } catch {}
                 }
-              }
+              },
             }
-          });
-        }
-        
-        // Reset jump hold time and charge when on ground
-        if (player.onGround && !player.isSlamming) {
-          player.jumpHoldTime = 0;
-          player.chargeLevel = 0;
-          player.groundPoundRadius = 0;
-        }
-      }
-      
-      if (!jumpKeyPressed && player.velocityY < 0 && !player.isSlamming) {
-        player.velocityY *= 0.5;
-      }
-      
-      // Guy2: Enhanced air slide mechanic with multiple air dashes
-      if (selectedCharRef.current === 'guy2') {
-        // Track jump hold time while in air and moving horizontally
-        if (jumpKeyPressed && !player.onGround && Math.abs(player.velocityX) > 50) {
-          player.jumpHoldTime += dt;
-          player.slamCharging = true; // Reuse this flag for visual feedback
-        } else {
-          player.slamCharging = false;
-        }
-        
-        // If jump released after holding while airborne, activate air slide
-        if (!jumpKeyPressed && player.jumpHoldTime > 0.25 && !player.onGround && !player.isAirSliding && player.airDashCount < 2) {
-          player.isAirSliding = true;
-          player.airDashCount++; // Guy2 can air dash twice per jump
-          player.airSlideTimer = 0.3; // Longer air slide duration
-          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.5; // Faster horizontal boost
-          player.velocityY = 0; // Neutralize vertical velocity briefly
-          player.jumpHoldTime = 0; // Reset for next dash
-          playSound('fart');
-          
-          // Enhanced air slide fart particles (green with sparkles)
-          for (let i = 0; i < 18; i++) {
-            state.particles.push({
-              x: player.x + 6,
-              y: player.y + 7,
-              vx: (player.facingLeft ? 50 : -50) + (Math.random() - 0.5) * 40,
-              vy: (Math.random() - 0.5) * 50,
-              life: 0.5,
-              maxLife: 0.5,
-              color: i % 4 === 0 ? '#44FF44' : i % 4 === 1 ? '#66FF66' : i % 4 === 2 ? '#88FF88' : '#AAFFAA',
-            });
-          }
-        }
-        
-        // Reset air dash count and jump hold time when landing
-        if (player.onGround) {
-          player.airDashCount = 0;
-          player.jumpHoldTime = 0;
-          player.isAirSliding = false;
-        }
-        
-        // Update speed boost timer (fixed: was only updating when on ground)
-        if (player.speedBoostTimer > 0) {
-          player.speedBoostTimer -= dt;
-        }
-        
-        // Update air slide timer
-        if (player.isAirSliding) {
-          player.airSlideTimer -= dt;
-          if (player.airSlideTimer <= 0 || player.onGround) {
-            player.isAirSliding = false;
-            // Grant speed boost on landing
-            if (player.onGround) {
-              player.speedBoostTimer = 2.0; // 2 seconds of speed boost
-            }
-          }
-        }
-        
-        // During air slide, maintain horizontal speed and slow fall
-        if (player.isAirSliding) {
-          player.velocityX = (player.facingLeft ? -1 : 1) * PLAYER_SPEED * 2.5;
-          player.velocityY = Math.min(player.velocityY, 60); // Even slower fall during slide
-          
-          // Continuous green fart trail during air slide with speed lines
-          for (let i = 0; i < 3; i++) {
-            state.particles.push({
-              x: player.x + 6 + (Math.random() - 0.5) * 8,
-              y: player.y + 7 + (Math.random() - 0.5) * 8,
-              vx: (player.facingLeft ? 40 : -40) + (Math.random() - 0.5) * 25,
-              vy: (Math.random() - 0.5) * 35,
-              life: 0.35,
-              maxLife: 0.35,
-              color: Math.random() > 0.5 ? '#44FF44' : '#66FF66',
-            });
-          }
-        }
-        
-        // Speed boost visual effect
-        if (player.speedBoostTimer > 0 && player.onGround && Math.abs(player.velocityX) > 50) {
-          // Speed trail particles
-          if (Math.random() > 0.7) {
-            state.particles.push({
-              x: player.x + 6,
-              y: player.y + 10,
-              vx: (player.facingLeft ? 20 : -20),
-              vy: (Math.random() - 0.5) * 10,
-              life: 0.2,
-              maxLife: 0.2,
-              color: '#00FFFF',
-            });
-          }
-        }
-      }
-
-      // Move player
-      const oldX = player.x;
-      const oldY = player.y;
-      player.x += player.velocityX * dt;
-      player.y += player.velocityY * dt;
-      
-
-      // Collision detection (skip broken bricks)
-      // Check if player is still on ground before resetting
-      let stillOnGround = false;
-      
-      // Quick check if player is still touching the platform they were on
-      if (player.onGround && player.velocityY >= 0) {
-        for (const platform of state.platforms) {
-          if (platform.broken) continue;
-          // Strict check - player must be exactly on platform (within 0.5 pixels)
-          if (player.x + player.width > platform.x &&
-              player.x < platform.x + platform.width &&
-              Math.abs(player.y + player.height - platform.y) < 0.5) {
-            stillOnGround = true;
+          );
+          accumulator -= FIXED_DT;
+          steps++;
+          if (screenRef.current !== 'playing') {
+            accumulator = 0;
             break;
           }
         }
-      }
-      
-      // Reset onGround if not standing on anything
-      if (!stillOnGround) {
-        player.onGround = false;
-      }
-      
-      for (const platform of state.platforms) {
-        if (platform.broken) continue; // Skip broken bricks for collision
-        
-        // Check if player with helmet can break brick from any angle
-        if (player.hasHelmet && platform.type === 'brick' && !platform.broken) {
-          if (player.x + player.width > platform.x &&
-              player.x < platform.x + platform.width &&
-              player.y + player.height > platform.y &&
-              player.y < platform.y + platform.height) {
-            // Break brick from any angle with helmet!
-            platform.broken = true;
-            playSound('break');
-            
-            // Brick break particles
-            for (let i = 0; i < 20; i++) {
-              const angle = Math.random() * Math.PI * 2;
-              const speed = 40 + Math.random() * 60;
-              state.particles.push({
-                x: platform.x + 8,
-                y: platform.y + 8,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 50,
-                life: 0.6,
-                maxLife: 0.6,
-                color: Math.random() > 0.5 ? '#FF6347' : '#FF7F50',
-              });
-            }
-            
-            // Screen shake
-            state.screenShake = 0.12;
-            setScore(s => s + 50);
-            continue; // Skip normal collision for this brick
-          }
-        }
-        
-        // Guy3: Check if slamming onto brick - break it!
-        if (selectedCharRef.current === 'guy3' && player.isSlamming && platform.type === 'brick' && !platform.broken) {
-          if (player.x + player.width > platform.x &&
-              player.x < platform.x + platform.width &&
-              player.y + player.height > platform.y &&
-              player.y < platform.y + platform.height) {
-            // Break brick with slam!
-            platform.broken = true;
-            playSound('break');
-            
-            // Massive brick break particles
-            for (let i = 0; i < 30; i++) {
-              const angle = Math.random() * Math.PI * 2;
-              const speed = 60 + Math.random() * 80;
-              state.particles.push({
-                x: platform.x + 8,
-                y: platform.y + 8,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 60,
-                life: 0.8,
-                maxLife: 0.8,
-                color: i % 3 === 0 ? '#FF6347' : i % 3 === 1 ? '#FF4444' : '#FF7F50',
-              });
-            }
-            
-            // Big screen shake
-            state.screenShake = 0.2;
-            setScore(s => s + 100);
-            continue; // Skip normal collision for this brick
-          }
-        }
-        
-        // Question blocks can only be hit from below (no helmet bypass)
-        
-        if (player.x + player.width > platform.x &&
-            player.x < platform.x + platform.width &&
-            player.y + player.height > platform.y &&
-            player.y < platform.y + platform.height) {
-          
-          // Vertical collision (landing on top or hitting bottom)
-          const wasAbove = oldY + player.height <= platform.y + 1; // Strict tolerance - only 1 pixel
-          const wasBelow = oldY >= platform.y + platform.height;
-          
-          if (player.velocityY >= 0 && wasAbove) {
-            // Landing on top or standing on platform
-            const landingSpeed = player.velocityY;
-            // Always snap to exact position on platform
-            player.y = platform.y - player.height;
-            player.velocityY = 0;
-            player.onGround = true;
-            
-            // Set landing timer for crouch animation (brief crouch on landing)
-            if (landingSpeed > 50) {
-              player.landingTimer = 0.15;
-            }
-            
-            // Landing particles if falling fast - enhanced dust cloud effect
-            if (landingSpeed > 100) {
-              playSound('land');
-              const particleCount = Math.min(28, Math.floor(landingSpeed / 11));
-              for (let i = 0; i < particleCount; i++) {
-                const angle = Math.PI * (0.2 + Math.random() * 0.6); // Spread upward
-                const speed = 45 + Math.random() * 65;
-                state.particles.push({
-                  x: player.x + 8 + (Math.random() - 0.5) * 14,
-                  y: player.y + 16,
-                  vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
-                  vy: -Math.sin(angle) * speed,
-                  life: 0.65 + Math.random() * 0.35,
-                  maxLife: 0.65 + Math.random() * 0.35,
-                  color: i % 5 === 0 ? '#D2691E' : i % 5 === 1 ? '#A0522D' : i % 5 === 2 ? '#8B4513' : i % 5 === 3 ? '#CD853F' : '#BC8F8F',
-                });
-              }
-              // Small screen shake on hard landing
-              if (landingSpeed > 250) {
-                state.screenShake = 0.08; // Reduced from 0.13
-                try { if (isMobile) navigator.vibrate(20); } catch {}
-              }
-            }
-          } else if (player.velocityY < 0 && wasBelow) {
-            // Hitting bottom
-            player.y = platform.y + platform.height;
-            player.velocityY = 0;
-            
-            // Check if hitting brick block from below - break it (works without helmet)
-            if (platform.type === 'brick' && !platform.broken) {
-              platform.broken = true;
-              playSound('break');
-              
-              // Brick break particles - enhanced with more variety
-              for (let i = 0; i < 24; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const speed = 45 + Math.random() * 65;
-                state.particles.push({
-                  x: platform.x + 8,
-                  y: platform.y + 8,
-                  vx: Math.cos(angle) * speed,
-                  vy: Math.sin(angle) * speed - 55,
-                  life: 0.7,
-                  maxLife: 0.7,
-                  color: i % 4 === 0 ? '#FF6347' : i % 4 === 1 ? '#FF7F50' : i % 4 === 2 ? '#E26B6B' : '#CD5C5C',
-                });
-              }
-              
-              // Screen shake
-              state.screenShake = 0.12;
-              
-              // Small score bonus
-              setScore(s => s + 50);
-            } else {
-              // Screen shake for other blocks
-              state.screenShake = 0.12;
-            }
-            
-            // Check if hitting question block from below (works without helmet)
-            if (platform.type === 'question' && !platform.used) {
-              platform.used = true;
-              platform.bounceOffset = 8;
-              playSound('powerup');
-              
-              // Random reward (consolidated logic)
-              const reward = Math.random();
-              
-              if (reward < 0.4) {
-                // Spawn 3 coins
-                for (let i = 0; i < 3; i++) {
-                  state.coins.push({
-                    x: platform.x + 4,
-                    y: platform.y - 20 - i * 8,
-                    collected: false,
-                    floatOffset: Math.random() * Math.PI * 2
-                  });
-                }
-                // Particle effect
-                for (let i = 0; i < 15; i++) {
-                  const angle = (Math.PI * 2 * i) / 15;
-                  state.particles.push({
-                    x: platform.x + 8,
-                    y: platform.y,
-                    vx: Math.cos(angle) * 60,
-                    vy: Math.sin(angle) * 60 - 40,
-                    life: 0.5,
-                    maxLife: 0.5,
-                    color: '#FFD700',
-                  });
-                }
-              } else if (reward < 0.7) {
-                // Spawn 1 coin
-                state.coins.push({
-                  x: platform.x + 4,
-                  y: platform.y - 20,
-                  collected: false,
-                  floatOffset: Math.random() * Math.PI * 2
-                });
-                // Particle effect
-                for (let i = 0; i < 8; i++) {
-                  const angle = (Math.PI * 2 * i) / 8;
-                  state.particles.push({
-                    x: platform.x + 8,
-                    y: platform.y,
-                    vx: Math.cos(angle) * 50,
-                    vy: Math.sin(angle) * 50 - 30,
-                    life: 0.4,
-                    maxLife: 0.4,
-                    color: '#FFA500',
-                  });
-                }
-              } else {
-                // Spawn enemy (goomba) with upward velocity to pop out
-                const spawnDirection = Math.random() > 0.5 ? 1 : -1;
-                const newEnemy = {
-                  x: platform.x + 4,
-                  y: platform.y - 12,
-                  direction: spawnDirection,
-                  alive: true,
-                  type: 'goomba' as const,
-                  animFrame: 0
-                };
-                state.enemies.push(newEnemy);
-                (newEnemy as any).velocityY = -180;
-                (newEnemy as any).initialPushX = spawnDirection * 60;
-                // Particle effect (red for danger)
-                for (let i = 0; i < 12; i++) {
-                  const angle = (Math.PI * 2 * i) / 12;
-                  state.particles.push({
-                    x: platform.x + 8,
-                    y: platform.y,
-                    vx: Math.cos(angle) * 70,
-                    vy: Math.sin(angle) * 70 - 50,
-                    life: 0.6,
-                    maxLife: 0.6,
-                    color: '#FF0000',
-                  });
-                }
-              }
-              
-              // Screen shake on hit
-              state.screenShake = 0.1;
-            }
-          }
-          
-          // Horizontal collision (hitting sides) with 1-pixel spacing
-          const wasOnLeft = oldX + player.width <= platform.x;
-          const wasOnRight = oldX >= platform.x + platform.width;
-          
-          if (player.velocityX > 0 && wasOnLeft) {
-            player.x = platform.x - player.width - 1; // Add 1-pixel gap
-            player.velocityX = 0;
-          } else if (player.velocityX < 0 && wasOnRight) {
-            player.x = platform.x + platform.width + 1; // Add 1-pixel gap
-            player.velocityX = 0;
-          }
-        }
+      } else if (screenRef.current === 'title') {
+        // Gentle idle camera drift on Title Screen backdrop
+        state.camera.x = (now * 0.018) % Math.max(1, state.stageWidth - gameWidthRef.current);
+        state.gameStarted = true;
       }
 
-      // ========== SIMPLE ANIMATION SYSTEM - REWRITTEN ==========
-      // Update rotation for flip effect during jump
-      if (!player.onGround && player.velocityY < 0) {
-        // Rotate during jump - direction matches facing direction
-        const rotationSpeed = player.facingLeft ? -720 : 720;
-        player.rotation += dt * rotationSpeed;
-        // Cap rotation at 360 degrees
-        if (Math.abs(player.rotation) > 360) {
-          player.rotation = player.facingLeft ? -360 : 360;
-        }
-      } else {
-        // Reset rotation when on ground
-        player.rotation = 0;
-      }
-      
-      // Update helmet timer
-      if (player.hasHelmet) {
-        player.helmetTimer -= dt;
-        if (player.helmetTimer <= 0) {
-          player.hasHelmet = false;
-          player.helmetTimer = 0;
-        }
-      }
-      
-      // Update water gun timer
-      if (player.hasWaterGun) {
-        player.waterGunTimer -= dt;
-        if (player.waterGunTimer <= 0) {
-          player.hasWaterGun = false;
-          player.waterGunTimer = 0;
-        }
-      }
-      
-      // Update shoot cooldown
-      if (player.shootCooldown > 0) {
-        player.shootCooldown -= dt;
-      }
-      
-      // Shoot water gun with X key
-      if (player.hasWaterGun && player.shootCooldown <= 0) {
-        const shootKey = state.keys['x'] || state.keys['X'];
-        if (shootKey) {
-          player.shootCooldown = 0.3; // 3 shots per second
-          const direction = player.facingLeft ? -1 : 1;
-          state.waterProjectiles.push({
-            x: player.x + (direction > 0 ? 16 : 0),
-            y: player.y + 6,
-            vx: direction * 250,
-            vy: 0,
-            life: 1.5
-          });
-          playSound('jump'); // Water shoot sound
-          
-          // Spawn water particles
-          for (let i = 0; i < 5; i++) {
-            state.particles.push({
-              x: player.x + (direction > 0 ? 16 : 0),
-              y: player.y + 6,
-              vx: direction * (200 + Math.random() * 50),
-              vy: (Math.random() - 0.5) * 30,
-              life: 0.3,
-              maxLife: 0.3,
-              color: '#00BFFF'
-            });
-          }
-        }
-      }
-      
-      // Update landing timer
-      if (player.landingTimer > 0) {
-        player.landingTimer -= dt;
-      }
-      
-      // Simple animation logic
-      if (!player.onGround) {
-        // JUMPING or FALLING
-        if (player.velocityY > 100) {
-          // Falling fast - show crouch sprite (preparing to land)
-          player.currentAnimation = 'crouch';
-          player.animationFrame = 0;
-          player.animationTimer = 0;
-        } else {
-          // Rising or slow fall - show jump animation
-          player.currentAnimation = 'jump';
-          player.animationFrame = 0;
-          player.animationTimer = 0;
-        }
-      } else if (player.landingTimer > 0) {
-        // Just landed - show crouch sprite briefly
-        player.currentAnimation = 'crouch';
-        player.animationFrame = 0;
-        player.animationTimer = 0;
-      } else if (Math.abs(player.velocityX) < 5) {
-        // IDLE - standing still (increased threshold for smoother transition)
-        player.currentAnimation = 'idle';
-        player.animationFrame = 0;
-        player.animationTimer = 0;
-      } else {
-        // WALKING - smooth animation speed based on velocity
-        if (player.currentAnimation !== 'walk') {
-          player.currentAnimation = 'walk';
-          player.animationFrame = 0;
-          player.animationTimer = 0;
-        }
-        
-        // Dynamic animation speed based on movement speed for smoother look
-        const speedFactor = Math.abs(player.velocityX) / PLAYER_SPEED;
-        const baseAnimSpeed = 0.12; // Faster base animation
-        const animSpeed = baseAnimSpeed / Math.max(speedFactor, 0.5); // Adjust speed with velocity
-        
-        player.animationTimer += dt;
-        if (player.animationTimer > animSpeed) {
-          player.animationFrame = (player.animationFrame + 1) % 4;
-          player.animationTimer = 0;
-        }
+      const nextGunSecs =
+        state.player.hasWaterGun && !state.celebrating
+          ? Math.max(1, Math.ceil(state.player.waterGunTimer))
+          : 0;
+      if (nextGunSecs !== waterGunSecsRef.current) {
+        waterGunSecsRef.current = nextGunSecs;
+        setWaterGunSecs(nextGunSecs);
+        if (nextGunSecs === 0) setActiveBtnFire(false);
       }
 
-      // Update portal animation
-      if (state.portal && state.portal.active) {
-        state.portal.animationFrame += dt * 8;
-        
-        // Check collision with player
-        if (Math.abs(player.x - state.portal.x) < 16 && Math.abs(player.y - state.portal.y) < 16) {
-          // Enter blackhole mini-game
-          state.inBlackhole = true;
-          state.blackholeTimer = 0;
-          state.blackholeFallSpeed = 20;
-          state.chartBars = [];
-          state.chartComplete = false;
-          state.chartResult = '';
-          state.portal.active = false;
-          playSound('powerup');
+      const canvas = canvasRef.current;
+      if (canvas) {
+        if (canvas.width !== gameWidthRef.current) {
+          canvas.width = gameWidthRef.current;
         }
-      }
-      
-      // Update blackhole mini-game
-      if (state.inBlackhole) {
-        state.blackholeTimer += dt;
-        state.blackholeFallSpeed += dt * 30; // Accelerate fall
-        
-        // Build chart bars over time (5 bars total, one every 0.8 seconds)
-        const barInterval = 0.8;
-        const currentBarCount = Math.floor(state.blackholeTimer / barInterval);
-        
-        if (currentBarCount > state.chartBars.length && state.chartBars.length < 5) {
-          // Add new bar with random height
-          const height = 20 + Math.random() * 40; // 20-60 pixels
-          const isLastBar = state.chartBars.length === 4;
-          
-          // Last bar determines outcome
-          if (isLastBar) {
-            const isGreen = height > 40; // >50% of max height
-            state.chartBars.push({ height, color: isGreen ? 'green' : 'red' });
-            state.chartResult = isGreen ? 'green' : 'red';
-            state.chartComplete = true;
-          } else {
-            // Random color for non-final bars
-            const color = Math.random() > 0.5 ? 'green' : 'red';
-            state.chartBars.push({ height, color });
-          }
+        if (canvas.height !== GAME_HEIGHT) {
+          canvas.height = GAME_HEIGHT;
         }
-        
-        // After chart completes, wait 2 seconds then apply result
-        if (state.chartComplete && state.blackholeTimer > 5) {
-          if (state.chartResult === 'red') {
-            // Restart from stage 1
-            setCurrentStage(1);
-            loadStage(1);
-          } else {
-            // Continue current stage
-            state.inBlackhole = false;
-            state.blackholeTimer = 0;
-            state.blackholeFallSpeed = 0;
-          }
-        }
-      }
-      
-      // Update coins
-      state.coins.forEach((coin, i) => {
-        if (!coin.collected) {
-          coin.floatOffset += dt * 2;
-          
-          // Check collision with player
-          if (Math.abs(player.x - coin.x) < 12 && Math.abs(player.y - coin.y) < 12) {
-            coin.collected = true;
-            state.coinsCollectedThisStage++;
-            playSound('coin');
-            state.combo++;
-            state.comboTimer = 3.5; // Longer combo window
-            const comboBonus = state.combo > 1 ? state.combo * 50 : 0;
-            setScore(s => s + 100 + comboBonus);
-            
-            // Spawn enhanced coin particles with combo effect and sparkles
-            const particleCount = Math.min(25, 15 + (state.combo > 1 ? state.combo * 2 : 0));
-            for (let j = 0; j < particleCount; j++) {
-              const angle = (Math.PI * 2 * j) / particleCount;
-              const speed = 85 + (state.combo > 1 ? state.combo * 12 : 0);
-              state.particles.push({
-                x: coin.x + 4,
-                y: coin.y + 4,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 35,
-                life: 0.7,
-                maxLife: 0.7,
-                color: j % 4 === 0 ? '#FFD700' : j % 4 === 1 ? '#FFA500' : j % 4 === 2 ? '#FFFF00' : '#FFE55C',
-              });
-            }
-          }
-        }
-      });
-
-      // Check water gun collection
-      if (state.waterGun && !state.waterGun.collected) {
-        if (Math.abs(player.x - state.waterGun.x) < 12 && Math.abs(player.y - state.waterGun.y) < 12) {
-          state.waterGun.collected = true;
-          player.hasWaterGun = true;
-          player.waterGunTimer = 15; // 15 seconds of water gun
-          playSound('coin');
-          setScore(s => s + 500);
-          
-          // Spawn power-up particles
-          for (let j = 0; j < 20; j++) {
-            const angle = (Math.PI * 2 * j) / 20;
-            state.particles.push({
-              x: state.waterGun.x + 4,
-              y: state.waterGun.y + 6,
-              vx: Math.cos(angle) * 100,
-              vy: Math.sin(angle) * 100 - 40,
-              life: 0.8,
-              maxLife: 0.8,
-              color: j % 3 === 0 ? '#00BFFF' : j % 3 === 1 ? '#1E90FF' : '#87CEEB',
-            });
-          }
-        }
-      }
-      
-      // Update water projectiles
-      state.waterProjectiles = state.waterProjectiles.filter(proj => {
-        proj.x += proj.vx * dt;
-        proj.y += proj.vy * dt;
-        proj.life -= dt;
-        
-        // Check collision with enemies
-        state.enemies.forEach(enemy => {
-          if (enemy.alive && Math.abs(proj.x - enemy.x) < 12 && Math.abs(proj.y - enemy.y) < 12) {
-            enemy.alive = false;
-            proj.life = 0;
-            playSound('stomp');
-            state.combo++;
-            state.comboTimer = 3.5;
-            const comboBonus = state.combo > 1 ? state.combo * 100 : 0;
-            setScore(s => s + 200 + comboBonus);
-            
-            // Spawn water splash particles
-            for (let j = 0; j < 15; j++) {
-              const angle = (Math.PI * 2 * j) / 15;
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 6,
-                vx: Math.cos(angle) * 90,
-                vy: Math.sin(angle) * 90 - 40,
-                life: 0.7,
-                maxLife: 0.7,
-                color: j % 2 === 0 ? '#00BFFF' : '#1E90FF',
-              });
-            }
-          }
-        });
-        
-        return proj.life > 0;
-      });
-      
-      // Update enemies (skip expensive AI for far off-screen enemies)
-      const activeCamLeft = state.camera.x - 200;
-      const activeCamRight = state.camera.x + gameWidthRef.current + 200;
-      state.enemies.forEach(enemy => {
-        if (!enemy.alive) return;
-        
-        // Skip full AI for enemies far off-screen (basic movement only)
-        const isNearViewport = enemy.x > activeCamLeft && enemy.x < activeCamRight;
-        
-        const oldEnemyX = enemy.x;
-        const oldEnemyY = enemy.y;
-        
-        // Apply gravity to non-flying enemies (badguy/ghost floats)
-        if (enemy.type !== 'badguy') {
-          if (!('velocityY' in enemy)) {
-            (enemy as any).velocityY = 0;
-          }
-          (enemy as any).velocityY += GRAVITY * dt;
-          (enemy as any).velocityY = Math.min((enemy as any).velocityY, MAX_FALL_SPEED);
-          enemy.y += (enemy as any).velocityY * dt;
-        }
-        
-        // Different movement for snake vs badguy (ghost) vs goomba
-        if (enemy.type === 'snake') {
-          // Enhanced snake slithering with lunging attack pattern
-          enemy.waveOffset = (enemy.waveOffset || 0) + dt * 6;
-          
-          // Initialize attack properties
-          if (!('attackCooldown' in enemy)) {
-            (enemy as any).attackCooldown = 2 + Math.random() * 2;
-            (enemy as any).isLunging = false;
-            (enemy as any).lungeTimer = 0;
-          }
-          
-          // Check distance to player for lunge attack
-          const distToPlayer = Math.abs(player.x - enemy.x);
-          const playerInRange = distToPlayer < 60 && Math.abs(player.y - enemy.y) < 30;
-          
-          // Lunge attack logic
-          if (playerInRange && (enemy as any).attackCooldown <= 0 && !(enemy as any).isLunging) {
-            (enemy as any).isLunging = true;
-            (enemy as any).lungeTimer = 0.4; // Lunge duration
-            (enemy as any).attackCooldown = 3 + Math.random() * 2;
-            enemy.direction = player.x > enemy.x ? 1 : -1;
-            (enemy as any).velocityY = -150; // Jump during lunge
-            playSound('jump');
-            
-            // Lunge warning particles
-            if (isNearViewport) for (let i = 0; i < 8; i++) {
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 6,
-                vx: (Math.random() - 0.5) * 30,
-                vy: (Math.random() - 0.5) * 30,
-                life: 0.3,
-                maxLife: 0.3,
-                color: '#FF0000',
-              });
-            }
-          }
-          
-          // Update lunge
-          if ((enemy as any).isLunging) {
-            (enemy as any).lungeTimer -= dt;
-            const lungeSpeed = 120; // Fast lunge speed
-            enemy.x += enemy.direction * lungeSpeed * dt;
-            
-            // Lunge trail particles
-            if (isNearViewport && Math.random() > 0.6) {
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 6,
-                vx: -enemy.direction * 40,
-                vy: (Math.random() - 0.5) * 20,
-                life: 0.2,
-                maxLife: 0.2,
-                color: '#00FF00',
-              });
-            }
-            
-            if ((enemy as any).lungeTimer <= 0) {
-              (enemy as any).isLunging = false;
-            }
-          } else {
-            // Normal slithering movement
-            const waveMotion = Math.sin(enemy.waveOffset);
-            const speedMultiplier = 1 + Math.abs(waveMotion) * 0.3;
-            const speed = 50 * speedMultiplier;
-            enemy.x += enemy.direction * speed * dt;
-          }
-          
-          // Update attack cooldown
-          if ((enemy as any).attackCooldown > 0) {
-            (enemy as any).attackCooldown -= dt;
-          }
-          
-          // Initialize hop timer if not present
-          if (!('hopTimer' in enemy)) {
-            (enemy as any).hopTimer = Math.random() * 3;
-          }
-          
-          // Occasional small hops while slithering (not during lunge)
-          if (!(enemy as any).isLunging) {
-            (enemy as any).hopTimer -= dt;
-            if ((enemy as any).hopTimer <= 0 && Math.abs((enemy as any).velocityY) < 10) {
-              (enemy as any).velocityY = -140;
-              (enemy as any).hopTimer = 2 + Math.random() * 2;
-            }
-          }
-        } else if (enemy.type === 'badguy') {
-          // 👻 BADGUY = GHOST with enhanced psychological horror mechanics
-          // Initialize ghost properties
-          if (enemy.opacity === undefined) enemy.opacity = 0.8;
-          if (enemy.frozen === undefined) enemy.frozen = false;
-          if (enemy.disappearTimer === undefined) enemy.disappearTimer = 4 + Math.random() * 4;
-          if (enemy.mimicJumpTimer === undefined) enemy.mimicJumpTimer = 0;
-          if (enemy.floatOffset === undefined) enemy.floatOffset = Math.random() * Math.PI * 2;
-          if (!('stalkerMode' in enemy)) (enemy as any).stalkerMode = false;
-          if (!('rushTimer' in enemy)) (enemy as any).rushTimer = 0;
-          
-          // Check if player is moving (FREEZE mechanic - enhanced)
-          const playerIsMoving = Math.abs(player.velocityX) > 5 || Math.abs(player.velocityY) > 5;
-          const distToPlayer = Math.sqrt(Math.pow(player.x - enemy.x, 2) + Math.pow(player.y - enemy.y, 2));
-          
-          // Enhanced freeze mechanic - ghost becomes more aggressive when player stops
-          if (!playerIsMoving && !enemy.isDisappearing) {
-            enemy.frozen = true;
-            enemy.opacity = Math.max(0.2, enemy.opacity - dt * 0.6);
-            
-            // Stalker mode - slowly creep toward player when frozen
-            if (distToPlayer > 15) {
-              (enemy as any).stalkerMode = true;
-              const creepSpeed = 8; // Very slow creep
-              const toPlayerX = player.x - enemy.x;
-              enemy.x += Math.sign(toPlayerX) * creepSpeed * dt;
-              
-              // Creepy particles
-              if (isNearViewport && Math.random() > 0.95) {
-                state.particles.push({
-                  x: enemy.x + 6,
-                  y: enemy.y + 6,
-                  vx: (Math.random() - 0.5) * 10,
-                  vy: (Math.random() - 0.5) * 10,
-                  life: 0.4,
-                  maxLife: 0.4,
-                  color: '#9370DB',
-                });
-              }
-            }
-          } else if (!enemy.isDisappearing) {
-            enemy.frozen = false;
-            enemy.opacity = Math.min(0.85, enemy.opacity + dt * 2.5);
-            (enemy as any).stalkerMode = false;
-          }
-          
-          // Handle disappear/reappear mechanic with unpredictability
-          if (!enemy.isDisappearing) {
-            enemy.disappearTimer -= dt;
-            if (enemy.disappearTimer <= 0) {
-              enemy.isDisappearing = true;
-              enemy.disappearTimer = 1.2;
-              playSound('jump');
-              
-              // Disappear particles
-              if (isNearViewport) for (let i = 0; i < 15; i++) {
-                const angle = (Math.PI * 2 * i) / 15;
-                state.particles.push({
-                  x: enemy.x + 6,
-                  y: enemy.y + 6,
-                  vx: Math.cos(angle) * 50,
-                  vy: Math.sin(angle) * 50,
-                  life: 0.4,
-                  maxLife: 0.4,
-                  color: '#4B0082',
-                });
-              }
-            }
-          } else {
-            enemy.disappearTimer -= dt;
-            enemy.opacity = Math.max(0, enemy.disappearTimer / 1.2);
-            
-            if (enemy.disappearTimer <= 0) {
-              // Reappear with multiple strategies
-              const strategy = Math.random();
-              
-              if (strategy < 0.4) {
-                // Behind player (classic) - minimum 40px away
-                const offset = 40 + Math.random() * 30;
-                const behindPlayer = player.facingLeft ? player.x + offset : player.x - offset;
-                enemy.x = Math.max(0, Math.min(state.stageWidth - 12, behindPlayer));
-                enemy.y = player.y - 10;
-              } else if (strategy < 0.7) {
-                // Above player (drop attack) - offset horizontally to give reaction time
-                enemy.x = player.x + (player.facingLeft ? 30 : -30) + (Math.random() - 0.5) * 20;
-                enemy.y = player.y - 70;
-                (enemy as any).rushTimer = 0.8; // Rush down
-              } else {
-                // Ahead of player (ambush) - minimum 50px away
-                const offset = 50 + Math.random() * 30;
-                const aheadPlayer = player.facingLeft ? player.x - offset : player.x + offset;
-                enemy.x = Math.max(0, Math.min(state.stageWidth - 12, aheadPlayer));
-                enemy.y = player.y - 10;
-              }
-              
-              enemy.isDisappearing = false;
-              enemy.disappearTimer = 4 + Math.random() * 4;
-              enemy.opacity = 0;
-              
-              // Reappear particles - more dramatic
-              if (isNearViewport) for (let i = 0; i < 25; i++) {
-                const angle = (Math.PI * 2 * i) / 25;
-                state.particles.push({
-                  x: enemy.x + 6,
-                  y: enemy.y + 6,
-                  vx: Math.cos(angle) * 80,
-                  vy: Math.sin(angle) * 80,
-                  life: 0.6,
-                  maxLife: 0.6,
-                  color: i % 2 === 0 ? '#9370DB' : '#8B008B',
-                });
-              }
-            }
-          }
-          
-          // Movement when not frozen
-          if (!enemy.frozen && !enemy.isDisappearing) {
-            const toPlayerX = player.x - enemy.x;
-            const toPlayerY = player.y - enemy.y;
-            
-            // Rush attack after reappearing above
-            if ((enemy as any).rushTimer > 0) {
-              (enemy as any).rushTimer -= dt;
-              const rushSpeed = 150;
-              enemy.y += rushSpeed * dt;
-              
-              // Rush particles
-              if (isNearViewport && Math.random() > 0.7) {
-                state.particles.push({
-                  x: enemy.x + 6,
-                  y: enemy.y,
-                  vx: (Math.random() - 0.5) * 30,
-                  vy: -40,
-                  life: 0.3,
-                  maxLife: 0.3,
-                  color: '#FF0000',
-                });
-              }
-            } else {
-              // Normal pursuit with varying speed based on distance
-              const distToPlayer = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
-              
-              if (distToPlayer > 20) {
-                // Speed increases when closer to player (more threatening)
-                const baseSpeed = 40;
-                const speedBoost = Math.max(0, (100 - distToPlayer) / 100) * 30;
-                const ghostSpeed = baseSpeed + speedBoost;
-                
-                enemy.x += Math.sign(toPlayerX) * ghostSpeed * dt;
-                enemy.direction = Math.sign(toPlayerX);
-                
-                // Threat particles when close
-                if (isNearViewport && distToPlayer < 50 && Math.random() > 0.85) {
-                  state.particles.push({
-                    x: enemy.x + 6,
-                    y: enemy.y + 6,
-                    vx: (Math.random() - 0.5) * 20,
-                    vy: (Math.random() - 0.5) * 20,
-                    life: 0.3,
-                    maxLife: 0.3,
-                    color: '#FF00FF',
-                  });
-                }
-              }
-              
-              // Mimic player's jump with better timing
-              if (enemy.mimicJumpTimer > 0) {
-                enemy.mimicJumpTimer -= dt;
-                if (enemy.mimicJumpVelocity !== undefined) {
-                  enemy.y += enemy.mimicJumpVelocity * dt;
-                  enemy.mimicJumpVelocity += GRAVITY * dt * 0.5;
-                }
-              } else {
-                // Float above ground with eerie wave motion
-                let groundY = GAME_HEIGHT - 20;
-                
-                for (const platform of state.platforms) {
-                  if (platform.type === 'ground' && 
-                      enemy.x + 12 > platform.x && 
-                      enemy.x < platform.x + platform.width) {
-                    groundY = platform.y;
-                    break;
-                  }
-                }
-                
-                // Enhanced floating with more dramatic wave
-                enemy.floatOffset += dt * 2.5;
-                const floatWave = Math.sin(enemy.floatOffset) * 15;
-                const targetY = groundY - 45 + floatWave;
-                
-                const heightDiff = targetY - enemy.y;
-                enemy.y += heightDiff * dt * 2.5;
-              }
-              
-              // Detect player jump to mimic
-              if (!player.onGround && player.velocityY < -100 && enemy.mimicJumpTimer <= 0) {
-                enemy.mimicJumpTimer = 1.5;
-                enemy.mimicJumpVelocity = player.velocityY * 0.7;
-              }
-            }
-          }
-          
-        } else {
-          // Enhanced Goomba with patrol and chase behavior
-          // Initialize goomba AI properties
-          if (!('patrolTimer' in enemy)) {
-            (enemy as any).patrolTimer = 2 + Math.random() * 2;
-            (enemy as any).isChasing = false;
-            (enemy as any).chaseSpeed = 55;
-          }
-          
-          // Check distance to player
-          const distToPlayer = Math.abs(player.x - enemy.x);
-          const playerNearby = distToPlayer < 80 && Math.abs(player.y - enemy.y) < 40;
-          
-          // Chase behavior when player is nearby
-          if (playerNearby && !('initialPushX' in enemy)) {
-            (enemy as any).isChasing = true;
-            enemy.direction = player.x > enemy.x ? 1 : -1;
-            const chaseSpeed = (enemy as any).chaseSpeed;
-            enemy.x += enemy.direction * chaseSpeed * dt;
-            
-            // Chase particles (angry)
-            if (isNearViewport && Math.random() > 0.9) {
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 2,
-                vx: (Math.random() - 0.5) * 20,
-                vy: -Math.random() * 20,
-                life: 0.2,
-                maxLife: 0.2,
-                color: '#FF4444',
-              });
-            }
-          } else {
-            // Normal patrol behavior
-            (enemy as any).isChasing = false;
-            let moveSpeed = 35;
-            
-            // Apply initial horizontal push if spawned from question block
-            if ('initialPushX' in enemy) {
-              enemy.x += (enemy as any).initialPushX * dt;
-              (enemy as any).initialPushX *= 0.92;
-              if (Math.abs((enemy as any).initialPushX) < 5) {
-                delete (enemy as any).initialPushX;
-              }
-            } else {
-              // Patrol with occasional direction changes
-              (enemy as any).patrolTimer -= dt;
-              if ((enemy as any).patrolTimer <= 0) {
-                // Random chance to turn around
-                if (Math.random() > 0.7) {
-                  enemy.direction *= -1;
-                }
-                (enemy as any).patrolTimer = 2 + Math.random() * 3;
-              }
-              
-              enemy.x += enemy.direction * moveSpeed * dt;
-            }
-          }
-        }
-        
-        // Check for ground collision (enemies land on platforms)
-        // Badguy (ghost) phases through all platforms
-        let onPlatform = false;
-        if (enemy.type !== 'badguy') {
-          for (const platform of state.platforms) {
-            if (enemy.x + 12 > platform.x && enemy.x < platform.x + platform.width) {
-              // Check if enemy is falling onto platform from above
-              if ((enemy as any).velocityY >= 0 && oldEnemyY + 12 <= platform.y + 1 && enemy.y + 12 >= platform.y) {
-                enemy.y = platform.y - 12;
-                (enemy as any).velocityY = 0;
-                onPlatform = true;
-                
-                // Add slight horizontal wave motion for snakes on ground
-                if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
-                  const groundWave = Math.sin(enemy.waveOffset) * 0.5;
-                  enemy.x += groundWave;
-                }
-                break;
-              }
-              // Check if already on platform (strict tolerance)
-              if (Math.abs(enemy.y + 12 - platform.y) < 0.5) {
-                onPlatform = true;
-                enemy.y = platform.y - 12; // Snap to exact position
-                
-                // Add slight horizontal wave motion for snakes on ground
-                if (enemy.type === 'snake' && enemy.waveOffset !== undefined) {
-                  const groundWave = Math.sin(enemy.waveOffset) * 0.5;
-                  enemy.x += groundWave;
-                }
-                break;
-              }
-            }
-          }
-        }
-        
-        // Check for walls/obstacles ahead (badguy phases through)
-        const hitWall = enemy.type !== 'badguy' && state.platforms.some(p => {
-          if (p.type === 'ground') return false; // Don't check ground
-          const enemyRight = enemy.x + 12;
-          const enemyLeft = enemy.x;
-          const enemyTop = enemy.y;
-          const enemyBottom = enemy.y + 12;
-          
-          // Check if enemy is colliding with a vertical obstacle
-          return enemyBottom > p.y && enemyTop < p.y + p.height &&
-                 ((enemy.direction > 0 && enemyRight > p.x && oldEnemyX + 12 <= p.x) ||
-                  (enemy.direction < 0 && enemyLeft < p.x + p.width && oldEnemyX >= p.x + p.width));
-        });
-        
-        // Turn around at edges or walls
-        if (hitWall) {
-          enemy.direction *= -1;
-          // Push enemy away from wall slightly to prevent getting stuck
-          if (enemy.direction > 0) {
-            enemy.x = oldEnemyX - 2;
-          } else {
-            enemy.x = oldEnemyX + 2;
-          }
-          if (enemy.type === 'snake') enemy.y = oldEnemyY;
-        }
-        
-        // Turn around at stage boundaries
-        if (enemy.x < 0) {
-          enemy.x = 0;
-          enemy.direction = 1;
-        } else if (enemy.x > state.stageWidth - 12) {
-          enemy.x = state.stageWidth - 12;
-          enemy.direction = -1;
-        }
-        
-        // Turn around at platform edges (only if on ground and not a snake)
-        if (onPlatform && !hitWall && enemy.type !== 'snake') {
-          const platformAhead = state.platforms.some(p => {
-            const checkX = enemy.x + (enemy.direction > 0 ? 14 : -2);
-            return checkX > p.x && checkX < p.x + p.width && 
-                   Math.abs(enemy.y + 12 - p.y) < 0.5;
-          });
-          if (!platformAhead) {
-            enemy.direction *= -1;
-            // Move enemy back slightly to prevent edge hanging
-            enemy.x += enemy.direction * 2;
-          }
-        }
-        
-        // Check collision with player (tighter hitbox for fairer gameplay)
-        if (Math.abs(player.x - enemy.x) < 11 && Math.abs(player.y - enemy.y) < 12) {
-          // Skip collision if player is invincible (dashing)
-          if (player.invincibilityTimer > 0) {
-            // Kill enemy during invincibility (dash through)
-            enemy.alive = false;
-            playSound('stomp');
-            state.combo++;
-            state.comboTimer = 3.5;
-            state.screenShake = 0.15;
-            const comboBonus = state.combo > 1 ? state.combo * 100 : 0;
-            setScore(s => s + 200 + comboBonus);
-            
-            for (let j = 0; j < 10; j++) {
-              const angle = (Math.PI * 2 * j) / 10;
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 6,
-                vx: Math.cos(angle) * 80,
-                vy: Math.sin(angle) * 80 - 30,
-                life: 0.5,
-                maxLife: 0.5,
-                color: '#FFA500',
-              });
-            }
-            return;
-          }
-          
-          // If player has helmet, kill enemy from any angle
-          if (player.hasHelmet) {
-            enemy.alive = false;
-            playSound('stomp');
-            state.combo++;
-            state.comboTimer = 3.5;
-            state.screenShake = 0.18;
-            const comboBonus = state.combo > 1 ? state.combo * 100 : 0;
-            setScore(s => s + 200 + comboBonus);
-            
-            // Spawn defeat particles
-            for (let j = 0; j < 12; j++) {
-              const angle = (Math.PI * 2 * j) / 12;
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 6,
-                vx: Math.cos(angle) * 90,
-                vy: Math.sin(angle) * 90 - 40,
-                life: 0.7,
-                maxLife: 0.7,
-                color: enemy.type === 'snake' ? '#00FF00' : '#8B4513',
-              });
-            }
-            return;
-          }
-          
-          // Guy3: If slamming, kill enemy from any angle when close
-          if (selectedCharRef.current === 'guy3' && player.isSlamming) {
-            enemy.alive = false;
-            playSound('stomp');
-            state.combo++;
-            state.comboTimer = 3.5;
-            state.screenShake = 0.25;
-            const comboBonus = state.combo > 1 ? state.combo * 150 : 0;
-            setScore(s => s + 300 + comboBonus);
-            
-            // Massive defeat particles for slam kill
-            for (let j = 0; j < 20; j++) {
-              const angle = (Math.PI * 2 * j) / 20;
-              const speed = 100 + Math.random() * 50;
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 6,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 60,
-                life: 0.9,
-                maxLife: 0.9,
-                color: j % 2 === 0 ? '#FF4444' : (enemy.type === 'snake' ? '#00FF00' : '#8B4513'),
-              });
-            }
-            return;
-          }
-          
-          if (player.velocityY > 0 && player.y < enemy.y - 4) {
-            // Stomp enemy
-            enemy.alive = false;
-            playSound('stomp');
-            player.velocityY = -220;
-            state.combo++;
-            state.comboTimer = 3.5; // Longer combo window
-            state.screenShake = 0.18; // Stronger shake
-            const comboBonus = state.combo > 1 ? state.combo * 100 : 0;
-            setScore(s => s + 200 + comboBonus);
-            
-            // Spawn stomp particles
-            for (let i = 0; i < 10; i++) {
-              const angle = (Math.PI * 2 * i) / 10;
-              state.particles.push({
-                x: enemy.x + 6,
-                y: enemy.y + 6,
-                vx: Math.cos(angle) * 70,
-                vy: Math.sin(angle) * 70 - 30,
-                life: 0.4,
-                maxLife: 0.4,
-                color: '#FF4500',
-              });
-            }
-          } else {
-            // Player dies - check lives
-            playSound('death');
-            state.deathFlashTimer = 0.3;
-            try { if (isMobile) navigator.vibrate(100); } catch {} // Reduced from 200
-            setDeathCount(d => d + 1);
-            
-            if (livesRef.current <= 1) {
-              // Last life - game over
-              setLives(0);
-              setGameWon(false);
-              setGameScreen('gameover');
-              return;
-            }
-            
-            setLives(l => l - 1);
-            setScore(0);
-            
-            // Respawn
-            player.x = 80;
-            player.y = 112;
-            player.velocityX = 0;
-            player.velocityY = 0;
-            player.onGround = true;
-            player.rotation = 0;
-            player.hasHelmet = false;
-            player.helmetTimer = 0;
-            player.hasWaterGun = false;
-            player.waterGunTimer = 0;
-            player.isDashing = false;
-            player.dashTimer = 0;
-            player.dashCooldown = 0;
-            player.dashAvailable = true;
-            player.isAirSliding = false;
-            player.airSlideTimer = 0;
-            player.speedBoostTimer = 0;
-            player.isSlamming = false;
-            player.slamCharging = false;
-            player.chargeLevel = 0;
-            player.groundPoundRadius = 0;
-            player.invincibilityTimer = 2.0;
-            player.doubleJumpAvailable = false;
-            player.airDashCount = 0;
-            player.jumpHoldTime = 0;
-            state.combo = 0;
-            state.comboTimer = 0;
-          }
-        }
-      });
-
-      // Update combo timer
-      if (state.comboTimer > 0) {
-        state.comboTimer -= dt;
-        if (state.comboTimer <= 0) {
-          state.combo = 0;
-        }
-      }
-      
-      // Boss update code will be added later with sprite-based system
-      
-      // Update screen shake
-      if (state.screenShake > 0) {
-        state.screenShake = Math.max(0, state.screenShake - dt);
-      }
-
-      // Update particles in-place (avoid allocating new array every frame)
-      if (state.particles.length > MAX_PARTICLES) {
-        state.particles.length = MAX_PARTICLES; // Truncate in-place
-      }
-      let writeIdx = 0;
-      for (let i = 0; i < state.particles.length; i++) {
-        const p = state.particles[i];
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.vy += 200 * dt;
-        p.life -= dt;
-        if (p.life > 0) {
-          state.particles[writeIdx++] = p;
-        }
-      }
-      state.particles.length = writeIdx;
-
-      // Check if player reached goal
-      if (player.x >= state.goalX - 20 && player.onGround && !state.celebrating) {
-        // Stage complete!
-        state.celebrating = true;
-        state.celebrationTimer = 3.5; // 3.5 seconds celebration
-        playSound('celebration');
-        
-        // Celebration particle explosion - reduced for performance
-        for (let i = 0; i < 40; i++) {
-          const angle = (Math.PI * 2 * i) / 80;
-          const speed = 100 + Math.random() * 150;
-          state.particles.push({
-            x: player.x + 6,
-            y: player.y + 7,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 120,
-            life: 2.0 + Math.random() * 0.5,
-            maxLife: 2.0 + Math.random() * 0.5,
-            color: ['#FFD700', '#FF69B4', '#00FF00', '#00FFFF', '#FF1493', '#FFA500', '#FFFF00', '#FF0000'][i % 8],
-          });
-        }
-        
-        // Additional firework particles at goal position
-        for (let i = 0; i < 20; i++) {
-          const angle = (Math.PI * 2 * i) / 40;
-          const speed = 80 + Math.random() * 100;
-          state.particles.push({
-            x: state.goalX - 20 + Math.random() * 40,
-            y: 60 + Math.random() * 40,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            life: 1.5 + Math.random() * 0.5,
-            maxLife: 1.5 + Math.random() * 0.5,
-            color: ['#FFD700', '#FF69B4', '#00FF00', '#00FFFF', '#FFFF00'][i % 5],
-          });
-        }
-        
-        // Screen shake
-        state.screenShake = 0.3;
-      }
-      
-      
-      // Speech bubble system - character randomly yells 'we flip' phrases
-      if (state.speechCooldown > 0) {
-        state.speechCooldown -= dt;
-      }
-      
-      if (state.speechBubble) {
-        state.speechBubble.timer -= dt;
-        
-        // Progress through phrases: 'we flip' -> 'we flip' -> 'we Flipping'
-        if (state.speechBubble.timer <= 0) {
-          if (state.speechBubble.phraseIndex < 2) {
-            // Move to next phrase
-            state.speechBubble.phraseIndex++;
-            const phrases = ['we flip', 'we flip', 'we Flipping'];
-            state.speechBubble.text = phrases[state.speechBubble.phraseIndex];
-            state.speechBubble.timer = 0.8; // Pause between phrases
-          } else {
-            // End speech bubble
-            state.speechBubble = null;
-            state.speechCooldown = 8 + Math.random() * 7; // 8-15 seconds cooldown
-          }
-        }
-      } else if (state.speechCooldown <= 0 && !state.celebrating && !state.inBlackhole) {
-        // Randomly trigger speech bubble (when moving or jumping)
-        if (Math.abs(player.velocityX) > 20 || !player.onGround) {
-          if (Math.random() < 0.015) { // 1.5% chance per frame when moving
-            state.speechBubble = {
-              text: 'we flip',
-              timer: 0.8,
-              phraseIndex: 0
-            };
-          }
-        }
-      }
-
-      // Smooth camera follow with lookahead and screen shake - optimized and pixel perfect
-      const lookahead = player.velocityX * 0.18; // Enhanced camera lookahead
-      state.camera.targetX = Math.max(0, Math.min(player.x + lookahead - gameWidthRef.current / 2, state.stageWidth - gameWidthRef.current));
-      // Adaptive camera speed based on distance and player state
-      const distance = Math.abs(state.camera.targetX - state.camera.x);
-      const baseSpeed = player.onGround ? 13 : 10; // Smoother camera tracking
-      const cameraSpeed = baseSpeed + Math.min(distance * 0.025, 6); // Faster catch-up
-      state.camera.x += (state.camera.targetX - state.camera.x) * cameraSpeed * dt;
-      // Floor camera position for pixel-perfect rendering
-      state.camera.x = Math.floor(state.camera.x);
-      
-      // Apply screen shake (reduced intensity for comfort)
-      if (state.screenShake > 0) {
-        const shakeAmount = state.screenShake * 2; // Reduced from 4
-        state.camera.y = Math.floor((Math.random() - 0.5) * shakeAmount); // Ensure pixel perfect shake
-      } else {
-        state.camera.y = 0;
-      }
-
-      // Death check (fell off stage into pit/gap)
-      if (player.y > 200) {
-        // Play cliff death sound (huh.mp3)
-        playSound('huh');
-        
-        // Create death particles
-        for (let i = 0; i < 30; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const speed = 40 + Math.random() * 80;
-          state.particles.push({
-            x: player.x + 8,
-            y: 200,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 100,
-            life: 1.0,
-            maxLife: 1.0,
-            color: ['#FF0000', '#FF4500', '#FF6347', '#8B0000'][i % 4],
-          });
-        }
-        
-        // Player dies from pit - check lives
-        state.deathFlashTimer = 0.3;
-        try { if (isMobile) navigator.vibrate(100); } catch {} // Reduced from 200
-        setDeathCount(d => d + 1);
-        
-        if (livesRef.current <= 1) {
-          setLives(0);
-          setGameWon(false);
-          setGameScreen('gameover');
-          return;
-        }
-        
-        setLives(l => l - 1);
-        setScore(0);
-        
-        // Reset player position and all ability states
-        player.x = 80;
-        player.y = 112;
-        player.velocityX = 0;
-        player.velocityY = 0;
-        player.onGround = true;
-        player.rotation = 0;
-        player.hasHelmet = false;
-        player.helmetTimer = 0;
-        player.hasWaterGun = false;
-        player.waterGunTimer = 0;
-        player.isDashing = false;
-        player.dashTimer = 0;
-        player.dashCooldown = 0;
-        player.dashAvailable = true;
-        player.isAirSliding = false;
-        player.airSlideTimer = 0;
-        player.speedBoostTimer = 0;
-        player.isSlamming = false;
-        player.slamCharging = false;
-        player.chargeLevel = 0;
-        player.groundPoundRadius = 0;
-        player.invincibilityTimer = 2.0;
-        player.doubleJumpAvailable = false;
-        player.airDashCount = 0;
-        player.jumpHoldTime = 0;
-        state.combo = 0;
-        state.comboTimer = 0;
-      }
-    };
-
-    const render = (ctx: CanvasRenderingContext2D) => {
-      const state = gameStateRef.current;
-      const now = performance.now(); // Cache once per frame
-      
-      // Clear canvas with cached sky gradient
-      if (!skyGradientRef.current) {
-        skyGradientRef.current = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-        skyGradientRef.current.addColorStop(0, '#5DADE2');
-        skyGradientRef.current.addColorStop(0.4, '#85C1E9');
-        skyGradientRef.current.addColorStop(0.7, '#AED6F1');
-        skyGradientRef.current.addColorStop(1, '#D6EAF8');
-      }
-      ctx.fillStyle = skyGradientRef.current;
-      ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
-
-      ctx.save();
-      // Apply camera transform with shake - pixel perfect
-      const shakeX = state.screenShake > 0 ? Math.floor((Math.random() - 0.5) * state.screenShake * 1.5) : 0; // Reduced from 3
-      ctx.translate(Math.floor(-state.camera.x + shakeX), Math.floor(-state.camera.y));
-
-      // Draw clouds (far background) - with viewport culling
-      const GW = gameWidthRef.current;
-      for (let i = 0; i < 18; i++) {
-        const x = Math.floor(i * 85 + 15 - state.camera.x * 0.12);
-        if (x < state.camera.x - 30 || x > state.camera.x + GW + 30) continue;
-        const y = Math.floor(12 + (i % 4) * 10);
-        
-        // Cloud base shape
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(x, y + 4, 16, 8);
-        ctx.fillRect(x + 4, y, 8, 4);
-        ctx.fillRect(x + 12, y + 2, 8, 6);
-        ctx.fillRect(x - 4, y + 6, 4, 4);
-        
-        // Cloud highlights for depth
-        ctx.fillStyle = '#F0F8FF';
-        ctx.fillRect(x + 1, y + 5, 6, 3);
-        ctx.fillRect(x + 5, y + 1, 4, 2);
-        
-        // Soft shadows
-        ctx.fillStyle = '#E6F2FF';
-        ctx.fillRect(x + 10, y + 8, 4, 2);
-        ctx.fillRect(x + 2, y + 10, 8, 1);
-        
-        // Black outline
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(x - 5, y + 6, 1, 4);
-        ctx.fillRect(x - 1, y + 4, 1, 8);
-        ctx.fillRect(x + 16, y + 4, 1, 8);
-        ctx.fillRect(x + 20, y + 2, 1, 6);
-        ctx.fillRect(x - 4, y + 5, 4, 1);
-        ctx.fillRect(x - 4, y + 10, 4, 1);
-        ctx.fillRect(x, y + 3, 16, 1);
-        ctx.fillRect(x, y + 12, 16, 1);
-        ctx.fillRect(x + 4, y - 1, 8, 1);
-        ctx.fillRect(x + 4, y + 4, 8, 1);
-        ctx.fillRect(x + 12, y + 1, 8, 1);
-        ctx.fillRect(x + 12, y + 8, 8, 1);
-      }
-
-      // Draw parallax mountains (background) - with viewport culling
-      for (let i = 0; i < 14; i++) {
-        const x = Math.floor(i * 105 + 45 - state.camera.x * 0.22);
-        if (x < state.camera.x - 40 || x > state.camera.x + GW + 40) continue;
-        const mountainHeight = 160 - 74; // From peak to bottom of canvas
-        
-        // Mountain body - extends to bottom
-        ctx.fillStyle = '#6B7280';
-        ctx.fillRect(x - 16, 90, 32, 70); // Extended to bottom (160)
-        ctx.fillRect(x - 12, 82, 24, 8);
-        ctx.fillRect(x - 8, 74, 16, 8);
-        
-        // Snow cap
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(x - 6, 74, 12, 4);
-        
-        // Black outline (no bottom outline since it extends off screen)
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(x - 17, 90, 1, 70);
-        ctx.fillRect(x + 16, 90, 1, 70);
-        ctx.fillRect(x - 13, 82, 1, 8);
-        ctx.fillRect(x + 12, 82, 1, 8);
-        ctx.fillRect(x - 9, 74, 1, 8);
-        ctx.fillRect(x + 8, 74, 1, 8);
-      }
-
-      // Draw parallax hills - with viewport culling
-      for (let i = 0; i < 24; i++) {
-        const x = Math.floor(i * 65 + 30 - state.camera.x * 0.4);
-        if (x < state.camera.x - 40 || x > state.camera.x + GW + 40) continue;
-        
-        // Hill body - extends to bottom
-        ctx.fillStyle = '#22C55E';
-        ctx.fillRect(x - 16, 110, 32, 50); // Extended to bottom (160)
-        ctx.fillRect(x - 12, 106, 24, 4);
-        
-        // Black outline (no bottom outline since it extends off screen)
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(x - 17, 110, 1, 50);
-        ctx.fillRect(x + 16, 110, 1, 50);
-        ctx.fillRect(x - 13, 106, 1, 4);
-        ctx.fillRect(x + 12, 106, 1, 4);
-      }
-
-      // Draw bushes (foreground decoration) - with viewport culling
-      for (let i = 0; i < 28; i++) {
-        const x = Math.floor(i * 52 + 8 - state.camera.x * 0.75);
-        if (x < state.camera.x - 30 || x > state.camera.x + GW + 30) continue;
-        const y = 120;
-        const bushType = i % 3;
-        
-        // Bush base - extends to bottom of screen (y=160)
-        ctx.fillStyle = '#10B981';
-        ctx.fillRect(x, y, 12, 40); // Extended to bottom (160)
-        ctx.fillRect(x + 2, y - 2, 8, 2); // Top rounded part
-        
-        // Add variety to bushes
-        if (bushType === 0) {
-          ctx.fillRect(x - 2, y + 2, 2, 38); // Extended side bulges to bottom
-          ctx.fillRect(x + 12, y + 2, 2, 38);
-        } else if (bushType === 1) {
-          ctx.fillRect(x + 4, y - 4, 4, 2);
-        }
-        
-        // Highlights for depth
-        ctx.fillStyle = '#34D399';
-        ctx.fillRect(x + 1, y + 1, 4, 2);
-        ctx.fillRect(x + 3, y - 1, 3, 1);
-        
-        // Dark spots for texture
-        ctx.fillStyle = '#059669';
-        ctx.fillRect(x + 7, y + 4, 2, 2);
-        ctx.fillRect(x + 3, y + 5, 1, 1);
-        
-        // Black outline (no bottom outline - extends off screen)
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(x - 1, y, 1, 40);
-        ctx.fillRect(x + 12, y, 1, 40);
-        ctx.fillRect(x, y - 1, 12, 1);
-        ctx.fillRect(x + 1, y - 2, 1, 2);
-        ctx.fillRect(x + 10, y - 2, 1, 2);
-        ctx.fillRect(x + 2, y - 3, 8, 1);
-        
-        if (bushType === 0) {
-          ctx.fillRect(x - 3, y + 2, 1, 4);
-          ctx.fillRect(x + 14, y + 2, 1, 4);
-          ctx.fillRect(x - 2, y + 1, 2, 1);
-          ctx.fillRect(x - 2, y + 6, 2, 1);
-          ctx.fillRect(x + 12, y + 1, 2, 1);
-          ctx.fillRect(x + 12, y + 6, 2, 1);
-        } else if (bushType === 1) {
-          ctx.fillRect(x + 3, y - 4, 1, 2);
-          ctx.fillRect(x + 8, y - 4, 1, 2);
-          ctx.fillRect(x + 4, y - 5, 4, 1);
-        }
-      }
-
-      // Draw platforms (skip broken bricks and off-screen platforms)
-      const camLeft = state.camera.x - 20;
-      const camRight = state.camera.x + gameWidthRef.current + 20;
-      state.platforms.forEach(platform => {
-        if (platform.broken) return; // Don't draw broken bricks
-        if (platform.x + platform.width < camLeft || platform.x > camRight) return; // Off-screen cull
-        
-        if (platform.type === 'ground') {
-          // Enhanced ground tile with rich texture and depth
-          // Black outline
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-          
-          // Base brown layer
-          ctx.fillStyle = '#8B4513';
-          ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
-          
-          // Top soil layer with gradient effect
-          ctx.fillStyle = '#D2691E';
-          ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, 4);
-          
-          // Middle dirt layer
-          ctx.fillStyle = '#A0522D';
-          ctx.fillRect(platform.x + 1, platform.y + 5, platform.width - 2, platform.height - 6);
-          
-          // Texture details - dirt spots
-          ctx.fillStyle = '#8B4513';
-          for (let i = 0; i < Math.floor(platform.width / 5); i++) {
-            ctx.fillRect(platform.x + 2 + i * 5, platform.y + 3, 2, 2);
-            ctx.fillRect(platform.x + 3 + i * 5, platform.y + 7, 1, 1);
-          }
-          
-          // Highlight on top edge
-          ctx.fillStyle = '#CD853F';
-          ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, 1);
-          
-          // Dark spots for depth
-          ctx.fillStyle = '#654321';
-          for (let i = 0; i < Math.floor(platform.width / 6); i++) {
-            ctx.fillRect(platform.x + 4 + i * 6, platform.y + 9, 1, 1);
-          }
-        } else if (platform.type === 'brick') {
-          // Enhanced brick with detailed texture and 3D depth
-          // Black outline
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-          
-          // Base brick color
-          ctx.fillStyle = '#C0504D';
-          ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
-          
-          // Lighter brick face
-          ctx.fillStyle = '#E26B6B';
-          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-          
-          // Top highlight for 3D effect
-          ctx.fillStyle = '#F08080';
-          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, 2);
-          
-          // Left highlight
-          ctx.fillStyle = '#F08080';
-          ctx.fillRect(platform.x + 2, platform.y + 2, 2, platform.height - 4);
-          
-          // Brick mortar lines (horizontal)
-          ctx.fillStyle = '#8B3A3A';
-          ctx.fillRect(platform.x + 1, platform.y + 8, platform.width - 2, 1);
-          
-          // Brick mortar lines (vertical) - offset pattern
-          ctx.fillRect(platform.x + 8, platform.y + 1, 1, 7);
-          ctx.fillRect(platform.x + 4, platform.y + 8, 1, 6);
-          ctx.fillRect(platform.x + 12, platform.y + 8, 1, 6);
-          
-          // Bottom shadow for depth
-          ctx.fillStyle = '#5C1A1A';
-          ctx.fillRect(platform.x + 2, platform.y + platform.height - 3, platform.width - 4, 1);
-          
-          // Right shadow
-          ctx.fillRect(platform.x + platform.width - 3, platform.y + 2, 1, platform.height - 4);
-          
-          // Texture spots
-          ctx.fillStyle = '#D05050';
-          ctx.fillRect(platform.x + 4, platform.y + 4, 1, 1);
-          ctx.fillRect(platform.x + 10, platform.y + 5, 1, 1);
-          ctx.fillRect(platform.x + 6, platform.y + 10, 1, 1);
-        } else if (platform.type === 'question') {
-          // Question block with animated shimmer
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-          
-          if (platform.used) {
-            // Used block - gray/brown with enhanced depth
-            ctx.fillStyle = '#6B5D4F';
-            ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
-            ctx.fillStyle = '#8B7355';
-            ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-            ctx.fillStyle = '#A0826D';
-            ctx.fillRect(platform.x + 3, platform.y + 3, platform.width - 6, platform.height - 6);
-            
-            // Add texture to used block
-            ctx.fillStyle = '#6B5D4F';
-            ctx.fillRect(platform.x + 5, platform.y + 5, 2, 2);
-            ctx.fillRect(platform.x + 9, platform.y + 7, 2, 2);
-            
-            // Bottom shadow
-            ctx.fillStyle = '#5A4D3F';
-            ctx.fillRect(platform.x + 3, platform.y + platform.height - 4, platform.width - 6, 1);
-          } else {
-            // Active question block - gold with enhanced shimmer animation
-            const shimmer = Math.floor(now / 150) % 3;
-            const baseColor = shimmer === 0 ? '#FFD700' : shimmer === 1 ? '#FFDF00' : '#FFC700';
-            ctx.fillStyle = baseColor;
-            ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
-            
-            // Mid-tone layer
-            ctx.fillStyle = '#FFB700';
-            ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-            
-            // Top and left highlights for 3D effect
-            ctx.fillStyle = '#FFFF99';
-            ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, 2);
-            ctx.fillRect(platform.x + 2, platform.y + 2, 2, platform.height - 4);
-            
-            // Inner glow
-            ctx.fillStyle = '#FFA500';
-            ctx.fillRect(platform.x + 4, platform.y + 4, platform.width - 8, platform.height - 8);
-            
-            // Bottom and right shadows
-            ctx.fillStyle = '#CC8800';
-            ctx.fillRect(platform.x + 2, platform.y + platform.height - 4, platform.width - 4, 2);
-            ctx.fillRect(platform.x + platform.width - 4, platform.y + 2, 2, platform.height - 4);
-            
-            // Draw enhanced "?" symbol
-            ctx.fillStyle = '#000000';
-            // Top curve
-            ctx.fillRect(platform.x + 6, platform.y + 5, 4, 2);
-            ctx.fillRect(platform.x + 8, platform.y + 7, 2, 2);
-            // Middle
-            ctx.fillRect(platform.x + 7, platform.y + 9, 2, 2);
-            // Dot
-            ctx.fillRect(platform.x + 7, platform.y + 12, 2, 2);
-            
-            // Add white highlight to "?"
-            ctx.fillStyle = shimmer === 1 ? '#FFFFFF' : baseColor;
-            ctx.fillRect(platform.x + 6, platform.y + 5, 1, 1);
-          }
-        } else if (platform.type === 'pipe') {
-          // Enhanced pipe with better 3D depth and texture
-          // Black outline
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-          
-          // Dark green base
-          ctx.fillStyle = '#1B5E20';
-          ctx.fillRect(platform.x + 1, platform.y + 1, platform.width - 2, platform.height - 2);
-          
-          // Mid-tone green
-          ctx.fillStyle = '#2E7D32';
-          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, platform.height - 4);
-          
-          // Top and left highlights
-          ctx.fillStyle = '#66BB6A';
-          ctx.fillRect(platform.x + 2, platform.y + 2, platform.width - 4, 2);
-          ctx.fillRect(platform.x + 2, platform.y + 2, 2, platform.height - 4);
-          
-          // Inner pipe opening (darker)
-          ctx.fillStyle = '#0D3818';
-          ctx.fillRect(platform.x + 5, platform.y + 5, platform.width - 10, platform.height - 10);
-          
-          // Inner pipe rim
-          ctx.fillStyle = '#1B5E20';
-          ctx.fillRect(platform.x + 6, platform.y + 6, platform.width - 12, platform.height - 12);
-          
-          // Bottom and right shadows
-          ctx.fillStyle = '#0D3818';
-          ctx.fillRect(platform.x + 2, platform.y + platform.height - 4, platform.width - 4, 2);
-          ctx.fillRect(platform.x + platform.width - 4, platform.y + 2, 2, platform.height - 4);
-          
-          // Texture details
-          ctx.fillStyle = '#4CAF50';
-          ctx.fillRect(platform.x + 3, platform.y + 3, 1, 1);
-          ctx.fillRect(platform.x + platform.width - 4, platform.y + 4, 1, 1);
-        }
-      });
-
-      // Coins will be drawn later (after blackhole scene) so they appear on top
-      
-      // Draw portal with clean pixel art animation
-      if (state.portal && state.portal.active) {
-        const px = Math.floor(state.portal.x);
-        const py = Math.floor(state.portal.y);
-        const time = state.portal.animationFrame;
-        
-        // Outer ring layers (no alpha fading)
-        const ringColors = ['#1a0033', '#2d0052', '#4B0082', '#6A0DAD'];
-        for (let ring = 3; ring >= 0; ring--) {
-          const ringSize = 20 - ring * 3;
-          ctx.fillStyle = ringColors[ring];
-          ctx.fillRect(px + 8 - ringSize / 2, py + 8 - ringSize / 2, ringSize, ringSize);
-        }
-        
-        // Portal base - dark center
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(px + 4, py + 4, 8, 8);
-        
-        // Rotating energy particles (crisp pixels)
-        for (let ring = 0; ring < 3; ring++) {
-          const ringAngle = time * 2 + ring * 120;
-          const ringRadius = 6 + ring * 2;
-          
-          for (let i = 0; i < 6; i++) {
-            const angle = (ringAngle + i * 60) * (Math.PI / 180);
-            const x = Math.floor(px + 8 + Math.cos(angle) * ringRadius);
-            const y = Math.floor(py + 8 + Math.sin(angle) * ringRadius);
-            
-            const colors = ['#9400D3', '#BA55D3', '#DDA0DD'];
-            ctx.fillStyle = colors[ring];
-            ctx.fillRect(x, y, 2, 2);
-          }
-        }
-        
-        // Inner swirl particles
-        for (let i = 0; i < 8; i++) {
-          const spiralAngle = time * 4 + i * 45;
-          const spiralRadius = 3 + (i % 3);
-          const angle = spiralAngle * (Math.PI / 180);
-          const x = Math.floor(px + 8 + Math.cos(angle) * spiralRadius);
-          const y = Math.floor(py + 8 + Math.sin(angle) * spiralRadius);
-          
-          ctx.fillStyle = i % 2 === 0 ? '#FF00FF' : '#00FFFF';
-          ctx.fillRect(x, y, 1, 1);
-        }
-        
-        // Bright center (alternating colors instead of alpha pulse)
-        const centerFrame = Math.floor(time / 10) % 2;
-        ctx.fillStyle = centerFrame === 0 ? '#FFFFFF' : '#FFFF00';
-        ctx.fillRect(px + 7, py + 7, 2, 2);
-        
-        // Energy sparks shooting out (clean pixels)
-        for (let spark = 0; spark < 4; spark++) {
-          const sparkAngle = (time * 6 + spark * 90) * (Math.PI / 180);
-          const sparkDist = 12 + Math.floor((time + spark * 5) % 6);
-          const sparkX = Math.floor(px + 8 + Math.cos(sparkAngle) * sparkDist);
-          const sparkY = Math.floor(py + 8 + Math.sin(sparkAngle) * sparkDist);
-          
-          ctx.fillStyle = spark % 2 === 0 ? '#FFFF00' : '#00FFFF';
-          ctx.fillRect(sparkX, sparkY, 2, 2);
-        }
-      }
-
-      // Draw enemies with enhanced visuals - pixel perfect (viewport culled)
-      state.enemies.forEach(enemy => {
-        if (enemy.alive) {
-          if (enemy.x + 16 < camLeft || enemy.x > camRight) return; // Off-screen cull
-          const ex = Math.floor(enemy.x);
-          const ey = Math.floor(enemy.y);
-          
-          if (enemy.type === 'goomba') {
-            // Optimized and enhanced goomba with smooth walking animation
-            const walkCycle = Math.floor((now / 150) % 2);
-            const bounce = Math.abs(Math.sin(now / 150)) * 0.5; // Subtle bounce
-            const eyOffset = Math.floor(ey - bounce);
-            
-            // Main body outline (mushroom shape with rounded top)
-            ctx.fillStyle = '#000000';
-            // Top edge (rounded, no corners)
-            ctx.fillRect(ex + 1, eyOffset - 1, 10, 1);
-            // Left edge (starts below top corner)
-            ctx.fillRect(ex - 1, eyOffset, 1, 12);
-            // Right edge (starts below top corner)
-            ctx.fillRect(ex + 12, eyOffset, 1, 12);
-            // Bottom edge
-            ctx.fillRect(ex, eyOffset + 12, 12, 1);
-            // Bottom corners only
-            ctx.fillRect(ex - 1, eyOffset + 12, 1, 1); // Bottom-left corner
-            ctx.fillRect(ex + 12, eyOffset + 12, 1, 1); // Bottom-right corner
-            
-            // Mushroom cap - rich brown gradient
-            ctx.fillStyle = '#8B4513';
-            ctx.fillRect(ex, eyOffset, 12, 6);
-            
-            // Cap top highlight
-            ctx.fillStyle = '#A0522D';
-            ctx.fillRect(ex + 1, eyOffset, 10, 1);
-            ctx.fillRect(ex + 2, eyOffset + 1, 8, 1);
-            
-            // Cap shadow/depth
-            ctx.fillStyle = '#654321';
-            ctx.fillRect(ex + 1, eyOffset + 4, 10, 2);
-            
-            // Body/stem - lighter tan color
-            ctx.fillStyle = '#D2B48C';
-            ctx.fillRect(ex + 2, eyOffset + 6, 8, 5);
-            
-            // Body shading
-            ctx.fillStyle = '#C19A6B';
-            ctx.fillRect(ex + 7, eyOffset + 7, 3, 4);
-            
-            // Angry eyebrows - thicker and more defined
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(ex + 2, eyOffset + 6, 3, 1);
-            ctx.fillRect(ex + 7, eyOffset + 6, 3, 1);
-            ctx.fillRect(ex + 3, eyOffset + 5, 1, 1); // Eyebrow angle
-            ctx.fillRect(ex + 8, eyOffset + 5, 1, 1);
-            
-            // Eyes - larger and more expressive
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(ex + 2, eyOffset + 7, 3, 2);
-            ctx.fillRect(ex + 7, eyOffset + 7, 3, 2);
-            
-            // Pupils - look in movement direction
-            ctx.fillStyle = '#000000';
-            const pupilX = enemy.direction > 0 ? 1 : 0;
-            ctx.fillRect(ex + 3 + pupilX, eyOffset + 8, 1, 1);
-            ctx.fillRect(ex + 8 + pupilX, eyOffset + 8, 1, 1);
-            
-            // Frown/mouth
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(ex + 4, eyOffset + 9, 4, 1);
-            
-            // Fangs
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(ex + 4, eyOffset + 10, 1, 1);
-            ctx.fillRect(ex + 7, eyOffset + 10, 1, 1);
-            
-            // Feet - smooth walking animation
-            ctx.fillStyle = '#654321';
-            if (walkCycle === 0) {
-              ctx.fillRect(ex + 1, eyOffset + 11, 2, 1);
-              ctx.fillRect(ex + 9, eyOffset + 11, 2, 1);
-            } else {
-              ctx.fillRect(ex + 2, eyOffset + 11, 2, 1);
-              ctx.fillRect(ex + 8, eyOffset + 11, 2, 1);
-            }
-            
-            // Texture spots for depth
-            ctx.fillStyle = '#A0826D';
-            ctx.fillRect(ex + 3, eyOffset + 2, 1, 1);
-            ctx.fillRect(ex + 8, eyOffset + 3, 1, 1);
-            
-          } else if (enemy.type === 'snake') {
-            // Enhanced snake with segmented body and slithering animation
-            const wavePhase = (enemy.waveOffset || 0);
-            const bodySegments = 5;
-            
-            // Draw snake body segments from tail to head
-            for (let seg = bodySegments - 1; seg >= 0; seg--) {
-              const segmentX = ex - seg * 2.5;
-              const segmentWave = Math.sin(wavePhase + seg * 0.5) * 2;
-              const segmentY = ey + 5 + segmentWave;
-              
-              // Segment size decreases towards tail
-              const segWidth = seg === 0 ? 4 : 3; // Head is wider
-              const segHeight = seg === 0 ? 5 : 4;
-              
-              // Black outline
-              ctx.fillStyle = '#000000';
-              ctx.fillRect(Math.floor(segmentX - 1), Math.floor(segmentY - 1), segWidth + 2, segHeight + 2);
-              
-              // Segment color - darker towards tail
-              const greenShade = seg === 0 ? '#00CC00' : seg < 2 ? '#00AA00' : '#008800';
-              ctx.fillStyle = greenShade;
-              ctx.fillRect(Math.floor(segmentX), Math.floor(segmentY), segWidth, segHeight);
-              
-              // Highlight on top
-              ctx.fillStyle = '#00FF00';
-              ctx.fillRect(Math.floor(segmentX) + 1, Math.floor(segmentY), segWidth - 2, 1);
-              
-              // Scale pattern (every other segment)
-              if (seg % 2 === 0 && seg > 0) {
-                ctx.fillStyle = '#006600';
-                ctx.fillRect(Math.floor(segmentX) + 1, Math.floor(segmentY) + 2, 1, 1);
-              }
-            }
-            
-            // Draw head details
-            const headX = ex;
-            const headY = ey + 5 + Math.sin(wavePhase) * 2;
-            
-            // Eyes with yellow pupils
-            ctx.fillStyle = '#FFFF00';
-            ctx.fillRect(Math.floor(headX) + 1, Math.floor(headY) + 1, 1, 1);
-            
-            // Red eye highlight
-            ctx.fillStyle = '#FF0000';
-            ctx.fillRect(Math.floor(headX) + 1, Math.floor(headY) + 1, 1, 1);
-            
-            // Animated forked tongue (flicks in and out)
-            const tongueFlick = Math.sin(wavePhase * 3) > 0.5;
-            if (tongueFlick) {
-              ctx.fillStyle = '#FF1493';
-              const tongueDir = enemy.direction > 0 ? 1 : -1;
-              ctx.fillRect(Math.floor(headX) + (tongueDir > 0 ? 4 : -2), Math.floor(headY) + 3, 2, 1);
-              ctx.fillRect(Math.floor(headX) + (tongueDir > 0 ? 5 : -2), Math.floor(headY) + 2, 1, 1);
-              ctx.fillRect(Math.floor(headX) + (tongueDir > 0 ? 5 : -2), Math.floor(headY) + 4, 1, 1);
-            }
-          } else {
-            // Badguy enemy - ghost with animated sprite
-            // Use enemy's own animation frame counter for smooth animation
-            if (!enemy.animFrame) enemy.animFrame = 0;
-            
-            // Calculate animation frame (8 frames, slower when frozen)
-            const animSpeed = enemy.frozen ? 1 : 4; // Slow down when frozen
-            const frameIndex = Math.floor((Date.now() / 1000) * animSpeed) % 8;
-            const frameName = `${frameIndex + 1}.png`;
-            const badguySprite = spritesRef.current[frameName];
-            
-            if (badguySprite && badguySprite.complete && badguySprite.naturalWidth > 0) {
-              ctx.save();
-              ctx.imageSmoothingEnabled = false;
-              
-              // Apply opacity for ghost effect
-              ctx.globalAlpha = enemy.opacity !== undefined ? enemy.opacity : 0.8;
-              
-              // Add floating wave animation
-              const floatWave = Math.sin((now / 200) + (enemy.x / 50)) * 2;
-              const ghostY = ey + floatWave;
-              
-              // Flip sprite based on enemy direction
-              if (enemy.direction === -1) {
-                // Moving left - flip horizontally
-                ctx.translate(ex + 16, Math.floor(ghostY));
-                ctx.scale(-1, 1);
-                ctx.drawImage(badguySprite, 0, 0, 16, 16);
-              } else {
-                // Moving right - normal
-                ctx.drawImage(badguySprite, ex, Math.floor(ghostY), 16, 16);
-              }
-              
-              // Draw aura particles when not frozen
-              if (!enemy.frozen && !enemy.isDisappearing) {
-                for (let i = 0; i < 3; i++) {
-                  const particleAngle = (now / 500 + i * 2) % (Math.PI * 2);
-                  const particleRadius = 8 + Math.sin(now / 300 + i) * 2;
-                  const px = ex + 8 + Math.cos(particleAngle) * particleRadius;
-                  const py = Math.floor(ghostY) + 8 + Math.sin(particleAngle) * particleRadius;
-                  ctx.fillStyle = 'rgba(147, 112, 219, 0.4)';
-                  ctx.fillRect(Math.floor(px), Math.floor(py), 1, 1);
-                }
-              }
-              
-              ctx.restore();
-            }
-          }
-        }
-      });
-
-      // Boss rendering will be added later with sprite-based system
-
-      // Draw finish line flag at goal - enhanced
-      const flagX = Math.floor(state.goalX);
-      const flagY = 96;
-      const flagWave = Math.sin(now / 200) * 2;
-      
-      // Pole wood texture (no outline)
-      ctx.fillStyle = '#8B4513';
-      ctx.fillRect(flagX, flagY, 2, 32);
-      
-      // Pole highlight
-      ctx.fillStyle = '#A0522D';
-      ctx.fillRect(flagX, flagY, 1, 2);
-      ctx.fillRect(flagX, flagY + 8, 1, 2);
-      ctx.fillRect(flagX, flagY + 16, 1, 2);
-      ctx.fillRect(flagX, flagY + 24, 1, 2);
-      
-      // Pole top ornament (golden ball - no outline)
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(flagX, flagY - 3, 2, 3);
-      ctx.fillStyle = '#FFFF99';
-      ctx.fillRect(flagX, flagY - 3, 1, 1);
-      
-      // Flag - enhanced checkered pattern with wave
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 4; col++) {
-          const isBlack = (row + col) % 2 === 0;
-          const waveOffset = Math.floor(flagWave * (row / 3));
-          
-          // Main square color
-          ctx.fillStyle = isBlack ? '#000000' : '#FFFFFF';
-          ctx.fillRect(flagX + 1 + col * 3 + waveOffset, flagY + row * 3, 3, 3);
-          
-          // Add slight shading to white squares for depth
-          if (!isBlack) {
-            ctx.fillStyle = '#F0F0F0';
-            ctx.fillRect(flagX + 1 + col * 3 + waveOffset + 2, flagY + row * 3 + 2, 1, 1);
-          }
-        }
-      }
-      
-      // Flag outline (follows wave)
-      ctx.fillStyle = '#000000';
-      for (let row = 0; row < 3; row++) {
-        const waveOffset = Math.floor(flagWave * (row / 3));
-        if (row === 0) {
-          ctx.fillRect(flagX + 1 + waveOffset, flagY - 1, 12, 1);
-        }
-        if (row === 2) {
-          ctx.fillRect(flagX + 1 + waveOffset, flagY + 9, 12, 1);
-        }
-      }
-      ctx.fillRect(flagX, flagY, 1, 9);
-      
-      // Right edge of flag (wavy)
-      for (let row = 0; row < 3; row++) {
-        const waveOffset = Math.floor(flagWave * (row / 3));
-        ctx.fillRect(flagX + 13 + waveOffset, flagY + row * 3, 1, 3);
-      }
-
-      // Draw particles with enhanced effects (viewport culled)
-      const pCamL = state.camera.x - 10;
-      const pCamR = state.camera.x + GW + 10;
-      state.particles.forEach(p => {
-        if (p.x < pCamL || p.x > pCamR) return;
-        const lifePercent = p.life / p.maxLife;
-        const px = Math.floor(p.x);
-        const py = Math.floor(p.y);
-        
-        // Different rendering based on particle type (color)
-        if (p.color === '#FFD700' || p.color === '#FFFF00') {
-          // Gold/yellow particles (coins, boss defeat) - with glow
-          if (lifePercent > 0.5) {
-            ctx.fillStyle = '#FFFF99';
-            ctx.fillRect(px - 1, py - 1, 4, 4);
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 2, 2);
-          } else if (lifePercent > 0.25) {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 2, 2);
-          } else {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 1, 1);
-          }
-        } else if (p.color === '#8B7355') {
-          // Rock projectiles - larger and more visible
-          if (lifePercent > 0.7) {
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(px - 1, py - 1, 5, 5);
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 3, 3);
-            ctx.fillStyle = '#A0826D';
-            ctx.fillRect(px + 1, py + 1, 1, 1);
-          } else if (lifePercent > 0.4) {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 3, 3);
-          } else {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 2, 2);
-          }
-        } else if (p.color === '#FF0000') {
-          // Red particles (miss indicator) - bright and noticeable
-          if (lifePercent > 0.6) {
-            ctx.fillStyle = '#FF6666';
-            ctx.fillRect(px - 1, py - 1, 4, 4);
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 2, 2);
-          } else if (lifePercent > 0.3) {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 2, 2);
-          }
-        } else {
-          // Regular particles - standard fade
-          if (lifePercent > 0.66) {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 2, 2);
-          } else if (lifePercent > 0.33) {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, 1, 1);
-          }
-        }
-      });
-
-      // ========== SIMPLE RENDERING - SINGLE DRAW CALL ==========
-      let frameName: string;
-      
-      if (state.player.currentAnimation === 'idle') {
-        frameName = 'idle';
-      } else if (state.player.currentAnimation === 'walk') {
-        // Ensure animationFrame is valid (0-3) and map to walk sprites
-        const frameIndex = Math.floor(state.player.animationFrame) % 4;
-        const walkFrames = ['walk1', 'walk2', 'walk3', 'walk4'];
-        frameName = walkFrames[frameIndex];
-      } else if (state.player.currentAnimation === 'jump') {
-        frameName = 'jump1';
-      } else if (state.player.currentAnimation === 'crouch') {
-        frameName = 'crouch';
-      } else {
-        // Fallback to idle if animation state is undefined
-        frameName = 'idle';
-      }
-      
-      // Draw player (with helmet rainbow effect if active)
-      if (state.player.hasHelmet) {
-        // Draw rainbow overlay on character when helmet is active (Mario star effect)
-        const px = Math.floor(state.player.x);
-        const py = Math.floor(state.player.y);
-        
-        // Rainbow color cycling animation
-        const time = now / 80;
-        const hue = Math.floor(time % 360);
-        
-        // Use cached offscreen canvas for rainbow effect (avoid creating new one every frame)
-        if (!helmetCanvasRef.current) {
-          helmetCanvasRef.current = document.createElement('canvas');
-          helmetCanvasRef.current.width = 16;
-          helmetCanvasRef.current.height = 16;
-        }
-        const tempCanvas = helmetCanvasRef.current;
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        if (tempCtx) {
-          // Clear cached canvas before reuse
-          tempCtx.clearRect(0, 0, 16, 16);
-          tempCtx.globalCompositeOperation = 'source-over';
-          // Draw character sprite to temp canvas
-          if (state.player.rotation !== 0) {
-            tempCtx.save();
-            tempCtx.translate(6, 7); // Center of 12x14 hitbox
-            tempCtx.rotate((state.player.rotation * Math.PI) / 180);
-            drawPlayerSprite(tempCtx, -6, -7, frameName, state.player.facingLeft);
-            tempCtx.restore();
-          } else {
-            drawPlayerSprite(tempCtx, 0, 0, frameName, state.player.facingLeft);
-          }
-          
-          // Apply rainbow color overlay using source-atop (only affects existing pixels)
-          // Faded rainbow effect with reduced saturation and lightness
-          tempCtx.globalCompositeOperation = 'source-atop';
-          tempCtx.fillStyle = `hsl(${hue}, 50%, 50%)`;
-          tempCtx.fillRect(0, 0, 16, 16);
-          
-          // Draw the rainbow-tinted character back to main canvas
-          ctx.save();
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(tempCanvas, px, py);
-          ctx.restore();
-        }
-        
-        // Draw helmet sprite with same flipping as character
-        const helmetSprite = spritesRef.current['helmet.png'];
-        
-        if (helmetSprite && helmetSprite.complete && helmetSprite.naturalWidth > 0) {
-          // Draw helmet.png sprite overlapping player
-          // Player hitbox is 12x14, sprites are 16x16, so offset by -2 on x and -1 on y to center
-          ctx.save();
-          ctx.imageSmoothingEnabled = false;
-          
-          const helmetOffsetX = -2;
-          const helmetOffsetY = -1;
-          
-          // Apply same rotation as character if jumping
-          if (state.player.rotation !== 0) {
-            ctx.translate(px + 6, py + 7); // Center of 12x14 hitbox
-            ctx.rotate((state.player.rotation * Math.PI) / 180);
-            
-            // Flip helmet horizontally if character is facing left
-            if (state.player.facingLeft) {
-              ctx.scale(-1, 1);
-            }
-            
-            ctx.drawImage(helmetSprite, -8 + helmetOffsetX, -8 + helmetOffsetY, 16, 16);
-          } else {
-            // No rotation - just flip if facing left
-            if (state.player.facingLeft) {
-              ctx.translate(px + 12, py + helmetOffsetY);
-              ctx.scale(-1, 1);
-              ctx.drawImage(helmetSprite, -12 - helmetOffsetX, 0, 16, 16);
-            } else {
-              ctx.drawImage(helmetSprite, px + helmetOffsetX, py + helmetOffsetY, 16, 16);
-            }
-          }
-          
-          ctx.restore();
-        }
-      } else {
-        // No helmet - draw player normally (with rotation if jumping)
-        if (state.player.rotation !== 0) {
-          ctx.save();
-          ctx.translate(Math.floor(state.player.x + 6), Math.floor(state.player.y + 7)); // Center of 12x14 hitbox
-          ctx.rotate((state.player.rotation * Math.PI) / 180);
-          drawPlayerSprite(ctx, -6, -7, frameName, state.player.facingLeft);
-          ctx.restore();
-        } else {
-          drawPlayerSprite(ctx, Math.floor(state.player.x), Math.floor(state.player.y), frameName, state.player.facingLeft);
-        }
-      }
-
-      // Draw speech bubble from character's mouth with pixel art text
-      if (state.speechBubble && !state.celebrating && !state.inBlackhole) {
-        ctx.save();
-        
-        const bubbleX = Math.floor(state.player.x + 8);
-        const bubbleY = Math.floor(state.player.y - 8);
-        const text = state.speechBubble.text;
-        
-        // Pixel art letter patterns (3x5 pixels each)
-        const pixelLetters: Record<string, number[][]> = {
-          'W': [[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,1,0,1,1],[1,0,0,0,1]],
-          'E': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,1,1,1,1]],
-          'F': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0]],
-          'L': [[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
-          'I': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1]],
-          'P': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0]],
-          'N': [[1,0,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,0,1]],
-          'G': [[0,1,1,1,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,0,0,1],[0,1,1,1,0]],
-          '!': [[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],
-          ' ': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
-        };
-        
-        const upperText = text.toUpperCase();
-        const displayText = text === 'we Flipping' ? upperText + '!' : upperText;
-        
-        // Calculate text width (each letter is 5px wide + 1px spacing)
-        const textWidth = displayText.length * 6 - 1;
-        const textHeight = 5;
-        
-        // Calculate bubble size
-        const bubbleWidth = textWidth + 6;
-        const bubbleHeight = textHeight + 4;
-        
-        // Position bubble above character's head
-        const bx = Math.floor(bubbleX - bubbleWidth / 2);
-        const by = Math.floor(bubbleY - bubbleHeight - 8);
-        
-        // Draw speech bubble tail
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(bubbleX - 1, by + bubbleHeight, 2, 2);
-        ctx.fillRect(bubbleX - 2, by + bubbleHeight + 2, 2, 1);
-        
-        // Draw bubble background with outline
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(bx - 1, by - 1, bubbleWidth + 2, bubbleHeight + 2);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(bx, by, bubbleWidth, bubbleHeight);
-        
-        // Draw pixel art text
-        let xOffset = bx + 3;
-        const yOffset = by + 2;
-        
-        for (let i = 0; i < displayText.length; i++) {
-          const char = displayText[i];
-          const pattern = pixelLetters[char];
-          
-          if (pattern) {
-            // Draw each pixel of the letter
-            for (let row = 0; row < 5; row++) {
-              for (let col = 0; col < 5; col++) {
-                if (pattern[row][col] === 1) {
-                  ctx.fillStyle = '#000000'; // Black text
-                  ctx.fillRect(xOffset + col, yOffset + row, 1, 1);
-                }
-              }
-            }
-          }
-          
-          xOffset += 6; // Move to next letter position (5px + 1px spacing)
-        }
-        
-        ctx.restore();
-      }
-      
-      // Draw celebration screen with coin count
-      if (state.celebrating) {
-        // Animated overlay with pulsing effect
-        const pulseAlpha = 0.5 + Math.sin(state.celebrationTimer * 4) * 0.1;
-        ctx.fillStyle = `rgba(0, 0, 0, ${pulseAlpha})`;
-        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
-        
-        // Celebration text
-        const centerX = gameWidthRef.current / 2;
-        const centerY = GAME_HEIGHT / 2;
-        const bounce = Math.abs(Math.sin(state.celebrationTimer * 6)) * 3;
-        
-        // "STAGE CLEAR!" text with bounce animation
-        const textY = centerY - 35 + bounce;
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(centerX - 45, textY, 90, 14);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(centerX - 44, textY + 1, 88, 12);
-        
-        // Rainbow gradient effect for text
-        const colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
-        const colorIndex = Math.floor((now / 100) % colors.length);
-        ctx.fillStyle = colors[colorIndex];
-        
-        // "STAGE CLEAR" letters
-        for (let i = 0; i < 11; i++) {
-          ctx.fillRect(centerX - 40 + i * 7, textY + 3, 5, 7);
-        }
-        
-        // Stage number
-        const stageY = centerY - 15;
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '8px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`STAGE ${state.currentStage}`, centerX, stageY);
-        
-        // Coin icon and count with glow
-        const coinY = centerY;
-        // Glow effect
-        ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
-        ctx.fillRect(centerX - 25, coinY - 2, 16, 12);
-        
-        // Draw coin
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(centerX - 20, coinY, 8, 8);
-        ctx.fillRect(centerX - 22, coinY + 2, 12, 4);
-        ctx.fillStyle = '#FFA500';
-        ctx.fillRect(centerX - 19, coinY + 2, 2, 4);
-        // Black outline
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(centerX - 21, coinY - 1, 10, 1);
-        ctx.fillRect(centerX - 21, coinY + 8, 10, 1);
-        ctx.fillRect(centerX - 23, coinY + 2, 1, 4);
-        ctx.fillRect(centerX - 10, coinY + 2, 1, 4);
-        
-        // Coin count text with better styling
-        const coinText = `${state.coinsCollectedThisStage}/${state.totalCoinsThisStage}`;
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 10px monospace';
-        ctx.fillText(coinText, centerX + 10, coinY + 6);
-        
-        // Bonus text if all coins collected
-        if (state.coinsCollectedThisStage === state.totalCoinsThisStage) {
-          const perfectY = coinY + 18;
-          const perfectBounce = Math.abs(Math.sin(state.celebrationTimer * 8)) * 2;
-          ctx.fillStyle = '#00FF00';
-          ctx.fillRect(centerX - 35, perfectY + perfectBounce, 70, 10);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(centerX - 34, perfectY + 1 + perfectBounce, 68, 8);
-          ctx.fillStyle = '#FFFF00';
-          ctx.font = 'bold 8px monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText('PERFECT!', centerX, perfectY + 7 + perfectBounce);
-        }
-        
-        // "Next stage" indicator
-        if (state.currentStage < 10) {
-          const nextY = centerY + 35;
-          const flash = Math.floor(state.celebrationTimer * 3) % 2 === 0;
-          if (flash) {
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '6px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(`NEXT: STAGE ${state.currentStage + 1}`, centerX, nextY);
-          }
-        } else {
-          // Final stage complete
-          const finalY = centerY + 35;
-          ctx.fillStyle = '#FFD700';
-          ctx.font = 'bold 8px monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText('GAME COMPLETE!', centerX, finalY);
-        }
-      }
-      
-
-      // Draw coins in world space (before ctx.restore) so they stay in place
-      if (!state.inBlackhole) {
-        state.coins.forEach(coin => {
-          if (!coin.collected) {
-            if (coin.x + 8 < camLeft || coin.x > camRight) return; // Off-screen cull
-            const y = Math.floor(coin.y + Math.sin(coin.floatOffset) * 4);
-            const x = Math.floor(coin.x);
-            const spinFrame = Math.floor((now / 100) % 8);
-            
-            // Optimized coin with pixel-perfect 3D spinning effect
-            // Black outline - cleaner and more precise
-            ctx.fillStyle = '#000000';
-            if (spinFrame < 2 || spinFrame > 5) {
-              // Full width - front/back view
-              ctx.fillRect(x + 2, y, 4, 1);
-              ctx.fillRect(x + 2, y + 7, 4, 1);
-              ctx.fillRect(x + 1, y + 1, 1, 5);
-              ctx.fillRect(x + 6, y + 1, 1, 5);
-              ctx.fillRect(x, y + 2, 1, 3);
-              ctx.fillRect(x + 7, y + 2, 1, 3);
-              ctx.fillRect(x + 1, y + 6, 1, 1);
-              ctx.fillRect(x + 6, y + 6, 1, 1);
-            } else if (spinFrame === 2 || spinFrame === 5) {
-              // Medium width - 3/4 view
-              ctx.fillRect(x + 2, y, 3, 1);
-              ctx.fillRect(x + 2, y + 7, 3, 1);
-              ctx.fillRect(x + 1, y + 1, 1, 5);
-              ctx.fillRect(x + 5, y + 1, 1, 5);
-              ctx.fillRect(x + 1, y + 6, 1, 1);
-              ctx.fillRect(x + 5, y + 6, 1, 1);
-            } else {
-              // Thin - side view
-              ctx.fillRect(x + 3, y, 1, 1);
-              ctx.fillRect(x + 3, y + 7, 1, 1);
-              ctx.fillRect(x + 2, y + 1, 1, 5);
-              ctx.fillRect(x + 4, y + 1, 1, 5);
-              ctx.fillRect(x + 2, y + 6, 1, 1);
-              ctx.fillRect(x + 4, y + 6, 1, 1);
-            }
-            
-            // Coin body with enhanced gradient and shading
-            if (spinFrame < 2 || spinFrame > 5) {
-              // Full coin - front/back view
-              // Base gold
-              ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + 2, y + 1, 4, 5);
-              ctx.fillRect(x + 1, y + 2, 6, 3);
-              
-              // Bright highlight (top-left)
-              ctx.fillStyle = '#FFFF00';
-              ctx.fillRect(x + 2, y + 1, 2, 1);
-              ctx.fillRect(x + 1, y + 2, 2, 1);
-              
-              // Light highlight
-              ctx.fillStyle = '#FFED4E';
-              ctx.fillRect(x + 2, y + 2, 2, 2);
-              ctx.fillRect(x + 4, y + 1, 1, 1);
-              
-              // Mid tone
-              ctx.fillStyle = '#FFC700';
-              ctx.fillRect(x + 4, y + 3, 2, 2);
-              ctx.fillRect(x + 3, y + 4, 1, 1);
-              
-              // Shadow (bottom-right)
-              ctx.fillStyle = '#CC9900';
-              ctx.fillRect(x + 5, y + 4, 1, 1);
-              ctx.fillRect(x + 4, y + 5, 2, 1);
-              
-              // Dark shadow
-              ctx.fillStyle = '#996600';
-              ctx.fillRect(x + 5, y + 5, 1, 1);
-            } else if (spinFrame === 2 || spinFrame === 5) {
-              // Medium coin - 3/4 view
-              ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + 2, y + 1, 3, 5);
-              ctx.fillRect(x + 1, y + 2, 4, 3);
-              
-              // Highlight
-              ctx.fillStyle = '#FFFF00';
-              ctx.fillRect(x + 2, y + 1, 1, 1);
-              ctx.fillRect(x + 1, y + 2, 1, 1);
-              
-              ctx.fillStyle = '#FFED4E';
-              ctx.fillRect(x + 2, y + 2, 2, 2);
-              
-              // Shadow
-              ctx.fillStyle = '#FFC700';
-              ctx.fillRect(x + 3, y + 4, 1, 1);
-              ctx.fillRect(x + 4, y + 3, 1, 2);
-              
-              ctx.fillStyle = '#CC9900';
-              ctx.fillRect(x + 4, y + 5, 1, 1);
-            } else {
-              // Thin coin - side view
-              ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + 3, y + 1, 1, 5);
-              ctx.fillRect(x + 2, y + 2, 2, 3);
-              
-              // Highlight
-              ctx.fillStyle = '#FFED4E';
-              ctx.fillRect(x + 2, y + 2, 1, 2);
-              
-              // Shadow
-              ctx.fillStyle = '#CC9900';
-              ctx.fillRect(x + 3, y + 4, 1, 2);
-            }
-          }
-        });
-      }
-      
-      // Draw water gun power-up
-      if (state.waterGun && !state.waterGun.collected) {
-        const wgx = Math.floor(state.waterGun.x);
-        const wgy = Math.floor(state.waterGun.y + Math.sin(now / 200) * 2);
-        
-        // Water gun pixel art (8x12)
-        // Black outline
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(wgx, wgy, 8, 12);
-        
-        // Gun body - blue
-        ctx.fillStyle = '#1E90FF';
-        ctx.fillRect(wgx + 1, wgy + 1, 6, 10);
-        
-        // Barrel
-        ctx.fillStyle = '#4169E1';
-        ctx.fillRect(wgx + 2, wgy + 1, 4, 4);
-        
-        // Handle
-        ctx.fillStyle = '#00BFFF';
-        ctx.fillRect(wgx + 2, wgy + 6, 4, 4);
-        
-        // Highlight
-        ctx.fillStyle = '#87CEEB';
-        ctx.fillRect(wgx + 2, wgy + 2, 2, 2);
-        ctx.fillRect(wgx + 3, wgy + 7, 2, 2);
-        
-        // Water droplet effect
-        const droplet = Math.floor(now / 300) % 3;
-        if (droplet === 0) {
-          ctx.fillStyle = '#00BFFF';
-          ctx.fillRect(wgx + 4, wgy - 2, 1, 1);
-        }
-      }
-      
-      // Draw water projectiles
-      state.waterProjectiles.forEach(proj => {
-        const px = Math.floor(proj.x);
-        const py = Math.floor(proj.y);
-        
-        // Water droplet with trail
-        ctx.fillStyle = '#87CEEB';
-        ctx.fillRect(px - 2, py, 4, 2);
-        ctx.fillStyle = '#00BFFF';
-        ctx.fillRect(px - 1, py, 3, 2);
-        ctx.fillStyle = '#1E90FF';
-        ctx.fillRect(px, py, 2, 2);
-      });
-
-      ctx.restore();
-      
-      // Draw amazing game start countdown
-      if (!state.gameStarted) {
-        // Full screen overlay with fade-in
-        const fadeAlpha = Math.min(1, state.gameStartTimer / 0.5);
-        ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * fadeAlpha})`;
-        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
-        
-        const centerX = gameWidthRef.current / 2;
-        const centerY = GAME_HEIGHT / 2;
-        const timeLeft = 3.0 - state.gameStartTimer;
-        
-        if (timeLeft > 2.0) {
-          // "3" countdown - pixel art number
-          const pulse = Math.floor(Math.sin(state.gameStartTimer * 10) * 2);
-          const numX = centerX - 10;
-          const numY = centerY - 15 + pulse;
-          
-          ctx.fillStyle = '#FF0000';
-          ctx.fillRect(numX - 2, numY - 2, 24, 34);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(numX, numY, 20, 30);
-          
-          // Draw pixel "3"
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(numX + 2, numY + 2, 16, 4);
-          ctx.fillRect(numX + 2, numY + 13, 16, 4);
-          ctx.fillRect(numX + 2, numY + 24, 16, 4);
-          ctx.fillRect(numX + 14, numY + 6, 4, 7);
-          ctx.fillRect(numX + 14, numY + 17, 4, 7);
-          
-          // Particle ring
-          for (let i = 0; i < 12; i++) {
-            const angle = (Math.PI * 2 * i) / 12 + state.gameStartTimer * 3;
-            const radius = 40 + pulse * 2;
-            const px = centerX + Math.cos(angle) * radius;
-            const py = centerY + Math.sin(angle) * radius;
-            ctx.fillStyle = '#FF0000';
-            ctx.fillRect(Math.floor(px) - 2, Math.floor(py) - 2, 4, 4);
-          }
-        } else if (timeLeft > 1.0) {
-          // "2" countdown - pixel art number
-          const pulse = Math.floor(Math.sin(state.gameStartTimer * 10) * 2);
-          const numX = centerX - 10;
-          const numY = centerY - 15 + pulse;
-          
-          ctx.fillStyle = '#FFFF00';
-          ctx.fillRect(numX - 2, numY - 2, 24, 34);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(numX, numY, 20, 30);
-          
-          // Draw pixel "2"
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(numX + 2, numY + 2, 16, 4);
-          ctx.fillRect(numX + 14, numY + 6, 4, 7);
-          ctx.fillRect(numX + 2, numY + 13, 16, 4);
-          ctx.fillRect(numX + 2, numY + 17, 4, 7);
-          ctx.fillRect(numX + 2, numY + 24, 16, 4);
-          
-          // Particle ring
-          for (let i = 0; i < 12; i++) {
-            const angle = (Math.PI * 2 * i) / 12 + state.gameStartTimer * 3;
-            const radius = 40 + pulse * 2;
-            const px = centerX + Math.cos(angle) * radius;
-            const py = centerY + Math.sin(angle) * radius;
-            ctx.fillStyle = '#FFFF00';
-            ctx.fillRect(Math.floor(px) - 2, Math.floor(py) - 2, 4, 4);
-          }
-        } else if (timeLeft > 0.0) {
-          // "1" countdown - pixel art number
-          const pulse = Math.floor(Math.sin(state.gameStartTimer * 10) * 2);
-          const numX = centerX - 10;
-          const numY = centerY - 15 + pulse;
-          
-          ctx.fillStyle = '#00FF00';
-          ctx.fillRect(numX - 2, numY - 2, 24, 34);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(numX, numY, 20, 30);
-          
-          // Draw pixel "1"
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(numX + 8, numY + 2, 4, 26);
-          ctx.fillRect(numX + 4, numY + 6, 4, 4);
-          ctx.fillRect(numX + 2, numY + 24, 16, 4);
-          
-          // Particle ring
-          for (let i = 0; i < 12; i++) {
-            const angle = (Math.PI * 2 * i) / 12 + state.gameStartTimer * 3;
-            const radius = 40 + pulse * 2;
-            const px = centerX + Math.cos(angle) * radius;
-            const py = centerY + Math.sin(angle) * radius;
-            ctx.fillStyle = '#00FF00';
-            ctx.fillRect(Math.floor(px) - 2, Math.floor(py) - 2, 4, 4);
-          }
-        } else {
-          // "GO!" message - pixel art
-          const goX = centerX - 15;
-          const goY = centerY - 8;
-          
-          ctx.fillStyle = '#FFD700';
-          ctx.fillRect(goX - 2, goY - 2, 34, 20);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(goX, goY, 30, 16);
-          
-          // Draw pixel "GO!"
-          ctx.fillStyle = '#FFFFFF';
-          // G
-          ctx.fillRect(goX + 2, goY + 2, 10, 12);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(goX + 4, goY + 4, 6, 8);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(goX + 7, goY + 8, 5, 4);
-          // O
-          ctx.fillRect(goX + 14, goY + 2, 10, 12);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(goX + 16, goY + 4, 6, 8);
-          ctx.fillStyle = '#FFFFFF';
-          // !
-          ctx.fillRect(goX + 26, goY + 2, 2, 8);
-          ctx.fillRect(goX + 26, goY + 12, 2, 2);
-          
-          // Explosion particles
-          for (let i = 0; i < 20; i++) {
-            const angle = (Math.PI * 2 * i) / 20;
-            const radius = 50;
-            const px = centerX + Math.cos(angle) * radius;
-            const py = centerY + Math.sin(angle) * radius;
-            ctx.fillStyle = ['#FFD700', '#FF0000', '#00FF00', '#0000FF'][i % 4];
-            ctx.fillRect(Math.floor(px) - 3, Math.floor(py) - 3, 6, 6);
-          }
-        }
-        
-        // Stage title at top - pixel perfect text using fillRect
-        const stageText = `STAGE ${state.currentStage}`;
-        ctx.fillStyle = '#FFFFFF';
-        const textStartX = centerX - (stageText.length * 3);
-        for (let i = 0; i < stageText.length; i++) {
-          const char = stageText[i];
-          const baseX = textStartX + i * 6;
-          const baseY = 12;
-          
-          // Draw each character as pixel blocks (3x5 font)
-          if (char === 'S') {
-            ctx.fillRect(baseX, baseY, 5, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 1);
-            ctx.fillRect(baseX, baseY + 2, 5, 1);
-            ctx.fillRect(baseX + 4, baseY + 3, 1, 1);
-            ctx.fillRect(baseX, baseY + 4, 5, 1);
-          } else if (char === 'T') {
-            ctx.fillRect(baseX, baseY, 5, 1);
-            ctx.fillRect(baseX + 2, baseY + 1, 1, 4);
-          } else if (char === 'A') {
-            ctx.fillRect(baseX + 1, baseY, 3, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 4);
-            ctx.fillRect(baseX + 4, baseY + 1, 1, 4);
-            ctx.fillRect(baseX + 1, baseY + 2, 3, 1);
-          } else if (char === 'G') {
-            ctx.fillRect(baseX, baseY, 5, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 3);
-            ctx.fillRect(baseX + 2, baseY + 2, 3, 1);
-            ctx.fillRect(baseX + 4, baseY + 3, 1, 1);
-            ctx.fillRect(baseX, baseY + 4, 5, 1);
-          } else if (char === 'E') {
-            ctx.fillRect(baseX, baseY, 5, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 1);
-            ctx.fillRect(baseX, baseY + 2, 4, 1);
-            ctx.fillRect(baseX, baseY + 3, 1, 1);
-            ctx.fillRect(baseX, baseY + 4, 5, 1);
-          } else if (char >= '0' && char <= '9') {
-            const num = parseInt(char);
-            if (num === 1) {
-              ctx.fillRect(baseX + 2, baseY, 1, 5);
-              ctx.fillRect(baseX + 1, baseY + 1, 1, 1);
-            } else {
-              ctx.fillRect(baseX, baseY, 5, 5);
-              ctx.fillRect(baseX + 1, baseY + 1, 3, 3);
-            }
-          } else if (char === ' ') {
-            // Space - do nothing
-          }
-        }
-        
-        // Character name - pixel perfect text
-        const charName = selectedCharRef.current === 'guy1' ? 'CLASSIC' : selectedCharRef.current === 'guy2' ? 'SPEEDSTER' : 'SLAMMER';
-        ctx.fillStyle = '#AAAAAA';
-        const nameStartX = centerX - (charName.length * 2.5);
-        for (let i = 0; i < charName.length; i++) {
-          const char = charName[i];
-          const baseX = nameStartX + i * 5;
-          const baseY = 24;
-          
-          // Draw each character (4x5 smaller font)
-          if (char === 'C') {
-            ctx.fillRect(baseX, baseY, 4, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 3);
-            ctx.fillRect(baseX, baseY + 4, 4, 1);
-          } else if (char === 'L') {
-            ctx.fillRect(baseX, baseY, 1, 5);
-            ctx.fillRect(baseX, baseY + 4, 4, 1);
-          } else if (char === 'A') {
-            ctx.fillRect(baseX + 1, baseY, 2, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 4);
-            ctx.fillRect(baseX + 3, baseY + 1, 1, 4);
-            ctx.fillRect(baseX + 1, baseY + 2, 2, 1);
-          } else if (char === 'S') {
-            ctx.fillRect(baseX, baseY, 4, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 1);
-            ctx.fillRect(baseX, baseY + 2, 4, 1);
-            ctx.fillRect(baseX + 3, baseY + 3, 1, 1);
-            ctx.fillRect(baseX, baseY + 4, 4, 1);
-          } else if (char === 'I') {
-            ctx.fillRect(baseX, baseY, 4, 1);
-            ctx.fillRect(baseX + 1, baseY + 1, 2, 3);
-            ctx.fillRect(baseX, baseY + 4, 4, 1);
-          } else if (char === 'P') {
-            ctx.fillRect(baseX, baseY, 4, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 4);
-            ctx.fillRect(baseX + 3, baseY + 1, 1, 1);
-            ctx.fillRect(baseX, baseY + 2, 4, 1);
-          } else if (char === 'E') {
-            ctx.fillRect(baseX, baseY, 4, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 1);
-            ctx.fillRect(baseX, baseY + 2, 3, 1);
-            ctx.fillRect(baseX, baseY + 3, 1, 1);
-            ctx.fillRect(baseX, baseY + 4, 4, 1);
-          } else if (char === 'D') {
-            ctx.fillRect(baseX, baseY, 3, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 3);
-            ctx.fillRect(baseX + 3, baseY + 1, 1, 3);
-            ctx.fillRect(baseX, baseY + 4, 3, 1);
-          } else if (char === 'T') {
-            ctx.fillRect(baseX, baseY, 4, 1);
-            ctx.fillRect(baseX + 1, baseY + 1, 2, 4);
-          } else if (char === 'R') {
-            ctx.fillRect(baseX, baseY, 4, 1);
-            ctx.fillRect(baseX, baseY + 1, 1, 4);
-            ctx.fillRect(baseX + 3, baseY + 1, 1, 1);
-            ctx.fillRect(baseX, baseY + 2, 4, 1);
-            ctx.fillRect(baseX + 2, baseY + 3, 2, 2);
-          } else if (char === 'M') {
-            ctx.fillRect(baseX, baseY, 1, 5);
-            ctx.fillRect(baseX + 1, baseY + 1, 1, 1);
-            ctx.fillRect(baseX + 2, baseY + 1, 1, 1);
-            ctx.fillRect(baseX + 3, baseY, 1, 5);
-          }
-        }
-      }
-      
-      // Draw UI elements in fixed screen position (after ctx.restore)
-      // Draw helmet timer indicator in top right corner
-      if (state.player.hasHelmet && state.player.helmetTimer > 0 && !state.inBlackhole) {
-        const timerX = gameWidthRef.current - 30;
-        const timerY = 5;
-        const timerBarWidth = 24;
-        const timerWidth = Math.floor((state.player.helmetTimer / 10) * timerBarWidth);
-        
-        // Helmet icon
-        ctx.fillStyle = '#C0C0C0';
-        ctx.fillRect(timerX - 8, timerY, 6, 5);
-        ctx.fillRect(timerX - 7, timerY + 1, 4, 3);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(timerX - 8, timerY, 6, 1);
-        ctx.fillRect(timerX - 8, timerY, 1, 5);
-        ctx.fillRect(timerX - 2, timerY, 1, 5);
-        
-        // Timer bar background
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(timerX, timerY, timerBarWidth, 5);
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(timerX + 1, timerY + 1, timerBarWidth - 2, 3);
-        
-        // Timer bar fill
-        const timerColor = state.player.helmetTimer > 3 ? '#00FF00' : '#FF0000';
-        ctx.fillStyle = timerColor;
-        ctx.fillRect(timerX + 1, timerY + 1, Math.max(0, timerWidth - 2), 3);
-      }
-
-      // Draw combo indicator in top right corner below helmet timer
-      if (state.combo > 1 && !state.celebrating && !state.inBlackhole) {
-        const comboX = gameWidthRef.current - 20;
-        const comboY = 14;
-        const comboAlpha = Math.min(1, state.comboTimer / 1.5);
-        
-        // Only show combo if timer is active
-        if (comboAlpha > 0.3) {
-          // Combo text background with glow
-          ctx.fillStyle = '#FFD700';
-          ctx.fillRect(comboX - 11, comboY - 1, 22, 8);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(comboX - 10, comboY, 20, 6);
-          ctx.fillStyle = state.combo > 5 ? '#FF00FF' : state.combo > 3 ? '#FF4500' : '#FFD700';
-          ctx.fillRect(comboX - 9, comboY + 1, 18, 4);
-          
-          // Combo number (simple pixel text)
-          ctx.fillStyle = '#FFFFFF';
-          const comboStr = `x${state.combo}`;
-          for (let i = 0; i < comboStr.length; i++) {
-            ctx.fillRect(comboX - 7 + i * 4, comboY + 2, 2, 3);
-          }
-        }
-      }
-      
-      // Draw lives as pixel hearts in top left (below HUD bar)
-      if (!state.inBlackhole && !state.celebrating) {
-        for (let i = 0; i < livesRef.current; i++) {
-          const hx = 4 + i * 10;
-          const hy = 14;
-          ctx.fillStyle = '#FF0000';
-          ctx.fillRect(hx + 1, hy, 2, 1);
-          ctx.fillRect(hx + 5, hy, 2, 1);
-          ctx.fillRect(hx, hy + 1, 4, 1);
-          ctx.fillRect(hx + 4, hy + 1, 4, 1);
-          ctx.fillRect(hx, hy + 2, 8, 1);
-          ctx.fillRect(hx + 1, hy + 3, 6, 1);
-          ctx.fillRect(hx + 2, hy + 4, 4, 1);
-          ctx.fillRect(hx + 3, hy + 5, 2, 1);
-        }
-      }
-
-      // Death flash overlay (reduced opacity for comfort)
-      if (state.deathFlashTimer > 0) {
-        const flashAlpha = (state.deathFlashTimer / 0.3) * 0.5; // Halved intensity
-        ctx.fillStyle = flashAlpha > 0.25 ? `rgba(255,255,255,${flashAlpha})` : `rgba(255,0,0,${flashAlpha * 0.6})`;
-        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
-      }
-
-      // Draw blackhole mini-game overlay (MUST BE LAST - draws on top of everything)
-      if (state.inBlackhole) {
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        
-        // Dark space background with gradient
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, gameWidthRef.current, GAME_HEIGHT);
-        
-        // Add space nebula clouds (solid colors, no alpha)
-        for (let nebula = 0; nebula < 5; nebula++) {
-          const nebulaX = Math.floor((nebula * 40 + state.blackholeTimer * 2) % gameWidthRef.current);
-          const nebulaY = Math.floor((nebula * 30) % GAME_HEIGHT);
-          const nebulaColor = nebula % 2 === 0 ? '#1a0033' : '#2d0052';
-          ctx.fillStyle = nebulaColor;
-          ctx.fillRect(nebulaX, nebulaY, 16, 16);
-          // Add brighter center
-          ctx.fillStyle = nebula % 2 === 0 ? '#2d0052' : '#4B0082';
-          ctx.fillRect(nebulaX + 4, nebulaY + 4, 8, 8);
-        }
-        
-        // Draw stars with clean pixel art (no twinkling alpha)
-        for (let i = 0; i < 50; i++) {
-          const starX = Math.floor((i * 37 + state.blackholeTimer * 10) % gameWidthRef.current);
-          const starY = Math.floor((i * 23) % GAME_HEIGHT);
-          const twinkleFrame = Math.floor(state.blackholeTimer + i) % 3;
-          const starVisible = twinkleFrame < 2;
-          if (starVisible) {
-            ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : i % 3 === 1 ? '#FFFF00' : '#00FFFF';
-            const starSize = i % 5 === 0 ? 2 : 1;
-            ctx.fillRect(starX, starY, starSize, starSize);
-          }
-        }
-        
-        // Draw blackhole with spiral effect
-        const centerX = gameWidthRef.current / 2;
-        const centerY = 40;
-        const time = state.blackholeTimer;
-        
-        // Outer gravitational rings (solid colors by layer)
-        const ringLayers = [
-          { radius: 35, color: '#1a0033' },
-          { radius: 31, color: '#2d0052' },
-          { radius: 27, color: '#4B0082' },
-          { radius: 23, color: '#6A0DAD' },
-          { radius: 19, color: '#8B00FF' },
-          { radius: 15, color: '#9400D3' }
-        ];
-        
-        ringLayers.forEach((layer, distort) => {
-          for (let angle = 0; angle < 360; angle += 20) {
-            const spiralOffset = time * 3 + distort * 20;
-            const rad = ((angle + spiralOffset) % 360) * (Math.PI / 180);
-            const x = Math.floor(centerX + Math.cos(rad) * layer.radius);
-            const y = Math.floor(centerY + Math.sin(rad) * layer.radius);
-            
-            ctx.fillStyle = layer.color;
-            ctx.fillRect(x, y, 2, 2);
-          }
-        });
-        
-        // Spiral arms (use different colors instead of alpha)
-        const armColors = [
-          ['#8B00FF', '#9400D3', '#BA55D3'],
-          ['#9400D3', '#BA55D3', '#DDA0DD'],
-          ['#BA55D3', '#DDA0DD', '#E0B0FF']
-        ];
-        
-        for (let arm = 0; arm < 3; arm++) {
-          const armOffset = arm * 120;
-          
-          for (let i = 0; i < 15; i++) {
-            const spiralAngle = time * 4 + armOffset + i * 24;
-            const spiralRadius = 28 - i * 1.8;
-            const rad = spiralAngle * (Math.PI / 180);
-            const x = Math.floor(centerX + Math.cos(rad) * spiralRadius);
-            const y = Math.floor(centerY + Math.sin(rad) * spiralRadius);
-            
-            const colorIndex = Math.floor(i / 5);
-            ctx.fillStyle = armColors[arm][colorIndex];
-            ctx.fillRect(x, y, 2, 2);
-          }
-        }
-        
-        // Accretion disk particles
-        for (let particle = 0; particle < 30; particle++) {
-          const particleAngle = time * 5 + particle * 12;
-          const particleRadius = 15 + (particle % 10);
-          const rad = particleAngle * (Math.PI / 180);
-          const x = centerX + Math.cos(rad) * particleRadius;
-          const y = centerY + Math.sin(rad) * particleRadius;
-          
-          ctx.fillStyle = particle % 3 === 0 ? '#FF00FF' : particle % 3 === 1 ? '#00FFFF' : '#FFFF00';
-          ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
-        }
-        
-        // Event horizon with layered rings (no alpha glow)
-        const horizonSize = Math.floor(10 + Math.sin(time * 2) * 2);
-        
-        // Layered rings around event horizon (solid colors)
-        const horizonRings = [
-          { size: horizonSize + 10, color: '#1a0033' },
-          { size: horizonSize + 8, color: '#2d0052' },
-          { size: horizonSize + 6, color: '#4B0082' },
-          { size: horizonSize + 4, color: '#6A0DAD' },
-          { size: horizonSize + 2, color: '#8B00FF' }
-        ];
-        
-        horizonRings.forEach(ring => {
-          ctx.fillStyle = ring.color;
-          ctx.fillRect(
-            Math.floor(centerX - ring.size / 2),
-            Math.floor(centerY - ring.size / 2),
-            ring.size,
-            ring.size
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          renderGame(
+            ctx,
+            state,
+            gameWidthRef.current,
+            charRef.current,
+            livesRef.current,
+            spritesRef.current,
+            scanlinesRef.current,
+            now
           );
-        });
-        
-        // Event horizon itself
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(
-          Math.floor(centerX - horizonSize / 2),
-          Math.floor(centerY - horizonSize / 2),
-          horizonSize,
-          horizonSize
-        );
-        
-        // Draw falling player with actual sprite and rotation
-        const playerFallY = 60 + Math.min(state.blackholeFallSpeed, 50);
-        const playerRotation = time * 10;
-        
-        // Player trail effect with actual sprite (fading copies)
-        const trailSprites = [
-          { offset: 3, sprite: 'idle' },
-          { offset: 2, sprite: 'walk1' },
-          { offset: 1, sprite: 'walk2' }
-        ];
-        
-        trailSprites.forEach((trail, index) => {
-          const trailY = playerFallY - (trail.offset + 1) * 8;
-          const trailX = Math.floor(centerX - 8);
-          const trailRotation = playerRotation - trail.offset * 30;
-          
-          // Draw darker version of sprite for trail
-          if (spritesRef.current[trail.sprite]) {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 16;
-            tempCanvas.height = 16;
-            const tempCtx = tempCanvas.getContext('2d')!;
-            tempCtx.imageSmoothingEnabled = false;
-            
-            // Draw sprite
-            tempCtx.drawImage(spritesRef.current[trail.sprite], 0, 0);
-            
-            // Darken it
-            tempCtx.globalCompositeOperation = 'source-atop';
-            tempCtx.fillStyle = `rgba(0, 100, 0, ${0.3 + index * 0.2})`;
-            tempCtx.fillRect(0, 0, 16, 16);
-            
-            ctx.save();
-            ctx.translate(trailX + 8, Math.floor(trailY) + 8);
-            ctx.rotate((trailRotation * Math.PI) / 180);
-            ctx.drawImage(tempCanvas, -8, -8);
-            ctx.restore();
-          }
-        });
-        
-        // Draw main falling player with actual sprite and rotation
-        const rotFrame = Math.floor(playerRotation / 45) % 8;
-        const frameNames = ['idle', 'walk1', 'walk2', 'walk3', 'walk4', 'walk3', 'walk2', 'walk1'];
-        const currentFrame = frameNames[rotFrame];
-        
-        if (spritesRef.current[currentFrame]) {
-          ctx.save();
-          ctx.translate(Math.floor(centerX), Math.floor(playerFallY) + 8);
-          ctx.rotate((playerRotation * Math.PI) / 180);
-          ctx.drawImage(spritesRef.current[currentFrame], -8, -8);
-          ctx.restore();
         }
-        
-        // Draw chart at bottom with enhanced layout - better centered
-        const chartStartX = 45;
-        const chartY = GAME_HEIGHT - 55;
-        
-        // Chart background panel - more compact
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(15, chartY - 30, gameWidthRef.current - 30, 75);
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(17, chartY - 28, gameWidthRef.current - 34, 71);
-        
-        // Chart title with pixel art text - centered
-        const titleText = 'MARKET CHART';
-        const titleWidth = titleText.length * 6;
-        const titleX = (gameWidthRef.current - titleWidth) / 2;
-        const titleY = chartY - 23;
-        
-        // Pixel letters for title (reuse from speech bubble)
-        const pixelLetters: Record<string, number[][]> = {
-          'M': [[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]],
-          'A': [[0,1,1,1,0],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
-          'R': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,1,0,0],[1,0,0,1,1]],
-          'K': [[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0]],
-          'E': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,1,1,1,1]],
-          'T': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
-          'C': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,0],[1,0,0,0,1],[0,1,1,1,0]],
-          'H': [[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
-          ' ': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
-        };
-        
-        let xPos = titleX;
-        for (let i = 0; i < titleText.length; i++) {
-          const char = titleText[i];
-          const pattern = pixelLetters[char];
-          if (pattern) {
-            for (let row = 0; row < 5; row++) {
-              for (let col = 0; col < 5; col++) {
-                if (pattern[row][col] === 1) {
-                  ctx.fillStyle = '#00FF00';
-                  ctx.fillRect(xPos + col, titleY + row, 1, 1);
-                }
-              }
-            }
-          }
-          xPos += 6;
-        }
-        
-        // Grid lines - better positioned
-        ctx.fillStyle = '#222222';
-        for (let i = 0; i < 3; i++) {
-          const gridY = chartY - i * 12;
-          ctx.fillRect(chartStartX - 5, gridY, 85, 1);
-        }
-        
-        // Draw pixel art chart bars with crisp quality - better spacing
-        state.chartBars.forEach((bar, index) => {
-          const barX = chartStartX + index * 15;
-          const barWidth = 11;
-          const barHeight = Math.floor(bar.height * 0.8); // Scale down slightly
-          const isGreen = bar.color === 'green';
-          
-          // Animated appearance (bars grow in)
-          const barAge = state.blackholeTimer - index * 0.8;
-          const growProgress = Math.min(Math.max(barAge / 0.3, 0), 1);
-          const animatedHeight = Math.floor(barHeight * growProgress);
-          
-          if (animatedHeight < 2) return;
-          
-          // Define pixel-perfect colors
-          const brightColor = isGreen ? '#00FF00' : '#FF0000';
-          const midColor = isGreen ? '#00CC00' : '#CC0000';
-          const darkColor = isGreen ? '#008800' : '#880000';
-          const shadowColor = isGreen ? '#004400' : '#440000';
-          
-          // Upper wick (thin line above candle) - pixel perfect
-          const wickTopHeight = 8;
-          const wickX = Math.floor(barX + barWidth / 2);
-          ctx.fillStyle = midColor;
-          ctx.fillRect(wickX, chartY - animatedHeight - wickTopHeight, 1, wickTopHeight);
-          
-          // Main candle body - pixel art style with clean edges
-          // Base fill
-          ctx.fillStyle = midColor;
-          ctx.fillRect(barX, chartY - animatedHeight, barWidth, animatedHeight);
-          
-          // Left highlight (2px bright edge)
-          ctx.fillStyle = brightColor;
-          ctx.fillRect(barX + 1, chartY - animatedHeight + 1, 2, Math.max(1, animatedHeight - 2));
-          
-          // Right shadow (2px dark edge)
-          ctx.fillStyle = darkColor;
-          ctx.fillRect(barX + barWidth - 3, chartY - animatedHeight + 1, 2, Math.max(1, animatedHeight - 2));
-          
-          // Bottom shadow line
-          ctx.fillStyle = shadowColor;
-          ctx.fillRect(barX + 2, chartY - 2, barWidth - 4, 1);
-          
-          // Black outline for crisp edges
-          ctx.fillStyle = '#000000';
-          // Top edge
-          ctx.fillRect(barX, chartY - animatedHeight, barWidth, 1);
-          // Bottom edge
-          ctx.fillRect(barX, chartY - 1, barWidth, 1);
-          // Left edge
-          ctx.fillRect(barX, chartY - animatedHeight, 1, animatedHeight);
-          // Right edge
-          ctx.fillRect(barX + barWidth - 1, chartY - animatedHeight, 1, animatedHeight);
-          
-          // Lower wick (thin line below candle)
-          const wickBottomHeight = 6;
-          ctx.fillStyle = midColor;
-          ctx.fillRect(wickX, chartY, 1, wickBottomHeight);
-          
-          // Pulsing glow for last bar when complete (alternating frames instead of alpha)
-          if (index === state.chartBars.length - 1 && state.chartComplete) {
-            const glowFrame = Math.floor(state.blackholeTimer * 5) % 2;
-            if (glowFrame === 0) {
-              ctx.fillStyle = brightColor;
-              // Glow around bar
-              ctx.fillRect(barX - 1, chartY - animatedHeight - 1, barWidth + 2, 1);
-              ctx.fillRect(barX - 1, chartY, barWidth + 2, 1);
-              ctx.fillRect(barX - 1, chartY - animatedHeight, 1, animatedHeight);
-              ctx.fillRect(barX + barWidth, chartY - animatedHeight, 1, animatedHeight);
-            }
-          }
-          
-          // Pixel art arrow indicator above bar
-          if (growProgress > 0.8) {
-            const arrowX = barX + Math.floor(barWidth / 2) - 2;
-            const arrowY = chartY - animatedHeight - wickTopHeight - 6;
-            
-            ctx.fillStyle = '#FFFF00';
-            if (isGreen) {
-              // Up arrow
-              ctx.fillRect(arrowX + 2, arrowY, 1, 1);
-              ctx.fillRect(arrowX + 1, arrowY + 1, 3, 1);
-              ctx.fillRect(arrowX, arrowY + 2, 5, 1);
-              ctx.fillRect(arrowX + 2, arrowY + 3, 1, 2);
-            } else {
-              // Down arrow
-              ctx.fillRect(arrowX + 2, arrowY, 1, 2);
-              ctx.fillRect(arrowX, arrowY + 2, 5, 1);
-              ctx.fillRect(arrowX + 1, arrowY + 3, 3, 1);
-              ctx.fillRect(arrowX + 2, arrowY + 4, 1, 1);
-            }
-            
-            // Black outline for arrow
-            ctx.fillStyle = '#000000';
-            if (isGreen) {
-              ctx.fillRect(arrowX + 1, arrowY, 3, 1);
-              ctx.fillRect(arrowX, arrowY + 1, 1, 1);
-              ctx.fillRect(arrowX + 4, arrowY + 1, 1, 1);
-            } else {
-              ctx.fillRect(arrowX + 1, arrowY + 4, 3, 1);
-              ctx.fillRect(arrowX, arrowY + 3, 1, 1);
-              ctx.fillRect(arrowX + 4, arrowY + 3, 1, 1);
-            }
-          }
-        });
-        
-        // Chart baseline
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(chartStartX - 5, chartY, 85, 2);
-        
-        // Result message with pixel art text
-        const resultPixelLetters: Record<string, number[][]> = {
-          'G': [[0,1,1,1,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,0,0,1],[0,1,1,1,0]],
-          'R': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,1,0,0],[1,0,0,1,1]],
-          'E': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,1,1,1,1]],
-          'N': [[1,0,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,0,1]],
-          'C': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,0],[1,0,0,0,1],[0,1,1,1,0]],
-          'A': [[0,1,1,1,0],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
-          'D': [[1,1,1,0,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,1,0],[1,1,1,0,0]],
-          'L': [[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
-          'O': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
-          'T': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
-          'I': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1]],
-          'U': [[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
-          'S': [[0,1,1,1,1],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
-          '!': [[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],
-          ' ': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
-          'B': [[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,1],[1,1,1,1,0]],
-          '0': [[0,1,1,1,0],[1,0,0,1,1],[1,0,1,0,1],[1,1,0,0,1],[0,1,1,1,0]],
-          '1': [[0,0,1,0,0],[0,1,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],
-          '2': [[0,1,1,1,0],[1,0,0,0,1],[0,0,1,1,0],[0,1,0,0,0],[1,1,1,1,1]],
-          '3': [[1,1,1,1,0],[0,0,0,0,1],[0,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
-          '4': [[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],
-          '5': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
-          '/': [[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0]]
-        };
-        
-        if (state.chartComplete) {
-          const resultY = GAME_HEIGHT - 22;
-          const line1 = state.chartResult === 'green' ? 'GREEN CANDLE!' : 'RED CANDLE!';
-          const line2 = state.chartResult === 'green' ? 'CONTINUE!' : 'RESTART!';
-          const color = state.chartResult === 'green' ? '#00FF00' : '#FF0000';
-          
-          // Draw first line
-          let xPos = centerX - (line1.length * 6) / 2;
-          for (let i = 0; i < line1.length; i++) {
-            const pattern = resultPixelLetters[line1[i]];
-            if (pattern) {
-              for (let row = 0; row < 5; row++) {
-                for (let col = 0; col < 5; col++) {
-                  if (pattern[row][col] === 1) {
-                    ctx.fillStyle = color;
-                    ctx.fillRect(xPos + col, resultY + row, 1, 1);
-                  }
-                }
-              }
-            }
-            xPos += 6;
-          }
-          
-          // Draw second line
-          xPos = centerX - (line2.length * 6) / 2;
-          for (let i = 0; i < line2.length; i++) {
-            const pattern = resultPixelLetters[line2[i]];
-            if (pattern) {
-              for (let row = 0; row < 5; row++) {
-                for (let col = 0; col < 5; col++) {
-                  if (pattern[row][col] === 1) {
-                    ctx.fillStyle = color;
-                    ctx.fillRect(xPos + col, resultY + 8 + row, 1, 1);
-                  }
-                }
-              }
-            }
-            xPos += 6;
-          }
-        } else {
-          // Show bar count with pixel art text
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(centerX - 32, GAME_HEIGHT - 28, 64, 12);
-          ctx.fillStyle = '#00FF00';
-          ctx.fillRect(centerX - 30, GAME_HEIGHT - 26, 60, 8);
-          
-          const barText = `BAR ${state.chartBars.length}/5`;
-          let xPos = centerX - (barText.length * 6) / 2;
-          const yPos = GAME_HEIGHT - 24;
-          
-          for (let i = 0; i < barText.length; i++) {
-            const pattern = resultPixelLetters[barText[i]];
-            if (pattern) {
-              for (let row = 0; row < 5; row++) {
-                for (let col = 0; col < 5; col++) {
-                  if (pattern[row][col] === 1) {
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(xPos + col, yPos + row, 1, 1);
-                  }
-                }
-              }
-            }
-            xPos += 6;
-          }
-        }
-        ctx.restore();
       }
+
+      rafId = requestAnimationFrame(tick);
     };
 
-    // Keyboard input
     const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      
-      // Store both original and lowercase
-      gameStateRef.current.keys[e.key] = true;
-      gameStateRef.current.keys[key] = true;
-      
-      // Character switching with C key (hidden easter egg - only at stage start)
-      if (key === 'c') {
-        const player = gameStateRef.current.player;
-        if (player.x < 200) {
-          // Reset all ability states before switching
-          player.isDashing = false;
-          player.dashTimer = 0;
-          player.dashCooldown = 0;
-          player.dashAvailable = true;
-          player.isAirSliding = false;
-          player.airSlideTimer = 0;
-          player.speedBoostTimer = 0;
-          player.isSlamming = false;
-          player.slamCharging = false;
-          player.chargeLevel = 0;
-          player.groundPoundRadius = 0;
-          player.invincibilityTimer = 0;
-          player.doubleJumpAvailable = false;
-          player.airDashCount = 0;
-          player.jumpHoldTime = 0;
-          setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
+      const k = e.key;
+      const low = k.toLowerCase();
+
+      soundRef.current?.tryStartMusic();
+
+      if (k === 'Escape' || low === 'p') {
+        if (screenRef.current === 'playing') {
+          setIsPaused((p) => !p);
           e.preventDefault();
         }
+        return;
       }
-      
-      if (e.key === 'ArrowUp' || key === 'w' || e.key === ' ' || key === 'z') {
-        gameStateRef.current.jumpBuffer = JUMP_BUFFER;
+
+      if (screenRef.current === 'title') {
+        if (k === 'Enter' || k === ' ') {
+          startNewRun();
+          e.preventDefault();
+        } else if (k === 'ArrowLeft' || low === 'a') {
+          setSelectedCharacter((prev) =>
+            prev === 'guy1' ? 'guy3' : prev === 'guy2' ? 'guy1' : 'guy2'
+          );
+        } else if (k === 'ArrowRight' || low === 'd') {
+          setSelectedCharacter((prev) =>
+            prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1'
+          );
+        }
+        return;
+      }
+
+      if (screenRef.current === 'gameover') {
+        if (k === 'Enter' || k === ' ') {
+          startNewRun();
+          e.preventDefault();
+        }
+        return;
+      }
+
+      const state = gameStateRef.current;
+      if (e.repeat) {
+        if (k.startsWith('Arrow') || k === ' ') e.preventDefault();
+        return;
+      }
+
+      state.keys[k] = true;
+      state.keys[low] = true;
+
+      if (k === 'ArrowLeft' || low === 'a') state.keys['KeyLeft'] = true;
+      if (k === 'ArrowRight' || low === 'd') state.keys['KeyRight'] = true;
+      if (k === 'ArrowDown' || low === 's') state.keys['KeyDown'] = true;
+
+      if (k === 'ArrowUp' || low === 'w' || k === ' ' || low === 'z') {
+        state.keys['KeyJump'] = true;
+        state.jumpBuffer = JUMP_BUFFER;
         e.preventDefault();
       }
-      
-      // Prevent arrow key scrolling
-      if (e.key.startsWith('Arrow')) {
+
+      if (k === 'Shift') {
+        state.keys['KeyAction'] = true;
+        state.keys['ActionB'] = true;
+        state.abilityJustPressed = true;
+        e.preventDefault();
+      } else if (low === 'f') {
+        state.keys['KeyShoot'] = true;
+        state.shootJustPressed = true;
+        e.preventDefault();
+      } else if (low === 'x') {
+        if (state.player.hasWaterGun) {
+          state.keys['KeyShoot'] = true;
+          state.shootJustPressed = true;
+        } else {
+          state.keys['KeyAction'] = true;
+          state.keys['ActionB'] = true;
+          state.abilityJustPressed = true;
+        }
         e.preventDefault();
       }
+
+      if (low === 'c' && state.player.x < 200) {
+        resetPlayerAbilities(state.player);
+        setSelectedCharacter((prev) =>
+          prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1'
+        );
+      }
+
+      if (k.startsWith('Arrow')) e.preventDefault();
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      gameStateRef.current.keys[e.key] = false;
-      gameStateRef.current.keys[key] = false;
+      const k = e.key;
+      const low = k.toLowerCase();
+      const state = gameStateRef.current;
+      state.keys[k] = false;
+      state.keys[low] = false;
+
+      if (k === 'ArrowLeft' || low === 'a') state.keys['KeyLeft'] = false;
+      if (k === 'ArrowRight' || low === 'd') state.keys['KeyRight'] = false;
+      if (k === 'ArrowDown' || low === 's') state.keys['KeyDown'] = false;
+      if (k === 'ArrowUp' || low === 'w' || k === ' ' || low === 'z') state.keys['KeyJump'] = false;
+      if (k === 'Shift' || low === 'x') {
+        state.keys['KeyAction'] = false;
+        state.keys['ActionB'] = !!state.keys['TouchAction'];
+      }
+      if (low === 'f' || low === 'x') {
+        state.keys['KeyShoot'] = false;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-
-    animationId = requestAnimationFrame(gameLoop);
+    rafId = requestAnimationFrame(tick);
 
     return () => {
-      cancelAnimationFrame(animationId);
+      cancelAnimationFrame(rafId);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [spritesLoaded, currentStage]);
+  }, [spritesLoaded, startNewRun, persistProgress]);
 
+  // Unified Slideable Multi-Touch D-Pad Handler
+  const updateDpadFromClientX = (clientX: number | null) => {
+    const state = gameStateRef.current;
+    soundRef.current?.tryStartMusic();
+
+    if (clientX === null || !dpadRef.current) {
+      state.keys['TouchLeft'] = false;
+      state.keys['TouchRight'] = false;
+      state.keys['ArrowLeft'] = !!state.keys['KeyLeft'];
+      state.keys['ArrowRight'] = !!state.keys['KeyRight'];
+      setActiveDpadDir(null);
+      return;
+    }
+
+    const rect = dpadRef.current.getBoundingClientRect();
+    const relX = clientX - (rect.left + rect.width / 2);
+
+    if (relX < -4) {
+      state.keys['TouchLeft'] = true;
+      state.keys['TouchRight'] = false;
+      state.keys['ArrowLeft'] = true;
+      state.keys['ArrowRight'] = false;
+      setActiveDpadDir('left');
+    } else if (relX > 4) {
+      state.keys['TouchLeft'] = false;
+      state.keys['TouchRight'] = true;
+      state.keys['ArrowLeft'] = false;
+      state.keys['ArrowRight'] = true;
+      setActiveDpadDir('right');
+    }
+  };
+
+  const handleDpadTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (!dpadRef.current) return;
+    const rect = dpadRef.current.getBoundingClientRect();
+    let matchedTouch: React.Touch | null = null;
+    for (let i = 0; i < e.touches.length; i++) {
+      const t = e.touches[i];
+      if (
+        t.clientX >= rect.left - 36 &&
+        t.clientX <= rect.right + 36 &&
+        t.clientY >= rect.top - 48 &&
+        t.clientY <= rect.bottom + 48
+      ) {
+        matchedTouch = t;
+        break;
+      }
+    }
+    updateDpadFromClientX(matchedTouch ? matchedTouch.clientX : null);
+  };
+
+  const handleJumpBtn = (pressed: boolean, e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
+    soundRef.current?.tryStartMusic();
+    const state = gameStateRef.current;
+    state.keys['TouchJump'] = pressed;
+    state.keys['ArrowUp'] = pressed || !!state.keys['KeyJump'];
+    if (pressed) {
+      state.jumpBuffer = JUMP_BUFFER;
+    }
+    setActiveBtnA(pressed);
+  };
+
+  const handleActionBtn = (pressed: boolean, e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
+    soundRef.current?.tryStartMusic();
+    const state = gameStateRef.current;
+    state.keys['TouchAction'] = pressed;
+    state.keys['ActionB'] = pressed || !!state.keys['KeyAction'];
+    if (pressed) {
+      state.abilityJustPressed = true;
+    }
+    setActiveBtnB(pressed);
+  };
+
+  const handleFireBtn = (pressed: boolean, e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
+    soundRef.current?.tryStartMusic();
+    const state = gameStateRef.current;
+    state.keys['TouchShoot'] = pressed;
+    state.keys['ShootWater'] = pressed || !!state.keys['PadShoot'];
+    if (pressed) {
+      state.shootJustPressed = true;
+    }
+    setActiveBtnFire(pressed);
+  };
+
+  const toggleAudio = () => {
+    const next = !audioEnabled;
+    setAudioEnabled(next);
+    soundRef.current?.setEnabled(next);
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  // Loading Splash Screen
   if (!spritesLoaded) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen" style={{ background: '#000' }}>
+      <div
+        className="flex flex-col items-center justify-center min-h-screen"
+        style={{ background: '#070912' }}
+      >
         <style>{`
           @keyframes pixelBounce {
             0%, 100% { transform: translateY(0px); }
             50% { transform: translateY(-8px); }
           }
-          @keyframes pixelBlink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-          }
-          @keyframes pixelBar {
-            0% { width: 10%; }
-            50% { width: 70%; }
-            100% { width: 95%; }
-          }
         `}</style>
-        <img 
-          src="/croak.png" 
-          alt="Loading..." 
-          style={{ 
-            width: '64px', 
+        <img
+          src="/croak.png"
+          alt="Loading FLIPPRX..."
+          style={{
+            width: '64px',
             height: '64px',
             imageRendering: 'pixelated',
-            animation: 'pixelBounce 1s ease-in-out infinite',
-            marginBottom: '24px',
-          }} 
+            animation: 'pixelBounce 0.9s ease-in-out infinite',
+            marginBottom: '20px',
+          }}
         />
-        <div style={{ color: '#4ade80', fontSize: '10px', marginBottom: '16px', letterSpacing: '2px' }}>
-          LOADING...
+        <div
+          style={{
+            color: '#4ADE80',
+            fontSize: '10px',
+            marginBottom: '14px',
+            letterSpacing: '2px',
+          }}
+        >
+          LOADING... {loadProgress}%
         </div>
-        {/* Pixel progress bar */}
-        <div style={{ width: '160px', height: '8px', background: '#1a1a2e', border: '2px solid #4ade80', padding: '1px' }}>
-          <div style={{ height: '100%', background: '#4ade80', animation: 'pixelBar 2s ease-in-out infinite', imageRendering: 'pixelated' }} />
+        <div
+          style={{
+            width: '176px',
+            height: '10px',
+            background: '#0F172A',
+            border: '2px solid #4ADE80',
+            padding: '1px',
+          }}
+        >
+          <div
+            style={{
+              width: `${loadProgress}%`,
+              height: '100%',
+              background: '#4ADE80',
+              transition: 'width 120ms linear',
+            }}
+          />
         </div>
       </div>
     );
   }
 
-  // Mobile button handlers
-  const handleMobileButton = (action: string, pressed: boolean) => {
-    const state = gameStateRef.current;
-    
-    // Auto-start music on first mobile button press
-    if (pressed && !musicStartedRef.current && bgMusicRef.current && audioEnabled) {
-      bgMusicRef.current.play().catch(() => {});
-      musicStartedRef.current = true;
-    }
-    
-    if (action === 'left') {
-      state.keys['ArrowLeft'] = pressed;
-    } else if (action === 'right') {
-      state.keys['ArrowRight'] = pressed;
-    } else if (action === 'jump') {
-      state.keys['ArrowUp'] = pressed;
-      if (pressed) state.jumpBuffer = JUMP_BUFFER;
-    } else if (action === 'shoot') {
-      state.keys['x'] = pressed;
-      state.keys['X'] = pressed;
-    }
-  };
+  const charMeta = CHARACTERS[selectedCharacter];
+  const bButtonLabel =
+    selectedCharacter === 'guy1' ? 'DASH' : selectedCharacter === 'guy2' ? 'BOOST' : 'SLAM';
 
-  // Pixel art button style
-  const pxBtn = { userSelect: 'none' as const, WebkitUserSelect: 'none' as const, WebkitTouchCallout: 'none' as const, touchAction: 'manipulation' as const, MozUserSelect: 'none' as const, msUserSelect: 'none' as const, imageRendering: 'pixelated' as const };
+  // Shared Overlays (Title, Pause, Game Over / Victory) rendered inside the game viewport
+  const renderOverlays = () => (
+    <>
+      {/* === TITLE SCREEN OVERLAY === */}
+      {gameScreen === 'title' && (
+        <div
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center px-3 py-2 overflow-y-auto"
+          style={{ background: 'rgba(6, 9, 18, 0.84)', backdropFilter: 'blur(2px)' }}
+        >
+          <style>{`
+            @keyframes titlePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+            @keyframes startPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.45); } 50% { box-shadow: 0 0 18px 2px rgba(74,222,128,0.45); } }
+          `}</style>
 
-  if (isMobile) {
+          {/* Logo + Subtitle */}
+          <div className="flex items-center gap-3 mb-2">
+            <img
+              src="/flip.png"
+              alt="FLIPPRX"
+              style={{
+                width: '48px',
+                height: '48px',
+                imageRendering: 'pixelated',
+                animation: 'titlePulse 2.2s ease-in-out infinite',
+                filter:
+                  'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%)',
+              }}
+            />
+            <div>
+              <div
+                style={{
+                  color: '#FDE047',
+                  fontSize: 'clamp(13px, 2.8vw, 20px)',
+                  letterSpacing: '2px',
+                  textShadow: '2px 2px 0 #000',
+                }}
+              >
+                FLIPPRX
+              </div>
+              <div
+                style={{
+                  color: '#4ADE80',
+                  fontSize: 'clamp(6px, 1.2vw, 8px)',
+                  letterSpacing: '1.5px',
+                  marginTop: '3px',
+                }}
+              >
+                PIXEL OVERLORD EDITION
+              </div>
+            </div>
+          </div>
+
+          {/* High Score & Best Stage Ribbon */}
+          <div
+            className="flex items-center gap-4 mb-3 px-3 py-1"
+            style={{
+              background: 'rgba(15, 23, 42, 0.9)',
+              border: '1px solid #334155',
+              fontSize: '7px',
+              letterSpacing: '1px',
+            }}
+          >
+            <span style={{ color: '#FDE047' }}>HI-SCORE: {highScore}</span>
+            <span style={{ color: '#38BDF8' }}>BEST STAGE: {bestStage}/10</span>
+          </div>
+
+          {/* Interactive Character Cards */}
+          <div
+            style={{
+              color: '#94A3B8',
+              fontSize: '6px',
+              letterSpacing: '1.5px',
+              marginBottom: '6px',
+            }}
+          >
+            CHOOSE YOUR HERO
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 w-full max-w-md mb-3">
+            {(['guy1', 'guy2', 'guy3'] as const).map((cid) => {
+              const c = CHARACTERS[cid];
+              const selected = selectedCharacter === cid;
+              const spriteSrc =
+                cid === 'guy1' ? '/sprites/standing.png' : `/sprites/${cid}/standing.png`;
+
+              return (
+                <button
+                  key={cid}
+                  type="button"
+                  onClick={() => setSelectedCharacter(cid)}
+                  className="flex flex-col items-center p-2 transition-transform active:scale-95"
+                  style={{
+                    ...pxNoSelect,
+                    touchAction: 'manipulation',
+                    background: selected ? 'rgba(15, 23, 42, 0.96)' : 'rgba(15, 23, 42, 0.68)',
+                    border: `2px solid ${selected ? c.color : '#334155'}`,
+                    boxShadow: selected ? `0 0 12px ${c.color}44` : 'none',
+                  }}
+                >
+                  <img
+                    src={spriteSrc}
+                    alt={c.name}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      imageRendering: 'pixelated',
+                      marginBottom: '4px',
+                    }}
+                  />
+                  <div
+                    style={{
+                      color: selected ? c.color : '#CBD5E1',
+                      fontSize: 'clamp(6px, 1.3vw, 8px)',
+                      letterSpacing: '0.5px',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    {c.name}
+                  </div>
+                  {/* Mini Stat Bars */}
+                  <div className="w-full space-y-1">
+                    {(
+                      [
+                        ['SPD', c.stats.speed],
+                        ['JMP', c.stats.jump],
+                        ['PWR', c.stats.power],
+                      ] as const
+                    ).map(([lbl, val]) => (
+                      <div key={lbl} className="flex items-center gap-1">
+                        <span style={{ fontSize: '5px', color: '#94A3B8', width: '16px' }}>
+                          {lbl}
+                        </span>
+                        <div className="flex-1 flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <div
+                              key={n}
+                              style={{
+                                height: '3px',
+                                flex: 1,
+                                background: n <= val ? c.color : '#1E293B',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected Character Ability Readout */}
+          <div
+            className="w-full max-w-md px-3 py-1.5 mb-3 text-center"
+            style={{
+              background: 'rgba(15, 23, 42, 0.92)',
+              border: `1px solid ${charMeta.color}66`,
+            }}
+          >
+            <div style={{ color: charMeta.color, fontSize: '7px', marginBottom: '2px' }}>
+              {charMeta.abilityName}
+            </div>
+            <div style={{ color: '#E2E8F0', fontSize: '5.5px', lineHeight: '1.5' }}>
+              {charMeta.abilityHint}
+            </div>
+          </div>
+
+          {/* Tactile Start Button */}
+          <button
+            type="button"
+            onClick={startNewRun}
+            className="px-6 py-2.5 transition-transform active:scale-95"
+            style={{
+              ...pxNoSelect,
+              touchAction: 'manipulation',
+              background: '#22C55E',
+              color: '#052E16',
+              border: '2px solid #86EFAC',
+              fontSize: 'clamp(9px, 1.8vw, 12px)',
+              letterSpacing: '2px',
+              animation: 'startPulse 1.8s ease-in-out infinite',
+            }}
+          >
+            ▶ PLAY GAME
+          </button>
+        </div>
+      )}
+
+      {/* === PAUSE MENU OVERLAY === */}
+      {isPaused && gameScreen === 'playing' && (
+        <div
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2.5 px-4"
+          style={{ background: 'rgba(6, 9, 18, 0.86)' }}
+        >
+          <div
+            style={{
+              color: '#FDE047',
+              fontSize: '14px',
+              letterSpacing: '3px',
+              marginBottom: '8px',
+            }}
+          >
+            PAUSED
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsPaused(false)}
+            style={{
+              ...pxNoSelect,
+              touchAction: 'manipulation',
+              width: '190px',
+              padding: '9px 14px',
+              color: '#052E16',
+              background: '#4ADE80',
+              border: '2px solid #86EFAC',
+              fontSize: '8px',
+              letterSpacing: '1.5px',
+            }}
+          >
+            RESUME
+          </button>
+
+          <button
+            type="button"
+            onClick={restartCurrentStage}
+            style={{
+              ...pxNoSelect,
+              touchAction: 'manipulation',
+              width: '190px',
+              padding: '8px 14px',
+              color: '#38BDF8',
+              background: 'rgba(15,23,42,0.9)',
+              border: '2px solid #38BDF8',
+              fontSize: '7px',
+              letterSpacing: '1px',
+            }}
+          >
+            RESTART STAGE {currentStage}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setScanlinesEnabled((s) => !s)}
+            style={{
+              ...pxNoSelect,
+              touchAction: 'manipulation',
+              width: '190px',
+              padding: '8px 14px',
+              color: '#E2E8F0',
+              background: 'rgba(15,23,42,0.9)',
+              border: '2px solid #475569',
+              fontSize: '7px',
+              letterSpacing: '1px',
+            }}
+          >
+            CRT LINES: {scanlinesEnabled ? 'ON' : 'OFF'}
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleAudio}
+            style={{
+              ...pxNoSelect,
+              touchAction: 'manipulation',
+              width: '190px',
+              padding: '8px 14px',
+              color: audioEnabled ? '#FDE047' : '#94A3B8',
+              background: 'rgba(15,23,42,0.9)',
+              border: '2px solid #475569',
+              fontSize: '7px',
+              letterSpacing: '1px',
+            }}
+          >
+            SOUND: {audioEnabled ? 'ON' : 'MUTED'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              persistProgress(score, currentStage);
+              setIsPaused(false);
+              setGameScreen('title');
+            }}
+            style={{
+              ...pxNoSelect,
+              touchAction: 'manipulation',
+              width: '190px',
+              padding: '8px 14px',
+              color: '#F87171',
+              background: 'rgba(15,23,42,0.9)',
+              border: '2px solid #EF4444',
+              fontSize: '7px',
+              letterSpacing: '1px',
+            }}
+          >
+            QUIT TO TITLE
+          </button>
+        </div>
+      )}
+
+      {/* === GAME OVER / FINAL VICTORY OVERLAY === */}
+      {gameScreen === 'gameover' && (
+        <div
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center px-4"
+          style={{ background: 'rgba(6, 9, 18, 0.92)' }}
+        >
+          {gameWon && (
+            <img
+              src="/sprites/boss/boss_p2_hurt.png"
+              alt="Overlord Defeated"
+              style={{
+                width: '56px',
+                height: '53px',
+                imageRendering: 'pixelated',
+                marginBottom: '6px',
+              }}
+            />
+          )}
+
+          <div
+            style={{
+              color: gameWon ? '#FDE047' : '#EF4444',
+              fontSize: 'clamp(13px, 3vw, 18px)',
+              letterSpacing: '3px',
+              marginBottom: '4px',
+              textShadow: '2px 2px 0 #000',
+            }}
+          >
+            {gameWon ? 'CHAMPION!' : 'GAME OVER'}
+          </div>
+
+          <div
+            style={{
+              color: gameWon ? '#4ADE80' : '#94A3B8',
+              fontSize: '7px',
+              letterSpacing: '1px',
+              marginBottom: '14px',
+            }}
+          >
+            {gameWon ? 'OVERLORD REKTUS DEFEATED!' : `FELL ON STAGE ${currentStage}`}
+          </div>
+
+          <div
+            className="px-6 py-3 mb-4 text-center space-y-1.5"
+            style={{
+              background: 'rgba(15, 23, 42, 0.95)',
+              border: `2px solid ${gameWon ? '#FACC15' : '#334155'}`,
+            }}
+          >
+            <div style={{ color: '#FDE047', fontSize: '9px' }}>SCORE: {score}</div>
+            <div style={{ color: '#38BDF8', fontSize: '7px' }}>HI-SCORE: {highScore}</div>
+            <div style={{ color: '#CBD5E1', fontSize: '6.5px' }}>STAGE: {currentStage}/10</div>
+            <div style={{ color: '#CBD5E1', fontSize: '6.5px' }}>DEATHS: {deathCount}</div>
+            {isNewRecord && (
+              <div style={{ color: '#4ADE80', fontSize: '8px', paddingTop: '4px' }}>
+                ★ NEW HIGH SCORE! ★
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={startNewRun}
+              style={{
+                ...pxNoSelect,
+                touchAction: 'manipulation',
+                padding: '10px 18px',
+                background: '#4ADE80',
+                color: '#052E16',
+                border: '2px solid #86EFAC',
+                fontSize: '8px',
+                letterSpacing: '1.5px',
+              }}
+            >
+              PLAY AGAIN
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGameScreen('title')}
+              style={{
+                ...pxNoSelect,
+                touchAction: 'manipulation',
+                padding: '10px 14px',
+                background: 'rgba(15,23,42,0.9)',
+                color: '#E2E8F0',
+                border: '2px solid #64748B',
+                fontSize: '8px',
+                letterSpacing: '1px',
+              }}
+            >
+              HEROES
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  // ============================================================================
+  // 1. MOBILE / FULLSCREEN TOUCH MODE (Android TWA + Capacitor + Mobile Web)
+  // ============================================================================
+  if (isTouchMode) {
     return (
       <div
-        className="fixed inset-0 overflow-hidden"
-        style={{ touchAction: 'none', background: '#000', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+        ref={containerRef}
+        className="fixed inset-0 overflow-hidden bg-black"
+        style={pxNoSelect}
         onContextMenu={(e) => e.preventDefault()}
       >
-        {/* Fullscreen Canvas — cover in landscape fills screen, contain in portrait keeps it clean */}
         <canvas
           ref={canvasRef}
           width={gameWidthRef.current}
@@ -4813,197 +1220,79 @@ export default function PixelGame() {
           }}
         />
 
-        {/* === TITLE SCREEN OVERLAY === */}
-        {gameScreen === 'title' && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)' }}>
-            <style>{`
-              @keyframes titlePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-              @keyframes blinkText { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
-              @keyframes starFloat { 0% { transform: translateY(0); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
-            `}</style>
-            <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', animation: 'titlePulse 2s ease-in-out infinite', marginBottom: '12px', filter: 'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%)' }} />
-            <div style={{ color: '#4ade80', fontSize: '8px', letterSpacing: '1px', marginBottom: '32px' }}>PIXEL GAME</div>
-            
-            {/* Character select */}
-            <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-              <div style={{ color: '#aaa', fontSize: '6px', marginBottom: '8px', letterSpacing: '1px' }}>SELECT CHARACTER</div>
-              <div className="flex gap-4 items-center justify-center">
-                {(['guy1', 'guy2', 'guy3'] as const).map((char) => (
-                  <button
-                    key={char}
-                    onClick={() => setSelectedCharacter(char)}
-                    style={{
-                      ...pxBtn,
-                      padding: '6px 10px',
-                      background: selectedCharacter === char ? '#4ade80' : '#222',
-                      color: selectedCharacter === char ? '#000' : '#888',
-                      border: `2px solid ${selectedCharacter === char ? '#4ade80' : '#444'}`,
-                      fontSize: '7px',
-                      letterSpacing: '1px',
-                    }}
-                  >
-                    {char === 'guy1' ? 'CLASSIC' : char === 'guy2' ? 'SPEED' : 'SLAM'}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {renderOverlays()}
 
-            {/* Start button */}
-            <button
-              onClick={() => {
-                // Full reset
-                setScore(0);
-                setDeathCount(0);
-                setCurrentStage(1);
-                setLives(3);
-                setGameWon(false);
-                
-                // Reset game state ref
-                const state = gameStateRef.current;
-                const player = state.player;
-                player.x = 80; player.y = 112;
-                player.velocityX = 0; player.velocityY = 0;
-                player.onGround = true; player.facingLeft = false;
-                player.rotation = 0; player.hasHelmet = false; player.helmetTimer = 0;
-                player.hasWaterGun = false; player.waterGunTimer = 0; player.shootCooldown = 0;
-                player.invincibilityTimer = 0; player.isAirSliding = false; player.airSlideTimer = 0;
-                player.airSlideUsed = false; player.isSlamming = false; player.slamCharging = false;
-                player.jumpHoldTime = 0; player.doubleJumpAvailable = false;
-                player.dashAvailable = true; player.dashTimer = 0; player.isDashing = false;
-                player.dashCooldown = 0; player.speedBoostTimer = 0; player.airDashCount = 0;
-                player.groundPoundRadius = 0; player.chargeLevel = 0; player.landingTimer = 0;
-                state.camera = { x: 0, y: 0, targetX: 0 };
-                state.combo = 0; state.comboTimer = 0; state.screenShake = 0;
-                state.celebrating = false; state.celebrationTimer = 0;
-                state.gameStarted = false; state.gameStartTimer = 0;
-                state.deathFlashTimer = 0;
-                state.particles = []; state.waterProjectiles = [];
-                state.inBlackhole = false; state.blackholeTimer = 0;
-                state.speechBubble = null; state.speechCooldown = 0;
-                state.keys = {};
-                
-                setGameScreen('playing');
-              }}
-              style={{ ...pxBtn, color: '#fff', fontSize: '10px', letterSpacing: '2px', animation: 'blinkText 1.2s step-end infinite', background: 'none', border: 'none', padding: '12px', marginBottom: '16px' }}
-            >
-              PRESS START
-            </button>
-
-            {/* High score */}
-            {highScore > 0 && (
-              <div style={{ color: '#FFD700', fontSize: '6px', letterSpacing: '1px' }}>
-                HI-SCORE: {highScore}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* === GAME OVER OVERLAY === */}
-        {gameScreen === 'gameover' && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.92)' }}>
-            <div style={{ color: gameWon ? '#FFD700' : '#FF0000', fontSize: '14px', letterSpacing: '3px', marginBottom: '6px', textShadow: '2px 2px 0 #000' }}>
-              {gameWon ? 'YOU WIN!' : 'GAME OVER'}
-            </div>
-            {gameWon && (
-              <div style={{ color: '#4ade80', fontSize: '7px', letterSpacing: '1px', marginBottom: '16px' }}>ALL 10 STAGES CLEARED</div>
-            )}
-            {!gameWon && (
-              <div style={{ color: '#888', fontSize: '7px', marginBottom: '16px' }}>NO LIVES LEFT</div>
-            )}
-            
-            <div style={{ textAlign: 'center', marginBottom: '20px', border: '1px solid #333', padding: '12px 20px' }}>
-              <div style={{ color: '#FFD700', fontSize: '8px', marginBottom: '6px' }}>SCORE: {score}</div>
-              <div style={{ color: '#aaa', fontSize: '6px', marginBottom: '3px' }}>STAGE: {currentStage}/10</div>
-              <div style={{ color: '#aaa', fontSize: '6px', marginBottom: '3px' }}>DEATHS: {deathCount}</div>
-              <div style={{ color: '#aaa', fontSize: '6px' }}>LIVES LEFT: {lives}</div>
-              {score > highScore && (
-                <div style={{ color: '#4ade80', fontSize: '8px', marginTop: '8px', letterSpacing: '1px' }}>NEW HI-SCORE!</div>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                if (score > highScore) {
-                  setHighScore(score);
-                  try { localStorage.setItem('flipprx_highscore', score.toString()); } catch {}
-                }
-                setGameScreen('title');
-              }}
-              style={{ ...pxBtn, color: '#fff', fontSize: '8px', letterSpacing: '2px', background: 'none', border: '2px solid #fff', padding: '10px 20px', marginBottom: '12px' }}
-            >
-              {gameWon ? 'PLAY AGAIN' : 'TRY AGAIN'}
-            </button>
-          </div>
-        )}
-
-        {/* === PAUSE OVERLAY === */}
-        {isPaused && gameScreen === 'playing' && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
-            <div style={{ color: '#fff', fontSize: '14px', letterSpacing: '3px', marginBottom: '24px' }}>PAUSED</div>
-            
-            <button
-              onClick={() => setIsPaused(false)}
-              style={{ ...pxBtn, color: '#4ade80', fontSize: '8px', letterSpacing: '2px', background: 'none', border: '2px solid #4ade80', padding: '10px 20px', marginBottom: '12px' }}
-            >
-              RESUME
-            </button>
-            <button
-              onClick={() => {
-                setIsPaused(false);
-                if (score > highScore) {
-                  setHighScore(score);
-                  try { localStorage.setItem('flipprx_highscore', score.toString()); } catch {}
-                }
-                setGameScreen('title');
-              }}
-              style={{ ...pxBtn, color: '#FF6666', fontSize: '7px', letterSpacing: '1px', background: 'none', border: '2px solid #FF6666', padding: '8px 16px' }}
-            >
-              QUIT TO TITLE
-            </button>
-          </div>
-        )}
-
-        {/* === TOP HUD BAR (pixel style) === */}
+        {/* Compact Top Bar */}
         {gameScreen === 'playing' && !isPaused && (
-          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between" style={{ padding: '6px 10px', paddingTop: 'env(safe-area-inset-top, 6px)', background: 'rgba(0,0,0,0.5)' }}>
-            {/* Pause button */}
+          <div
+            className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between"
+            style={{
+              padding: '4px 10px',
+              paddingTop: 'max(4px, env(safe-area-inset-top, 4px))',
+              background: 'linear-gradient(180deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 100%)',
+            }}
+          >
             <button
+              type="button"
               onClick={() => setIsPaused(true)}
-              style={{ ...pxBtn, color: '#fff', fontSize: '7px', padding: '4px 8px', background: 'none', border: '1px solid rgba(255,255,255,0.3)' }}
+              style={{
+                ...pxNoSelect,
+                touchAction: 'manipulation',
+                color: '#FFFFFF',
+                fontSize: '7px',
+                padding: '4px 8px',
+                background: 'rgba(15, 23, 42, 0.7)',
+                border: '1px solid rgba(255,255,255,0.35)',
+              }}
             >
               II
             </button>
 
-            {/* Score & Stage */}
-            <div className="flex gap-3" style={{ fontSize: '6px', color: '#fff', letterSpacing: '1px' }}>
-              <span>{score}</span>
-              <span style={{ color: '#FFD700' }}>STG {currentStage}</span>
+            <div
+              className="flex items-center gap-3"
+              style={{ fontSize: '7px', letterSpacing: '1px', textShadow: '1px 1px 0 #000' }}
+            >
+              <span style={{ color: '#FFFFFF' }}>{score}</span>
+              <span style={{ color: '#FDE047' }}>STG {currentStage}</span>
             </div>
 
-            {/* Audio + Character */}
-            <div className="flex gap-2 items-center">
+            <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => {
                   const player = gameStateRef.current.player;
                   if (player.x < 200) {
-                    player.isDashing = false; player.dashTimer = 0; player.dashCooldown = 0; player.dashAvailable = true;
-                    player.isAirSliding = false; player.airSlideTimer = 0; player.speedBoostTimer = 0;
-                    player.isSlamming = false; player.slamCharging = false; player.chargeLevel = 0;
-                    player.groundPoundRadius = 0; player.invincibilityTimer = 0;
-                    player.doubleJumpAvailable = false; player.airDashCount = 0; player.jumpHoldTime = 0;
-                    setSelectedCharacter(prev => prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1');
+                    resetPlayerAbilities(player);
+                    setSelectedCharacter((prev) =>
+                      prev === 'guy1' ? 'guy2' : prev === 'guy2' ? 'guy3' : 'guy1'
+                    );
                   }
                 }}
-                style={{ ...pxBtn, color: '#4ade80', fontSize: '4px', padding: '3px 5px', background: 'none', border: '1px solid rgba(74,222,128,0.4)', letterSpacing: '0.5px' }}
-              >
-                {selectedCharacter === 'guy1' ? 'CLSc' : selectedCharacter === 'guy2' ? 'SPD' : 'SLM'}
-              </button>
-              <button
-                onClick={() => {
-                  if (!audioEnabled && bgMusicRef.current && bgMusicRef.current.paused) bgMusicRef.current.play().catch(() => {});
-                  setAudioEnabled(!audioEnabled);
+                style={{
+                  ...pxNoSelect,
+                  touchAction: 'manipulation',
+                  color: charMeta.color,
+                  fontSize: '5.5px',
+                  padding: '3px 6px',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: `1px solid ${charMeta.color}88`,
                 }}
-                style={{ ...pxBtn, color: audioEnabled ? '#4ade80' : '#666', fontSize: '6px', padding: '3px 6px', background: 'none', border: '1px solid rgba(255,255,255,0.2)' }}
+              >
+                {charMeta.shortLabel}
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleAudio}
+                style={{
+                  ...pxNoSelect,
+                  touchAction: 'manipulation',
+                  color: audioEnabled ? '#4ADE80' : '#64748B',
+                  fontSize: '7px',
+                  padding: '3px 7px',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                }}
               >
                 {audioEnabled ? '♪' : '×'}
               </button>
@@ -5011,133 +1300,330 @@ export default function PixelGame() {
           </div>
         )}
 
-        {/* === PIXEL D-PAD (left/right only) === */}
+        {/* Thumb-Slideable Multi-Touch D-Pad (Left Side) */}
         {gameScreen === 'playing' && !isPaused && (
-          <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', left: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onContextMenu={(e) => e.preventDefault()}>
-            <div className="flex" style={{ gap: '12px' }}>
-              {/* Left */}
-              <button
-                onTouchStart={() => handleMobileButton('left', true)}
-                onTouchEnd={() => handleMobileButton('left', false)}
-                onTouchCancel={() => handleMobileButton('left', false)}
-                onMouseDown={() => handleMobileButton('left', true)}
-                onMouseUp={() => handleMobileButton('left', false)}
-                onMouseLeave={() => handleMobileButton('left', false)}
-                className="flex items-center justify-center transition-transform active:scale-95"
-                style={{ 
-                  ...pxBtn, 
-                  width: 'clamp(64px, 16vw, 80px)', 
-                  height: 'clamp(64px, 16vw, 80px)', 
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)', 
-                  border: '2px solid rgba(255,255,255,0.2)', 
-                  borderRadius: '50%',
-                  color: 'rgba(255,255,255,0.8)', 
-                  fontSize: '24px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.1)'
-                }}
-              >
-                ◀
-              </button>
-              {/* Right */}
-              <button
-                onTouchStart={() => handleMobileButton('right', true)}
-                onTouchEnd={() => handleMobileButton('right', false)}
-                onTouchCancel={() => handleMobileButton('right', false)}
-                onMouseDown={() => handleMobileButton('right', true)}
-                onMouseUp={() => handleMobileButton('right', false)}
-                onMouseLeave={() => handleMobileButton('right', false)}
-                className="flex items-center justify-center transition-transform active:scale-95"
-                style={{ 
-                  ...pxBtn, 
-                  width: 'clamp(64px, 16vw, 80px)', 
-                  height: 'clamp(64px, 16vw, 80px)', 
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)', 
-                  border: '2px solid rgba(255,255,255,0.2)', 
-                  borderRadius: '50%',
-                  color: 'rgba(255,255,255,0.8)', 
-                  fontSize: '24px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.1)'
-                }}
-              >
-                ▶
-              </button>
+          <div
+            ref={dpadRef}
+            onTouchStart={handleDpadTouch}
+            onTouchMove={handleDpadTouch}
+            onTouchEnd={handleDpadTouch}
+            onTouchCancel={handleDpadTouch}
+            className="absolute z-20 flex items-center"
+            style={{
+              bottom: 'clamp(14px, 3.8vh, 34px)',
+              left: 'clamp(12px, 3vw, 28px)',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              gap: '8px',
+            }}
+          >
+            <div
+              className="flex items-center justify-center rounded-full"
+              style={{
+                width: 'clamp(62px, 15vw, 78px)',
+                height: 'clamp(62px, 15vw, 78px)',
+                background:
+                  activeDpadDir === 'left'
+                    ? 'rgba(56, 189, 248, 0.36)'
+                    : 'rgba(255, 255, 255, 0.13)',
+                border: `2px solid ${
+                  activeDpadDir === 'left' ? 'rgba(56,189,248,0.8)' : 'rgba(255,255,255,0.25)'
+                }`,
+                color: '#FFFFFF',
+                fontSize: '22px',
+                transform: activeDpadDir === 'left' ? 'scale(0.94)' : 'scale(1)',
+              }}
+            >
+              ◀
+            </div>
+            <div
+              className="flex items-center justify-center rounded-full"
+              style={{
+                width: 'clamp(62px, 15vw, 78px)',
+                height: 'clamp(62px, 15vw, 78px)',
+                background:
+                  activeDpadDir === 'right'
+                    ? 'rgba(56, 189, 248, 0.36)'
+                    : 'rgba(255, 255, 255, 0.13)',
+                border: `2px solid ${
+                  activeDpadDir === 'right' ? 'rgba(56,189,248,0.8)' : 'rgba(255,255,255,0.25)'
+                }`,
+                color: '#FFFFFF',
+                fontSize: '22px',
+                transform: activeDpadDir === 'right' ? 'scale(0.94)' : 'scale(1)',
+              }}
+            >
+              ▶
             </div>
           </div>
         )}
 
-        {/* === ACTION BUTTONS === */}
+        {/* Ergonomic Action Buttons: Dedicated Water Blaster FIRE + B (Ability) + A (Jump) */}
         {gameScreen === 'playing' && !isPaused && (
-          <div className="absolute z-10" style={{ bottom: 'clamp(16px, 4vh, 40px)', right: 'clamp(12px, 3vw, 24px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onContextMenu={(e) => e.preventDefault()}>
-            <div className="relative" style={{ width: 'clamp(120px, 30vw, 160px)', height: 'clamp(120px, 30vw, 160px)' }}>
-              {/* B (shoot) - Positioned bottom-left */}
+          <div
+            className="absolute z-20"
+            style={{
+              bottom: 'clamp(14px, 3.8vh, 34px)',
+              right: 'clamp(12px, 3vw, 28px)',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            }}
+          >
+            <div
+              className="relative"
+              style={{
+                width: 'clamp(138px, 31vw, 174px)',
+                height: 'clamp(128px, 28vw, 160px)',
+              }}
+            >
+              {/* Dedicated Mobile Water Blaster Button (Appears whenever Water Blaster is active!) */}
+              {waterGunSecs > 0 && (
+                <button
+                  type="button"
+                  onTouchStart={(e) => handleFireBtn(true, e)}
+                  onTouchEnd={(e) => handleFireBtn(false, e)}
+                  onTouchCancel={(e) => handleFireBtn(false, e)}
+                  onMouseDown={(e) => handleFireBtn(true, e)}
+                  onMouseUp={(e) => handleFireBtn(false, e)}
+                  onMouseLeave={() => activeBtnFire && handleFireBtn(false)}
+                  className="absolute flex flex-col items-center justify-center rounded-full"
+                  style={{
+                    ...pxNoSelect,
+                    top: '0%',
+                    left: '6%',
+                    width: 'clamp(54px, 13vw, 66px)',
+                    height: 'clamp(54px, 13vw, 66px)',
+                    background: activeBtnFire
+                      ? 'rgba(56, 189, 248, 0.56)'
+                      : 'rgba(2, 132, 199, 0.34)',
+                    border: `2px solid ${activeBtnFire ? '#FEF08A' : '#38BDF8'}`,
+                    boxShadow: activeBtnFire
+                      ? '0 0 16px rgba(56, 189, 248, 0.8)'
+                      : '0 0 10px rgba(56, 189, 248, 0.45)',
+                    color: '#E0F2FE',
+                    transform: activeBtnFire ? 'scale(0.92)' : 'scale(1)',
+                  }}
+                >
+                  <span style={{ fontSize: '8px', fontWeight: 'bold', lineHeight: 1, color: '#FFFFFF' }}>
+                    FIRE
+                  </span>
+                  <span style={{ fontSize: '5.5px', marginTop: '3px', color: '#FDE047' }}>
+                    {waterGunSecs}S
+                  </span>
+                </button>
+              )}
+
+              {/* B Button: Triggers Character Movement Ability (Dash / Boost / Slam) */}
               <button
-                onTouchStart={() => handleMobileButton('shoot', true)}
-                onTouchEnd={() => handleMobileButton('shoot', false)}
-                onTouchCancel={() => handleMobileButton('shoot', false)}
-                onMouseDown={() => handleMobileButton('shoot', true)}
-                onMouseUp={() => handleMobileButton('shoot', false)}
-                onMouseLeave={() => handleMobileButton('shoot', false)}
-                className="absolute flex items-center justify-center transition-transform active:scale-95"
-                style={{ 
-                  ...pxBtn, 
-                  bottom: '10%', left: '0',
-                  width: 'clamp(56px, 14vw, 70px)', 
-                  height: 'clamp(56px, 14vw, 70px)', 
-                  fontSize: '16px', fontWeight: 'bold',
-                  background: 'linear-gradient(135deg, rgba(255,60,60,0.25) 0%, rgba(255,60,60,0.1) 100%)', 
-                  border: '2px solid rgba(255,60,60,0.4)', 
-                  borderRadius: '50%',
-                  color: 'rgba(255,160,160,0.9)',
-                  boxShadow: '0 4px 12px rgba(255,60,60,0.2), inset 0 2px 4px rgba(255,255,255,0.1)'
+                type="button"
+                onTouchStart={(e) => handleActionBtn(true, e)}
+                onTouchEnd={(e) => handleActionBtn(false, e)}
+                onTouchCancel={(e) => handleActionBtn(false, e)}
+                onMouseDown={(e) => handleActionBtn(true, e)}
+                onMouseUp={(e) => handleActionBtn(false, e)}
+                onMouseLeave={() => activeBtnB && handleActionBtn(false)}
+                className="absolute flex flex-col items-center justify-center rounded-full"
+                style={{
+                  ...pxNoSelect,
+                  bottom: '2%',
+                  left: '0',
+                  width: 'clamp(56px, 13.5vw, 70px)',
+                  height: 'clamp(56px, 13.5vw, 70px)',
+                  background: activeBtnB
+                    ? 'rgba(251, 146, 60, 0.48)'
+                    : 'rgba(239, 68, 68, 0.24)',
+                  border: `2px solid ${activeBtnB ? '#FDE047' : 'rgba(248, 113, 113, 0.6)'}`,
+                  color: '#FFE4E6',
+                  transform: activeBtnB ? 'scale(0.93)' : 'scale(1)',
                 }}
               >
-                B
+                <span style={{ fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>B</span>
+                <span style={{ fontSize: '5px', marginTop: '3px', color: '#FDE047' }}>
+                  {bButtonLabel}
+                </span>
               </button>
-              {/* A (jump) - Positioned top-right and slightly larger */}
+
+              {/* A Button: Jump / Double Jump */}
               <button
-                onTouchStart={() => handleMobileButton('jump', true)}
-                onTouchEnd={() => handleMobileButton('jump', false)}
-                onTouchCancel={() => handleMobileButton('jump', false)}
-                onMouseDown={() => handleMobileButton('jump', true)}
-                onMouseUp={() => handleMobileButton('jump', false)}
-                onMouseLeave={() => handleMobileButton('jump', false)}
-                className="absolute flex items-center justify-center transition-transform active:scale-95"
-                style={{ 
-                  ...pxBtn, 
-                  top: '0', right: '0',
-                  width: 'clamp(70px, 18vw, 90px)', 
-                  height: 'clamp(70px, 18vw, 90px)', 
-                  fontSize: '20px', fontWeight: 'bold',
-                  background: 'linear-gradient(135deg, rgba(60,255,60,0.25) 0%, rgba(60,255,60,0.1) 100%)', 
-                  border: '2px solid rgba(60,255,60,0.4)', 
-                  borderRadius: '50%',
-                  color: 'rgba(160,255,160,0.9)', 
-                  boxShadow: '0 4px 12px rgba(60,255,60,0.2), inset 0 2px 4px rgba(255,255,255,0.1)'
+                type="button"
+                onTouchStart={(e) => handleJumpBtn(true, e)}
+                onTouchEnd={(e) => handleJumpBtn(false, e)}
+                onTouchCancel={(e) => handleJumpBtn(false, e)}
+                onMouseDown={(e) => handleJumpBtn(true, e)}
+                onMouseUp={(e) => handleJumpBtn(false, e)}
+                onMouseLeave={() => activeBtnA && handleJumpBtn(false)}
+                className="absolute flex flex-col items-center justify-center rounded-full"
+                style={{
+                  ...pxNoSelect,
+                  top: '20%',
+                  right: '0',
+                  width: 'clamp(68px, 16.5vw, 86px)',
+                  height: 'clamp(68px, 16.5vw, 86px)',
+                  background: activeBtnA
+                    ? 'rgba(74, 222, 128, 0.48)'
+                    : 'rgba(34, 197, 94, 0.25)',
+                  border: `2px solid ${activeBtnA ? '#FEF08A' : 'rgba(74, 222, 128, 0.65)'}`,
+                  color: '#DCFCE7',
+                  transform: activeBtnA ? 'scale(0.93)' : 'scale(1)',
                 }}
               >
-                A
+                <span style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1 }}>A</span>
+                <span style={{ fontSize: '5px', marginTop: '3px', color: '#86EFAC' }}>JUMP</span>
               </button>
             </div>
           </div>
         )}
-
       </div>
     );
   }
 
-  // Desktop - Pixel art mobile-only message
+  // ============================================================================
+  // 2. DESKTOP RETRO ARCADE CABINET VIEWPORT (Keyboard + Gamepad)
+  // ============================================================================
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen" style={{ background: '#0a0a0a' }}>
-      <img src="/flip.png" alt="FLIPPRX" style={{ width: '80px', height: '80px', imageRendering: 'pixelated', marginBottom: '24px', filter: 'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%)' }} />
-      <div style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '2px', marginBottom: '12px' }}>PIXEL GAME</div>
-      <div style={{ border: '2px solid #333', padding: '24px', maxWidth: '320px', textAlign: 'center' }}>
-        <div style={{ color: '#fff', fontSize: '10px', marginBottom: '12px', letterSpacing: '1px' }}>MOBILE ONLY</div>
-        <div style={{ color: '#888', fontSize: '7px', lineHeight: '1.8', marginBottom: '16px' }}>
-          THIS GAME IS DESIGNED FOR MOBILE DEVICES. OPEN ON YOUR PHONE OR TABLET TO PLAY.
+    <div
+      ref={containerRef}
+      className="min-h-screen w-full flex flex-col items-center justify-center p-4"
+      style={{
+        ...pxNoSelect,
+        background: 'radial-gradient(circle at 50% 20%, #111827 0%, #05070E 100%)',
+      }}
+    >
+      {/* Top Arcade Marquee Bar */}
+      <div
+        className="w-full max-w-5xl flex items-center justify-between px-4 py-2.5 mb-2"
+        style={{
+          background: '#0F172A',
+          border: '2px solid #334155',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <img
+            src="/croak.png"
+            alt="FLIPPRX"
+            style={{ width: '24px', height: '24px', imageRendering: 'pixelated' }}
+          />
+          <span style={{ color: '#FDE047', fontSize: '10px', letterSpacing: '1.5px' }}>
+            FLIPPRX
+          </span>
+          <span
+            className="px-2 py-0.5"
+            style={{
+              background: '#1E293B',
+              color: charMeta.color,
+              fontSize: '7px',
+              border: `1px solid ${charMeta.color}55`,
+            }}
+          >
+            {charMeta.name}
+          </span>
         </div>
-        <div style={{ color: '#4ade80', fontSize: '6px', letterSpacing: '1px' }}>
-          TOUCH CONTROLS REQUIRED
+
+        <div className="flex items-center gap-5" style={{ fontSize: '8px', letterSpacing: '1px' }}>
+          <span style={{ color: '#FFFFFF' }}>SCORE: {score}</span>
+          <span style={{ color: '#FDE047' }}>STAGE: {currentStage}/10</span>
+          <span style={{ color: '#4ADE80' }}>HI: {highScore}</span>
         </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setScanlinesEnabled((s) => !s)}
+            style={{
+              padding: '4px 8px',
+              fontSize: '6.5px',
+              color: scanlinesEnabled ? '#38BDF8' : '#64748B',
+              background: '#1E293B',
+              border: '1px solid #334155',
+            }}
+          >
+            CRT
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleAudio}
+            style={{
+              padding: '4px 8px',
+              fontSize: '6.5px',
+              color: audioEnabled ? '#4ADE80' : '#64748B',
+              background: '#1E293B',
+              border: '1px solid #334155',
+            }}
+          >
+            {audioEnabled ? 'SFX ON' : 'MUTED'}
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            style={{
+              padding: '4px 8px',
+              fontSize: '6.5px',
+              color: '#E2E8F0',
+              background: '#1E293B',
+              border: '1px solid #334155',
+            }}
+          >
+            FULL
+          </button>
+
+          {gameScreen === 'playing' && (
+            <button
+              type="button"
+              onClick={() => setIsPaused((p) => !p)}
+              style={{
+                padding: '4px 8px',
+                fontSize: '6.5px',
+                color: '#FDE047',
+                background: '#1E293B',
+                border: '1px solid #475569',
+              }}
+            >
+              {isPaused ? 'RESUME' : 'PAUSE'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Crisp 16:9 Pixel Canvas Frame */}
+      <div
+        className="relative w-full max-w-5xl aspect-video overflow-hidden bg-black"
+        style={{
+          border: '3px solid #334155',
+          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.85)',
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          width={gameWidthRef.current}
+          height={GAME_HEIGHT}
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            imageRendering: 'pixelated',
+          }}
+        />
+        {renderOverlays()}
+      </div>
+
+      {/* Desktop Controls Legend Footer */}
+      <div
+        className="w-full max-w-5xl flex flex-wrap items-center justify-between px-4 py-2 mt-2"
+        style={{
+          background: '#0F172A',
+          border: '1px solid #1E293B',
+          color: '#94A3B8',
+          fontSize: '6.5px',
+          letterSpacing: '0.8px',
+        }}
+      >
+        <span>MOVE: WASD / ARROWS</span>
+        <span>JUMP / DBL JUMP: SPACE / W / Z</span>
+        <span>{bButtonLabel}: SHIFT</span>
+        <span>WATER BLASTER: F / X</span>
+        <span>SWITCH HERO (START): C</span>
+        <span>PAUSE: P / ESC / GAMEPAD</span>
       </div>
     </div>
   );

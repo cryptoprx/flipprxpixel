@@ -1,9 +1,10 @@
-const CACHE_VERSION = '2';
+const CACHE_VERSION = '3';
 const CACHE_NAME = `flipprx-v${CACHE_VERSION}`;
 
-// Assets to cache on install
+// Assets to pre-cache on install for full offline PWA & Android TWA play
 const PRECACHE_ASSETS = [
   '/',
+  '/manifest.json',
   '/icon.png',
   '/icon-512.png',
   '/croak.png',
@@ -14,6 +15,7 @@ const PRECACHE_ASSETS = [
   '/fart.mp3',
   '/bro.mp3',
   '/huh.mp3',
+  // Shared & Classic (guy1) sprites
   '/sprites/1.png',
   '/sprites/2.png',
   '/sprites/3.png',
@@ -31,78 +33,101 @@ const PRECACHE_ASSETS = [
   '/sprites/step2.PNG',
   '/sprites/step3.PNG',
   '/sprites/step4.PNG',
-  '/manifest.json',
+  // Speedster (guy2) sprites
+  '/sprites/guy2/standing.png',
+  '/sprites/guy2/step1.png',
+  '/sprites/guy2/step2.png',
+  '/sprites/guy2/step3.png',
+  '/sprites/guy2/step4.png',
+  '/sprites/guy2/jump1.png',
+  '/sprites/guy2/jump2.png',
+  '/sprites/guy2/jump3.png',
+  '/sprites/guy2/jumpfall.png',
+  // Slammer (guy3) sprites
+  '/sprites/guy3/standing.png',
+  '/sprites/guy3/step1.png',
+  '/sprites/guy3/step2.png',
+  '/sprites/guy3/step3.png',
+  '/sprites/guy3/step4.png',
+  '/sprites/guy3/jump1.png',
+  '/sprites/guy3/jump2.png',
+  '/sprites/guy3/jump3.png',
+  '/sprites/guy3/jumpfall.png',
+  // Boss sprites (Stage 5 Emperor Viper & Stage 10 Overlord Rektus Phase 1 & 2)
+  '/sprites/boss/mini_idle1.png',
+  '/sprites/boss/mini_idle2.png',
+  '/sprites/boss/mini_charge.png',
+  '/sprites/boss/mini_attack.png',
+  '/sprites/boss/mini_hurt.png',
+  '/sprites/boss/boss_idle1.png',
+  '/sprites/boss/boss_idle2.png',
+  '/sprites/boss/boss_walk1.png',
+  '/sprites/boss/boss_walk2.png',
+  '/sprites/boss/boss_roar.png',
+  '/sprites/boss/boss_attack.png',
+  '/sprites/boss/boss_slam.png',
+  '/sprites/boss/boss_hurt.png',
+  '/sprites/boss/boss_p2_idle1.png',
+  '/sprites/boss/boss_p2_idle2.png',
+  '/sprites/boss/boss_p2_walk1.png',
+  '/sprites/boss/boss_p2_walk2.png',
+  '/sprites/boss/boss_p2_roar.png',
+  '/sprites/boss/boss_p2_attack.png',
+  '/sprites/boss/boss_p2_slam.png',
+  '/sprites/boss/boss_p2_hurt.png',
 ];
 
-// Install: pre-cache critical assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => {
-      return self.skipWaiting();
-    })
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activate: clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    }).then(() => {
-      return self.clients.claim();
-    })
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+        )
+      )
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch: network-first for navigation, cache-first for assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-
-  // Skip non-GET requests
   if (request.method !== 'GET') return;
 
-  // Navigation requests (HTML pages): network-first
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache the latest version
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
         })
-        .catch(() => {
-          // Offline: serve from cache
-          return caches.match(request).then((cached) => {
-            return cached || caches.match('/');
-          });
-        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
     );
     return;
   }
 
-  // Static assets: cache-first (sprites, sounds, images, JS, CSS)
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
-
-      return fetch(request).then((response) => {
-        // Cache successful responses for future offline use
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      }).catch(() => {
-        // If both cache and network fail, return nothing
-        return new Response('', { status: 503, statusText: 'Offline' });
-      });
+      return fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => new Response('', { status: 503, statusText: 'Offline' }));
     })
   );
 });

@@ -1,9 +1,9 @@
 {
   "name": "FLIPPRX Pixel Game",
   "short_name": "FLIPPRX",
-  "description": "Retro platformer with 3 unique characters. Play offline!",
+  "description": "Retro pixel platformer with 3 unique heroes, 4 biomes, 10 stages, and epic Boss Battles. Play offline!",
   "start_url": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "any",

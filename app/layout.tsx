@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Press_Start_2P } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
@@ -9,49 +9,57 @@ const pixelFont = Press_Start_2P({
   variable: "--font-pixel",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#000000",
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
-  title: "FLIPPRX Pixel Game - Retro Platformer with 3 Unique Characters | Play Now",
-  description: "Experience FLIPPRX Pixel Game - An addictive retro platformer featuring 3 unique characters with special abilities. Classic speedster, air-sliding racer, and ground-slamming powerhouse. 10 challenging stages, power-ups, enemies, and pixel-perfect gameplay. Play the ultimate Game Boy-style adventure now!",
-  keywords: "FLIPPRX pixel game, retro platformer, gameboy game, pixel art game, mobile platformer, retro gaming, 8-bit game, classic platformer, pixel game online, free browser game, nostalgic game, mario-style game, character abilities, speedster character, slam attack, air slide, retro game 2025, flipprx one, pixel adventure, arcade platformer, touch controls game",
+  metadataBase: new URL("https://www.flipprx.app"),
+  title: "FLIPPRX Pixel Game - Retro Platformer with 3 Unique Heroes & Boss Fights",
+  description:
+    "Experience FLIPPRX Pixel Game — an arcade pixel platformer featuring 3 unique heroes (Classic, Speedster, Slammer), 4 atmospheric biomes, 10 stages, power-ups, and epic Boss Battles against Emperor Viper and Overlord Rektus!",
+  keywords:
+    "FLIPPRX pixel game, retro platformer, pixel art game, mobile platformer, Android arcade game, 8-bit game, boss fight platformer, flipprx",
   authors: [{ name: "FLIPPRX" }],
   creator: "FLIPPRX",
   publisher: "FLIPPRX",
   applicationName: "FLIPPRX Pixel Game",
   category: "game",
   classification: "Retro Platformer Game",
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: 'https://flipprxpixel.vercel.app',
-    title: 'FLIPPRX Pixel Game - 3 Characters, 10 Stages, Pure Retro Fun 🎮',
-    description: '🕹️ Play the ultimate retro platformer! Choose from 3 unique characters - Classic hero, Speedster with air slide, or Slammer with ground pound. 10 challenging stages packed with enemies, coins, and power-ups. Free to play now!',
-    siteName: 'FLIPPRX Pixel Game',
+    type: "website",
+    locale: "en_US",
+    url: "https://www.flipprx.app",
+    title: "FLIPPRX Pixel Game - 3 Heroes, 10 Stages & Epic Bosses 🎮",
+    description:
+      "🕹️ Choose Classic, Speedster, or Slammer across 10 stages, 4 biomes, and epic pixel Boss Battles. Play free on Mobile, Android & Desktop!",
+    siteName: "FLIPPRX Pixel Game",
     images: [
       {
-        url: 'https://flipprxpixel.vercel.app/icon.png',
+        url: "https://www.flipprx.app/icon-512.png",
         width: 512,
         height: 512,
-        alt: 'FLIPPRX Pixel Game - Retro platformer with 3 unique characters',
-        type: 'image/png',
+        alt: "FLIPPRX Pixel Game",
+        type: "image/png",
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
-    site: '@flipprx',
-    creator: '@flipprx',
-    title: 'FLIPPRX Pixel Game - 3 Characters, 10 Stages 🎮',
-    description: '🕹️ Ultimate retro platformer! Choose your character: Classic, Speedster (air slide), or Slammer (ground pound). 10 stages of pixel-perfect action. Play now! 👾',
+    card: "summary_large_image",
+    site: "@flipprx",
+    creator: "@flipprx",
+    title: "FLIPPRX Pixel Game - 3 Heroes, 10 Stages & Epic Bosses 🎮",
+    description:
+      "🕹️ Choose Classic, Speedster, or Slammer across 10 stages and defeat Overlord Rektus!",
     images: [
       {
-        url: 'https://flipprxpixel.vercel.app/icon.png',
-        alt: 'FLIPPRX Pixel Game - Retro platformer',
+        url: "https://www.flipprx.app/icon-512.png",
+        alt: "FLIPPRX Pixel Game",
       },
     ],
   },
@@ -61,27 +69,26 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
     },
   },
   icons: {
     icon: [
-      { url: '/icon.png', sizes: '16x16', type: 'image/png' },
-      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icon.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon.png', sizes: '512x512', type: 'image/png' },
+      { url: "/icon.png", sizes: "16x16", type: "image/png" },
+      { url: "/icon.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: '/apple-touch-icon.png',
-    shortcut: '/icon.png',
+    apple: "/apple-touch-icon.png",
+    shortcut: "/icon.png",
   },
-  manifest: '/manifest.json',
+  manifest: "/manifest.json",
   other: {
-    'mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
-    'theme-color': '#000000',
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
 };
 
@@ -94,7 +101,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${pixelFont.variable}`}
-        style={{ fontFamily: 'var(--font-pixel), monospace' }}
+        style={{ fontFamily: "var(--font-pixel), monospace" }}
       >
         <ServiceWorkerRegistration />
         {children}
