@@ -1,4 +1,4 @@
-const CACHE_VERSION = '4';
+const CACHE_VERSION = '5';
 const CACHE_NAME = `flipprx-v${CACHE_VERSION}`;
 
 // Assets to pre-cache on install for full offline PWA & Android TWA play
@@ -9,6 +9,7 @@ const PRECACHE_ASSETS = [
   '/icon-512.png',
   '/croak.png',
   '/flip.png',
+  '/flip-pixel.png',
   '/helmet.png',
   '/apple-touch-icon.png',
   '/flip.mp3',

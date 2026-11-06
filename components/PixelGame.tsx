@@ -805,20 +805,16 @@ export default function PixelGame() {
             @keyframes startPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.45); } 50% { box-shadow: 0 0 18px 2px rgba(74,222,128,0.45); } }
           `}</style>
 
-          {/* Single Centered FLIPPRX Logo + Edition Subtitle */}
+          {/* Single Centered Pixel-Art FLIPPRX Logo + Edition Subtitle */}
           <div className="flex flex-col items-center mb-2">
             <img
-              src="/flip.png"
+              src="/flip-pixel.png"
               alt="FLIPPRX"
               style={{
-                width: 'clamp(96px, 20vw, 148px)',
-                height: 'clamp(56px, 11.5vw, 86px)',
-                objectFit: 'cover',
-                objectPosition: 'center 53%',
+                width: 'clamp(104px, 21vw, 152px)',
+                height: 'auto',
                 imageRendering: 'pixelated',
                 animation: 'titlePulse 2.2s ease-in-out infinite',
-                filter:
-                  'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%) drop-shadow(2px 2px 0px #000)',
               }}
             />
             <div
@@ -826,7 +822,7 @@ export default function PixelGame() {
                 color: '#4ADE80',
                 fontSize: 'clamp(6.5px, 1.3vw, 8.5px)',
                 letterSpacing: '2px',
-                marginTop: '2px',
+                marginTop: '3px',
                 textShadow: '1px 1px 0 #000',
               }}
             >
