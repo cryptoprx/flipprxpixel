@@ -805,41 +805,32 @@ export default function PixelGame() {
             @keyframes startPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.45); } 50% { box-shadow: 0 0 18px 2px rgba(74,222,128,0.45); } }
           `}</style>
 
-          {/* Logo + Subtitle */}
-          <div className="flex items-center gap-3 mb-2">
+          {/* Single Centered FLIPPRX Logo + Edition Subtitle */}
+          <div className="flex flex-col items-center mb-2">
             <img
               src="/flip.png"
               alt="FLIPPRX"
               style={{
-                width: '48px',
-                height: '48px',
+                width: 'clamp(96px, 20vw, 148px)',
+                height: 'clamp(56px, 11.5vw, 86px)',
+                objectFit: 'cover',
+                objectPosition: 'center 53%',
                 imageRendering: 'pixelated',
                 animation: 'titlePulse 2.2s ease-in-out infinite',
                 filter:
-                  'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%)',
+                  'brightness(0) saturate(100%) invert(86%) sepia(51%) saturate(2206%) hue-rotate(352deg) brightness(101%) contrast(105%) drop-shadow(2px 2px 0px #000)',
               }}
             />
-            <div>
-              <div
-                style={{
-                  color: '#FDE047',
-                  fontSize: 'clamp(13px, 2.8vw, 20px)',
-                  letterSpacing: '2px',
-                  textShadow: '2px 2px 0 #000',
-                }}
-              >
-                FLIPPRX
-              </div>
-              <div
-                style={{
-                  color: '#4ADE80',
-                  fontSize: 'clamp(6px, 1.2vw, 8px)',
-                  letterSpacing: '1.5px',
-                  marginTop: '3px',
-                }}
-              >
-                PIXEL OVERLORD EDITION
-              </div>
+            <div
+              style={{
+                color: '#4ADE80',
+                fontSize: 'clamp(6.5px, 1.3vw, 8.5px)',
+                letterSpacing: '2px',
+                marginTop: '2px',
+                textShadow: '1px 1px 0 #000',
+              }}
+            >
+              PIXEL OVERLORD EDITION
             </div>
           </div>
 
