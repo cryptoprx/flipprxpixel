@@ -175,6 +175,8 @@ export interface Checkpoint {
 export interface PlayerSprite {
   x: number;
   y: number;
+  prevX: number;
+  prevY: number;
   width: number;
   height: number;
   velocityX: number;
@@ -239,7 +241,7 @@ export interface GameState {
   comboTimer: number;
   screenShake: number;
   hitStopTimer: number;
-  camera: { x: number; y: number; targetX: number };
+  camera: { x: number; y: number; prevX: number; prevY: number; targetX: number };
   currentStage: number;
   biome: BiomeId;
   stageWidth: number;

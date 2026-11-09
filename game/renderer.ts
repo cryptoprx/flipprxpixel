@@ -6,6 +6,7 @@ import { BiomeId, CharacterId, GameState } from './types';
 const skyGradientCache: Partial<Record<BiomeId, CanvasGradient>> = {};
 let helmetScratchCanvas: HTMLCanvasElement | null = null;
 let helmetScratchCtx: CanvasRenderingContext2D | null = null;
+let lastPlayerScreenX: number | null = null;
 
 export function getPlayerSpriteKey(selectedChar: CharacterId, frameName: string): string {
   const prefix = selectedChar === 'guy1' ? '' : `${selectedChar}_`;
@@ -72,7 +73,8 @@ export function renderGame(
   lives: number,
   sprites: Record<string, HTMLImageElement>,
   scanlinesEnabled: boolean,
-  now: number
+  now: number,
+  alpha = 1
 ) {
   const atlas = getTileAtlas();
   const biome = BIOMES[state.biome];
@@ -80,6 +82,12 @@ export function renderGame(
   const sTiles = atlas.shared;
 
   ctx.imageSmoothingEnabled = false;
+
+  // Sub-tick interpolated camera & player coordinates for silky motion across 60Hz/90Hz/120Hz/144Hz displays
+  const interpCamX = state.camera.prevX + (state.camera.x - state.camera.prevX) * alpha;
+  const interpCamY = state.camera.prevY + (state.camera.y - state.camera.prevY) * alpha;
+  const interpPlayerX = state.player.prevX + (state.player.x - state.player.prevX) * alpha;
+  const interpPlayerY = state.player.prevY + (state.player.y - state.player.prevY) * alpha;
 
   // 1. Sky Gradient (Cached per Biome)
   let skyGrad = skyGradientCache[state.biome];
@@ -95,14 +103,29 @@ export function renderGame(
   ctx.fillRect(0, 0, gameWidth, GAME_HEIGHT);
 
   // 2. Celestial Body & Atmospheric Sky FX (Screen Space with subtle parallax)
-  drawSkyAtmosphere(ctx, state, biome.id, gameWidth, now);
+  drawSkyAtmosphere(ctx, interpCamX, biome.id, gameWidth, now);
 
   // 3. Enter World Camera Space
   ctx.save();
   const shakeX =
-    state.screenShake > 0 ? Math.floor((Math.random() - 0.5) * state.screenShake * 8) : 0;
-  const camX = Math.floor(state.camera.x - shakeX);
-  const camY = Math.floor(state.camera.y);
+    state.screenShake > 0 ? Math.round((Math.random() - 0.5) * state.screenShake * 8) : 0;
+  const effectiveCamX = interpCamX - shakeX;
+  const camX = Math.round(effectiveCamX);
+  const camY = Math.round(interpCamY);
+
+  // Lock player's integer world draw X/Y to their screen-relative camera offset with Schmitt-trigger
+  // hysteresis so independent rounding of player.x vs camera.x NEVER causes ±1px beat jitter while running!
+  const relPlayerX = interpPlayerX - effectiveCamX;
+  let playerScreenX: number;
+  if (lastPlayerScreenX === null || Math.abs(relPlayerX - lastPlayerScreenX) > 0.56) {
+    playerScreenX = Math.round(relPlayerX);
+    lastPlayerScreenX = playerScreenX;
+  } else {
+    playerScreenX = lastPlayerScreenX;
+  }
+  const playerDrawX = camX + playerScreenX;
+  const playerDrawY = camY + Math.round(interpPlayerY - interpCamY);
+
   ctx.translate(-camX, -camY);
 
   // Parallax Clouds (O(viewport) infinite coverage across all stage lengths!)
@@ -563,7 +586,7 @@ export function renderGame(
 
   // 12. Player Character (With Squash/Stretch, Afterimages, Bull Run Aura & Rainbow Star Helmet!)
   if (!state.inBlackhole) {
-    drawPlayerInWorld(ctx, state, selectedChar, sprites, now);
+    drawPlayerInWorld(ctx, state, selectedChar, sprites, now, playerDrawX, playerDrawY);
   }
 
   // 13. World Particles & Floating Score Popups
@@ -594,9 +617,9 @@ export function renderGame(
     const tw = measurePixelText(label, 1);
     const bw = tw + 6;
     const bh = 9;
-    const centerBx = Math.floor(state.player.x + 6);
+    const centerBx = playerDrawX + 6;
     const bx = Math.max(camX + 2, Math.min(camX + gameWidth - bw - 2, Math.floor(centerBx - bw / 2)));
-    const by = Math.max(camY + 18, Math.floor(state.player.y - bh - 7));
+    const by = Math.max(camY + 18, playerDrawY - bh - 7);
 
     ctx.fillStyle = '#000000';
     ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
@@ -647,12 +670,12 @@ export function renderGame(
 
 function drawSkyAtmosphere(
   ctx: CanvasRenderingContext2D,
-  state: GameState,
+  cameraX: number,
   biomeId: BiomeId,
   gameWidth: number,
   now: number
 ) {
-  const celestialX = Math.floor(gameWidth * 0.78 - (state.camera.x * 0.02) % 30);
+  const celestialX = Math.floor(gameWidth * 0.78 - (cameraX * 0.02) % 30);
 
   if (biomeId === 'day') {
     // Crisp Pixel Sun
@@ -706,16 +729,20 @@ function drawPlayerInWorld(
   state: GameState,
   selectedChar: CharacterId,
   sprites: Record<string, HTMLImageElement>,
-  now: number
+  now: number,
+  px: number,
+  py: number
 ) {
   const player = state.player;
-  const px = Math.floor(player.x);
-  const py = Math.floor(player.y);
 
   let frameName = 'idle';
   if (player.currentAnimation === 'walk') {
+    // 4-beat pendulum stride cycle (mid-stride -> full-stride -> mid-stride -> center-pass):
+    // excludes step1 ('walk1'), which has a 94% identical upright two-leg standing pose to standing.png,
+    // and smoothly bridges step3's 13px split back through step2 before step4's center leg cross!
+    const runCycle = ['walk2', 'walk3', 'walk2', 'walk4'] as const;
     const idx = Math.floor(player.animationFrame) % 4;
-    frameName = `walk${idx + 1}`;
+    frameName = runCycle[idx];
   } else if (player.currentAnimation === 'jump') {
     frameName = 'jump1';
   } else if (player.currentAnimation === 'crouch') {
@@ -749,12 +776,15 @@ function drawPlayerInWorld(
     ctx.globalAlpha = 0.42;
   }
 
-  // Apply Squash & Stretch + Flip Rotation
+  // Apply Squash & Stretch + Flip Rotation ONLY when actively deformed/rotating
+  // so running on flat ground blits sprites at pure 1:1 integer pixel coordinates!
   const cx = px + 6;
   const cy = py + 7;
-  ctx.translate(cx, py + 14);
-  ctx.scale(player.squashX, player.squashY);
-  ctx.translate(-cx, -(py + 14));
+  if (player.squashX !== 1 || player.squashY !== 1) {
+    ctx.translate(cx, py + 14);
+    ctx.scale(player.squashX, player.squashY);
+    ctx.translate(-cx, -(py + 14));
+  }
 
   if (player.rotation !== 0) {
     ctx.translate(cx, cy);

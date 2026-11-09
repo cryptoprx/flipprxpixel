@@ -25,6 +25,8 @@ export function createDefaultPlayer(): PlayerSprite {
   return {
     x: 80,
     y: 112,
+    prevX: 80,
+    prevY: 112,
     width: 12,
     height: 14,
     velocityX: 0,
@@ -105,7 +107,7 @@ export function createInitialGameState(): GameState {
     comboTimer: 0,
     screenShake: 0,
     hitStopTimer: 0,
-    camera: { x: 0, y: 0, targetX: 0 },
+    camera: { x: 0, y: 0, prevX: 0, prevY: 0, targetX: 0 },
     currentStage: 1,
     biome: 'day',
     stageWidth: 3520,
@@ -202,11 +204,15 @@ export function loadStageIntoState(state: GameState, grid: SpatialGrid, stageNum
   state.hitStopTimer = 0;
   state.camera.x = 0;
   state.camera.y = 0;
+  state.camera.prevX = 0;
+  state.camera.prevY = 0;
   state.camera.targetX = 0;
 
   resetPlayerAbilities(state.player);
   state.player.x = 80;
   state.player.y = 112;
+  state.player.prevX = 80;
+  state.player.prevY = 112;
   state.player.onGround = true;
   state.player.invincibilityTimer = 0;
 
@@ -231,6 +237,10 @@ export function updateGameEngine(
   cb: EngineCallbacks
 ) {
   const player = state.player;
+  player.prevX = player.x;
+  player.prevY = player.y;
+  state.camera.prevX = state.camera.x;
+  state.camera.prevY = state.camera.y;
 
   const addScore = (pts: number) => {
     const mult = player.bullRunTimer > 0 ? 2 : 1;
@@ -247,9 +257,12 @@ export function updateGameEngine(
   if (state.deathFlashTimer > 0) state.deathFlashTimer -= dt;
   if (state.bossWarningTimer > 0) state.bossWarningTimer -= dt;
 
-  // Recover squash & stretch smoothly toward (1, 1)
+  // Recover squash & stretch smoothly toward (1, 1) and snap cleanly to exact 1.0
+  // so lingering floating-point scale never causes sub-pixel sprite column shimmer while running!
   player.squashX += (1 - player.squashX) * Math.min(1, dt * 14);
   player.squashY += (1 - player.squashY) * Math.min(1, dt * 14);
+  if (Math.abs(1 - player.squashX) < 0.012) player.squashX = 1;
+  if (Math.abs(1 - player.squashY) < 0.012) player.squashY = 1;
 
   // Update floating score popups
   for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
@@ -946,8 +959,15 @@ export function updateGameEngine(
     resetPlayerAbilities(player);
     player.x = state.respawnX;
     player.y = state.respawnY;
+    player.prevX = player.x;
+    player.prevY = player.y;
     player.onGround = true;
     player.invincibilityTimer = 2.0;
+    state.camera.x = Math.max(0, Math.min(player.x - gameWidth / 2, state.stageWidth - gameWidth));
+    state.camera.y = 0;
+    state.camera.prevX = state.camera.x;
+    state.camera.prevY = 0;
+    state.camera.targetX = state.camera.x;
     state.combo = 0;
     state.comboTimer = 0;
 
@@ -1208,7 +1228,7 @@ export function updateGameEngine(
     player.currentAnimation = player.velocityY > 100 ? 'crouch' : 'jump';
     player.animationFrame = 0;
     player.animationTimer = 0;
-  } else if (player.landingTimer > 0) {
+  } else if (player.landingTimer > 0 && Math.abs(player.velocityX) < 25) {
     player.currentAnimation = 'crouch';
   } else if (Math.abs(player.velocityX) < 5) {
     player.currentAnimation = 'idle';
@@ -1220,10 +1240,11 @@ export function updateGameEngine(
       player.animationTimer = 0;
     }
     const speedFactor = Math.max(0.5, Math.abs(player.velocityX) / PLAYER_SPEED);
+    const frameDuration = 0.1 / speedFactor;
     player.animationTimer += dt;
-    if (player.animationTimer > 0.12 / speedFactor) {
+    if (player.animationTimer >= frameDuration) {
       player.animationFrame = (player.animationFrame + 1) % 4;
-      player.animationTimer = 0;
+      player.animationTimer -= frameDuration;
     }
   }
 
@@ -1640,6 +1661,8 @@ export function updateGameEngine(
     player.facingLeft = false;
     player.x = state.goalX - 5;
     player.y = Math.max(48, Math.min(112, player.y));
+    player.prevX = player.x;
+    player.prevY = player.y;
     player.squashX = 0.85;
     player.squashY = 1.15;
 

@@ -1,4 +1,4 @@
-const CACHE_VERSION = '5';
+const CACHE_VERSION = '7';
 const CACHE_NAME = `flipprx-v${CACHE_VERSION}`;
 
 // Assets to pre-cache on install for full offline PWA & Android TWA play
@@ -104,15 +104,22 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
-  if (request.mode === 'navigate') {
+  const url = new URL(request.url);
+  if (request.mode === 'navigate' || url.pathname.startsWith('/_next/')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+        .catch(() =>
+          caches
+            .match(request)
+            .then((cached) => cached || (request.mode === 'navigate' ? caches.match('/') : new Response('', { status: 503 })))
+        )
     );
     return;
   }

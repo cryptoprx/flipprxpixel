@@ -119,6 +119,7 @@ export default function PixelGame() {
   const spritesRef = useRef<Record<string, HTMLImageElement>>({});
   const gameWidthRef = useRef<number>(256);
   const waterGunSecsRef = useRef<number>(0);
+  const dpadDirRef = useRef<'left' | 'right' | null>(null);
 
   const screenRef = useRef<GameScreen>('title');
   const pausedRef = useRef(false);
@@ -241,6 +242,7 @@ export default function PixelGame() {
       const hidden = document.hidden;
       soundRef.current?.onVisibilityChange(hidden);
       gameStateRef.current.keys = {};
+      dpadDirRef.current = null;
       setActiveDpadDir(null);
       setActiveBtnA(false);
       setActiveBtnB(false);
@@ -252,6 +254,7 @@ export default function PixelGame() {
 
     const handleBlur = () => {
       gameStateRef.current.keys = {};
+      dpadDirRef.current = null;
       setActiveDpadDir(null);
       setActiveBtnA(false);
       setActiveBtnB(false);
@@ -321,6 +324,8 @@ export default function PixelGame() {
     livesRef.current = 3;
     waterGunSecsRef.current = 0;
     setWaterGunSecs(0);
+    dpadDirRef.current = null;
+    setActiveDpadDir(null);
     setActiveBtnFire(false);
     setDeathCount(0);
     setGameWon(false);
@@ -335,6 +340,8 @@ export default function PixelGame() {
     loadStageIntoState(state, spatialGridRef.current, state.currentStage);
     waterGunSecsRef.current = 0;
     setWaterGunSecs(0);
+    dpadDirRef.current = null;
+    setActiveDpadDir(null);
     setActiveBtnFire(false);
     setIsPaused(false);
   }, []);
@@ -408,14 +415,23 @@ export default function PixelGame() {
     };
 
     const tick = (now: number) => {
-      const rawDt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+      let rawDt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
       lastTime = now;
+
+      // Snap slight VSync timestamp jitter on 60Hz (~16.67ms) & 120Hz (~8.33ms) displays
+      // so fixed-timestep physics steps at a rock-steady cadence with zero 0/2 frame beat!
+      if (Math.abs(rawDt - FIXED_DT) < 0.0015) {
+        rawDt = FIXED_DT;
+      } else if (Math.abs(rawDt - FIXED_DT * 0.5) < 0.0008) {
+        rawDt = FIXED_DT * 0.5;
+      }
 
       pollGamepad();
 
       const state = gameStateRef.current;
       const sound = soundRef.current!;
 
+      let renderAlpha = 1;
       if (screenRef.current === 'playing' && !pausedRef.current) {
         accumulator += rawDt;
         let steps = 0;
@@ -468,9 +484,17 @@ export default function PixelGame() {
             break;
           }
         }
+        if (steps >= 3 && accumulator >= FIXED_DT) {
+          accumulator = 0;
+        }
+        renderAlpha =
+          screenRef.current === 'playing'
+            ? Math.min(1, Math.max(0, accumulator / FIXED_DT))
+            : 1;
       } else if (screenRef.current === 'title') {
         // Gentle idle camera drift on Title Screen backdrop
         state.camera.x = (now * 0.018) % Math.max(1, state.stageWidth - gameWidthRef.current);
+        state.camera.prevX = state.camera.x;
         state.gameStarted = true;
       }
 
@@ -502,7 +526,8 @@ export default function PixelGame() {
             livesRef.current,
             spritesRef.current,
             scanlinesRef.current,
-            now
+            now,
+            renderAlpha
           );
         }
       }
@@ -557,9 +582,22 @@ export default function PixelGame() {
       state.keys[k] = true;
       state.keys[low] = true;
 
-      if (k === 'ArrowLeft' || low === 'a') state.keys['KeyLeft'] = true;
-      if (k === 'ArrowRight' || low === 'd') state.keys['KeyRight'] = true;
-      if (k === 'ArrowDown' || low === 's') state.keys['KeyDown'] = true;
+      if (k === 'ArrowLeft') state.keys['RawArrowLeft'] = true;
+      if (k === 'ArrowRight') state.keys['RawArrowRight'] = true;
+      if (k === 'ArrowDown') state.keys['RawArrowDown'] = true;
+
+      if (k === 'ArrowLeft' || low === 'a') {
+        state.keys['KeyLeft'] = true;
+        state.keys['ArrowLeft'] = true;
+      }
+      if (k === 'ArrowRight' || low === 'd') {
+        state.keys['KeyRight'] = true;
+        state.keys['ArrowRight'] = true;
+      }
+      if (k === 'ArrowDown' || low === 's') {
+        state.keys['KeyDown'] = true;
+        state.keys['ArrowDown'] = true;
+      }
 
       if (k === 'ArrowUp' || low === 'w' || k === ' ' || low === 'z') {
         state.keys['KeyJump'] = true;
@@ -605,9 +643,30 @@ export default function PixelGame() {
       state.keys[k] = false;
       state.keys[low] = false;
 
-      if (k === 'ArrowLeft' || low === 'a') state.keys['KeyLeft'] = false;
-      if (k === 'ArrowRight' || low === 'd') state.keys['KeyRight'] = false;
-      if (k === 'ArrowDown' || low === 's') state.keys['KeyDown'] = false;
+      if (k === 'ArrowLeft') state.keys['RawArrowLeft'] = false;
+      if (k === 'ArrowRight') state.keys['RawArrowRight'] = false;
+      if (k === 'ArrowDown') state.keys['RawArrowDown'] = false;
+
+      if (k === 'ArrowLeft' || low === 'a') {
+        state.keys['KeyLeft'] = !!(state.keys['RawArrowLeft'] || state.keys['a']);
+        state.keys['ArrowLeft'] = !!(
+          state.keys['KeyLeft'] ||
+          state.keys['TouchLeft'] ||
+          state.keys['PadLeft']
+        );
+      }
+      if (k === 'ArrowRight' || low === 'd') {
+        state.keys['KeyRight'] = !!(state.keys['RawArrowRight'] || state.keys['d']);
+        state.keys['ArrowRight'] = !!(
+          state.keys['KeyRight'] ||
+          state.keys['TouchRight'] ||
+          state.keys['PadRight']
+        );
+      }
+      if (k === 'ArrowDown' || low === 's') {
+        state.keys['KeyDown'] = !!(state.keys['RawArrowDown'] || state.keys['s']);
+        state.keys['ArrowDown'] = !!state.keys['KeyDown'];
+      }
       if (k === 'ArrowUp' || low === 'w' || k === ' ' || low === 'z') state.keys['KeyJump'] = false;
       if (k === 'Shift' || low === 'x') {
         state.keys['KeyAction'] = false;
@@ -629,35 +688,48 @@ export default function PixelGame() {
     };
   }, [spritesLoaded, startNewRun, persistProgress]);
 
-  // Unified Slideable Multi-Touch D-Pad Handler
+  // Unified Slideable Multi-Touch D-Pad Handler (Zero center deadzone + zero redundant React renders!)
   const updateDpadFromClientX = (clientX: number | null) => {
     const state = gameStateRef.current;
-    soundRef.current?.tryStartMusic();
 
     if (clientX === null || !dpadRef.current) {
       state.keys['TouchLeft'] = false;
       state.keys['TouchRight'] = false;
-      state.keys['ArrowLeft'] = !!state.keys['KeyLeft'];
-      state.keys['ArrowRight'] = !!state.keys['KeyRight'];
-      setActiveDpadDir(null);
+      state.keys['ArrowLeft'] = !!(state.keys['KeyLeft'] || state.keys['PadLeft']);
+      state.keys['ArrowRight'] = !!(state.keys['KeyRight'] || state.keys['PadRight']);
+      if (dpadDirRef.current !== null) {
+        dpadDirRef.current = null;
+        setActiveDpadDir(null);
+      }
       return;
     }
 
     const rect = dpadRef.current.getBoundingClientRect();
     const relX = clientX - (rect.left + rect.width / 2);
+    const prevDir = dpadDirRef.current;
+    const nextDir: 'left' | 'right' =
+      prevDir === 'left'
+        ? relX > 3
+          ? 'right'
+          : 'left'
+        : prevDir === 'right'
+          ? relX < -3
+            ? 'left'
+            : 'right'
+          : relX < 0
+            ? 'left'
+            : 'right';
 
-    if (relX < -4) {
-      state.keys['TouchLeft'] = true;
-      state.keys['TouchRight'] = false;
-      state.keys['ArrowLeft'] = true;
-      state.keys['ArrowRight'] = false;
-      setActiveDpadDir('left');
-    } else if (relX > 4) {
-      state.keys['TouchLeft'] = false;
-      state.keys['TouchRight'] = true;
-      state.keys['ArrowLeft'] = false;
-      state.keys['ArrowRight'] = true;
-      setActiveDpadDir('right');
+    state.keys['TouchLeft'] = nextDir === 'left';
+    state.keys['TouchRight'] = nextDir === 'right';
+    state.keys['ArrowLeft'] = nextDir === 'left' || !!(state.keys['KeyLeft'] || state.keys['PadLeft']);
+    state.keys['ArrowRight'] =
+      nextDir === 'right' || !!(state.keys['KeyRight'] || state.keys['PadRight']);
+
+    if (prevDir !== nextDir) {
+      soundRef.current?.tryStartMusic();
+      dpadDirRef.current = nextDir;
+      setActiveDpadDir(nextDir);
     }
   };
 
